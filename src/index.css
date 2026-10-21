@@ -1,0 +1,173 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Paleta oficial EVoLuMentaL Control. Os tokens mudam no tema escuro. */
+:root {
+  --bg: #ffffff;
+  --surface: #f8f6f2;
+  --surface-2: #f2eee7;
+  --border: #eae2d7;
+  --muted: #6b6259;
+  --ink: #3b2b20;
+  --accent: #deb887;
+  --accent-strong: #c99c5f;
+  --accent-ink: #3b2b20;
+  --wheat: #f5deb3;
+  --success: #4f7a55;
+  --danger: #b4483c;
+  --warning: #a8741f;
+  --info: #4f6d8a;
+  --overlay: rgba(59, 43, 32, 0.35);
+  /* Séries categóricas (validadas para daltonismo; ordem fixa) */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+  --series-8: #e34948;
+  --chart-grid: #efe9df;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #17120e;
+  --surface: #211a15;
+  --surface-2: #2a221b;
+  --border: #3a3027;
+  --muted: #b5a899;
+  --ink: #f3ebdf;
+  --accent: #deb887;
+  --accent-strong: #e8c99c;
+  --accent-ink: #2a1e15;
+  --wheat: #f5deb3;
+  --success: #86b38c;
+  --danger: #e08376;
+  --warning: #e0b066;
+  --info: #8fb0cf;
+  --overlay: rgba(0, 0, 0, 0.55);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --chart-grid: #2c241d;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-muted: var(--muted);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-wheat: var(--wheat);
+  --color-brown: #3b2b20;
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Itens de grid podem encolher: evita que textos/controles alarguem a página. */
+@layer base {
+  .grid > * {
+    min-width: 0;
+  }
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Barra de rolagem discreta */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+@keyframes evl-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-fade-in {
+  animation: evl-fade-in 160ms ease-out;
+}
+
+@keyframes evl-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 18px transparent;
+  }
+}
+.animate-pulse-ring {
+  animation: evl-pulse-ring 1.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* React Flow: integra o canvas à paleta */
+.react-flow {
+  --xy-background-color: var(--bg);
+  --xy-node-border-radius: 12px;
+  --xy-edge-stroke: var(--muted);
+  --xy-controls-button-background-color: var(--bg);
+  --xy-controls-button-background-color-hover: var(--surface);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-border-color: var(--border);
+  --xy-minimap-background-color: var(--surface);
+}
+
+@media print {
+  aside,
+  header,
+  .no-print {
+    display: none !important;
+  }
+}

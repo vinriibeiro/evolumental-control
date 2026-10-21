@@ -1,0 +1,290 @@
+// Backend do MODO LOCAL (desenvolvimento / uso em um único navegador).
+// Os dados ficam no IndexedDB deste navegador: não há login real nem
+// sincronização com a nuvem. A interface informa isso ao usuário.
+// Reproduz as regras relevantes do PostgreSQL: padrões, restrições únicas
+// parciais, exclusão em cascata/SET NULL e a RPC de revisão de flashcards.
+import Dexie, { type Table } from 'dexie'
+import type { Insert, Patch, Profile, Row, TableName } from '@/types/db'
+import { DEFAULTS, RELATIONS, TABLES, UNIQUE_RULES } from './schema'
+import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type SessionWithPauses } from './types'
+
+export const LOCAL_USER_ID = '00000000-0000-4000-8000-000000000001'
+
+type AnyRow = Record<string, unknown> & { id: string }
+
+const INDEXES: Record<TableName, string> = {
+  profiles: 'id',
+  subjects: 'id, status',
+  topics: 'id, subject_id, parent_id',
+  study_materials: 'id, topic_id, subject_id',
+  study_sessions: 'id, status, started_at, subject_id, topic_id',
+  study_session_pauses: 'id, session_id',
+  study_plans: 'id',
+  study_plan_items: 'id, plan_id, date',
+  study_cycles: 'id',
+  study_cycle_items: 'id, cycle_id',
+  calendar_tasks: 'id, date',
+  reviews: 'id, scheduled_for, topic_id',
+  flashcard_decks: 'id',
+  flashcards: 'id, deck_id, due_at, topic_id',
+  flashcard_reviews: 'id, card_id, reviewed_at',
+  mind_maps: 'id',
+  study_goals: 'id',
+  question_records: 'id, date, subject_id',
+}
+
+class LocalDb extends Dexie {
+  constructor(name: string) {
+    super(name)
+    this.version(1).stores(INDEXES)
+  }
+  t(table: TableName): Table<AnyRow, string> {
+    return this.table(table)
+  }
+}
+
+function cmp(a: unknown, b: unknown): number {
+  if (a == null && b == null) return 0
+  if (a == null) return -1
+  if (b == null) return 1
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0
+}
+
+export function matchFilter(row: Record<string, unknown>, f: Filter): boolean {
+  const v = row[f.column]
+  switch (f.op) {
+    case 'eq':
+      return v === f.value || (typeof v === 'number' && Number(f.value) === v)
+    case 'neq':
+      return v !== f.value
+    case 'in':
+      return (f.value as unknown[]).includes(v)
+    case 'gt':
+      return v != null && cmp(v, f.value) > 0
+    case 'gte':
+      return v != null && cmp(v, f.value) >= 0
+    case 'lt':
+      return v != null && cmp(v, f.value) < 0
+    case 'lte':
+      return v != null && cmp(v, f.value) <= 0
+    case 'is':
+      return v == null
+    case 'not_null':
+      return v != null
+    case 'contains':
+      return Array.isArray(v) && (f.value as unknown[]).every((x) => v.includes(x))
+  }
+}
+
+function normalize(s: string) {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+}
+
+export function applyQuery<T extends Record<string, unknown>>(rows: T[], q: ListQuery = {}): ListResult<T> {
+  let out = rows.filter((r) => (q.filters ?? []).every((f) => matchFilter(r, f)))
+  if (q.search && q.search.term.trim()) {
+    const term = normalize(q.search.term.trim())
+    out = out.filter((r) => q.search!.columns.some((c) => typeof r[c] === 'string' && normalize(r[c] as string).includes(term)))
+  }
+  if (q.order?.length) {
+    out = [...out].sort((a, b) => {
+      for (const o of q.order!) {
+        const c = cmp(a[o.column], b[o.column])
+        if (c !== 0) return o.ascending === false ? -c : c
+      }
+      return 0
+    })
+  }
+  const count = q.count ? out.length : null
+  const offset = q.offset ?? 0
+  if (q.limit != null) out = out.slice(offset, offset + q.limit)
+  else if (offset) out = out.slice(offset)
+  return { rows: out, count }
+}
+
+export class LocalBackend implements DataBackend {
+  readonly kind = 'local' as const
+  private db: LocalDb
+
+  constructor(name = 'evolumental-local') {
+    this.db = new LocalDb(name)
+  }
+
+  private now() {
+    return new Date().toISOString()
+  }
+
+  private async checkUnique(table: TableName, row: AnyRow) {
+    const rules = UNIQUE_RULES[table]
+    if (!rules) return
+    for (const rule of rules) {
+      if (!rule.where(row)) continue
+      const clash = await this.db
+        .t(table)
+        .filter((r) => r.id !== row.id && rule.where(r) && rule.columns.every((c) => r[c] === row[c]))
+        .first()
+      if (clash) throw new DataError('duplicate', `Violação de unicidade (${rule.name}).`)
+    }
+  }
+
+  async list<T extends TableName>(table: T, query?: ListQuery): Promise<ListResult<Row<T>>> {
+    const rows = (await this.db.t(table).toArray()) as unknown as Row<T>[]
+    return applyQuery(rows as unknown as Record<string, unknown>[], query) as unknown as ListResult<Row<T>>
+  }
+
+  async get<T extends TableName>(table: T, id: string): Promise<Row<T> | null> {
+    return ((await this.db.t(table).get(id)) as unknown as Row<T>) ?? null
+  }
+
+  async count(table: TableName, filters: Filter[]): Promise<number> {
+    return this.db
+      .t(table)
+      .filter((r) => filters.every((f) => matchFilter(r, f)))
+      .count()
+  }
+
+  async insert<T extends TableName>(table: T, rows: Insert<T>[]): Promise<Row<T>[]> {
+    const out: AnyRow[] = []
+    await this.db.transaction('rw', this.db.t(table), async () => {
+      for (const r of rows) {
+        const now = this.now()
+        const row = {
+          ...(DEFAULTS[table] as object),
+          ...(r as object),
+          id: (r as { id?: string }).id ?? crypto.randomUUID(),
+          user_id: LOCAL_USER_ID,
+          created_at: now,
+          updated_at: now,
+        } as AnyRow
+        if (await this.db.t(table).get(row.id)) throw new DataError('duplicate', 'Registro já existe.')
+        await this.checkUnique(table, row)
+        out.push(row)
+      }
+      await this.db.t(table).bulkAdd(out)
+    })
+    return out as unknown as Row<T>[]
+  }
+
+  async update<T extends TableName>(table: T, filters: Filter[], patch: Patch<T>): Promise<Row<T>[]> {
+    const updated: AnyRow[] = []
+    await this.db.transaction('rw', this.db.t(table), async () => {
+      const targets = await this.db
+        .t(table)
+        .filter((r) => filters.every((f) => matchFilter(r, f)))
+        .toArray()
+      for (const t of targets) {
+        const next = { ...t, ...(patch as object), id: t.id, user_id: t.user_id, created_at: t.created_at, updated_at: this.now() } as AnyRow
+        if (table === 'topics') {
+          // Mesmo comportamento do gatilho topics_track_completion.
+          if (next.status === 'completed' && t.status !== 'completed') next.completed_at = next.completed_at ?? this.now()
+          else if (next.status !== 'completed') next.completed_at = null
+        }
+        await this.checkUnique(table, next)
+        await this.db.t(table).put(next)
+        updated.push(next)
+      }
+    })
+    return updated as unknown as Row<T>[]
+  }
+
+  async remove(table: TableName, filters: Filter[]): Promise<number> {
+    let removed = 0
+    await this.db.transaction('rw', TABLES.map((t) => this.db.t(t)), async () => {
+      const targets = await this.db
+        .t(table)
+        .filter((r) => filters.every((f) => matchFilter(r, f)))
+        .toArray()
+      for (const t of targets) {
+        await this.cascadeDelete(table, t.id)
+        removed++
+      }
+    })
+    return removed
+  }
+
+  private async cascadeDelete(table: TableName, id: string): Promise<void> {
+    for (const rel of RELATIONS.filter((r) => r.parent === table)) {
+      const children = await this.db
+        .t(rel.child)
+        .filter((r) => r[rel.column] === id)
+        .toArray()
+      for (const c of children) {
+        if (rel.onDelete === 'cascade') await this.cascadeDelete(rel.child, c.id)
+        else await this.db.t(rel.child).put({ ...c, [rel.column]: null, updated_at: this.now() })
+      }
+    }
+    await this.db.t(table).delete(id)
+  }
+
+  async getProfile(): Promise<Profile> {
+    const existing = (await this.db.t('profiles').get(LOCAL_USER_ID)) as unknown as Profile | undefined
+    if (existing) return existing
+    const now = this.now()
+    const p: Profile = { id: LOCAL_USER_ID, display_name: 'Estudante (modo local)', settings: {}, created_at: now, updated_at: now }
+    await this.db.t('profiles').put(p as unknown as AnyRow)
+    return p
+  }
+
+  async updateProfile(patch: Partial<Pick<Profile, 'display_name' | 'settings'>>): Promise<Profile> {
+    const current = await this.getProfile()
+    const next = { ...current, ...patch, updated_at: this.now() }
+    await this.db.t('profiles').put(next as unknown as AnyRow)
+    return next
+  }
+
+  async listSessions(query?: ListQuery): Promise<SessionWithPauses[]> {
+    const { rows } = await this.list('study_sessions', query)
+    if (rows.length === 0) return []
+    const ids = rows.map((r) => r.id)
+    const pauses = await this.db.t('study_session_pauses').where('session_id').anyOf(ids).toArray()
+    const bySession = new Map<string, AnyRow[]>()
+    for (const p of pauses) {
+      const list = bySession.get(p.session_id as string) ?? []
+      list.push(p)
+      bySession.set(p.session_id as string, list)
+    }
+    return rows.map((s) => ({ ...s, pauses: (bySession.get(s.id) ?? []) as unknown as SessionWithPauses['pauses'] }))
+  }
+
+  async recordFlashcardReview(input: FlashcardReviewInput): Promise<boolean> {
+    let applied = false
+    await this.db.transaction('rw', [this.db.t('flashcards'), this.db.t('flashcard_reviews')], async () => {
+      const card = await this.db.t('flashcards').get(input.cardId)
+      if (!card) throw new DataError('not_found', 'Cartão não encontrado.')
+      if (await this.db.t('flashcard_reviews').get(input.reviewId)) return
+      const now = this.now()
+      await this.db.t('flashcard_reviews').add({
+        id: input.reviewId,
+        user_id: LOCAL_USER_ID,
+        card_id: input.cardId,
+        rating: input.rating,
+        reviewed_at: input.reviewedAt,
+        interval_before: card.interval_days,
+        interval_after: input.intervalDays,
+        ease_after: input.ease,
+        created_at: now,
+        updated_at: now,
+      })
+      await this.db.t('flashcards').put({
+        ...card,
+        status: input.status,
+        ease: input.ease,
+        interval_days: input.intervalDays,
+        repetitions: input.repetitions,
+        lapses: input.lapses,
+        due_at: input.dueAt,
+        last_reviewed_at: input.reviewedAt,
+        updated_at: now,
+      })
+      applied = true
+    })
+    return applied
+  }
+
+  /** Apaga todos os dados locais (usado em Configurações). */
+  async wipe(): Promise<void> {
+    await this.db.delete()
+    this.db = new LocalDb(this.db.name)
+  }
+}

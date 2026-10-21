@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="EVoLuMentaL Control">
+  <title>EVoLuMentaL Control</title>
+  <rect width="64" height="64" rx="14" fill="#3B2B20"/>
+  <g transform="translate(6.4 6.4) scale(0.8)" fill="none" stroke="#F5DEB3" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="30" cy="26" r="13"/>
+    <path d="M30 18v8"/>
+    <path d="M30 26 L49 9"/>
+    <path d="M41.5 8.5 H49.5 V16.5"/>
+    <path d="M8 45c7.5-3.6 16-3.6 24 1.6v11c-8-5.2-16.5-5.2-24-1.6z"/>
+    <path d="M56 45c-7.5-3.6-16-3.6-24 1.6v11c8-5.2 16.5-5.2 24-1.6z"/>
+  </g>
+</svg>
