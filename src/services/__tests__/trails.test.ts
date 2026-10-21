@@ -95,6 +95,26 @@ describe('instalação de trilhas', () => {
     expect(new Set(names).size).toBe(names.length)
   })
 
+  it('grava em lotes: poucas chamadas ao servidor mesmo com centenas de tópicos', async () => {
+    const inner = fresh()
+    let calls = 0
+    const counted = new Proxy(inner, {
+      get(target, prop, receiver) {
+        const v = Reflect.get(target, prop, receiver)
+        if (typeof v === 'function' && ['list', 'insert', 'update', 'remove', 'count', 'get'].includes(String(prop))) {
+          return (...args: unknown[]) => {
+            calls++
+            return v.apply(target, args)
+          }
+        }
+        return v
+      },
+    })
+    const r = await installTrail(counted, items('auditor_fiscal'), { cycleMinutes: 600 })
+    expect(r.topicsCreated).toBeGreaterThan(300)
+    expect(calls).toBeLessThanOrEqual(15)
+  })
+
   it('complementa uma matéria que o usuário já tinha (mesmo nome, sem acento/caixa)', async () => {
     const backend = fresh()
     const [mine] = await backend.insert('subjects', [{ name: 'lingua portuguesa' }])

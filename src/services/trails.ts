@@ -1,13 +1,18 @@
 // Instala trilhas do catálogo no estudo do usuário: cria (ou reaproveita, pelo
 // nome) matérias e tópicos, adiciona referências oficiais e, opcionalmente,
 // monta um ciclo de estudos com durações proporcionais aos pesos.
+//
+// Tudo é planejado em memória primeiro (com IDs gerados no cliente) e gravado
+// em lotes — uma chamada por tabela e por nível da árvore de tópicos — para
+// ser rápido mesmo com o servidor longe (ex.: Supabase em outra região).
 import type { DataBackend } from '@/lib/data/types'
-import { eq } from '@/lib/data/types'
+import { eq, inList } from '@/lib/data/types'
 import { distributeByWeight } from '@/lib/cycle'
-import type { Subject, Topic } from '@/types/db'
+import type { Insert, Subject, Topic } from '@/types/db'
 import type { SubjectDef, TopicTree } from '@/content/trails'
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
+const BATCH = 500
 
 export interface InstallItem {
   subject: SubjectDef
@@ -18,6 +23,7 @@ export interface InstallOptions {
   cycleName?: string
   /** Minutos por volta do ciclo; null = não criar ciclo. */
   cycleMinutes?: number | null
+  onProgress?: (message: string) => void
 }
 
 export interface InstallResult {
@@ -28,73 +34,109 @@ export interface InstallResult {
   cycleId: string | null
 }
 
+async function insertBatched<T extends 'subjects' | 'topics' | 'study_materials' | 'study_cycle_items'>(backend: DataBackend, table: T, rows: Insert<T>[]) {
+  for (let i = 0; i < rows.length; i += BATCH) await backend.insert(table, rows.slice(i, i + BATCH))
+}
+
 export async function installTrail(backend: DataBackend, items: InstallItem[], opts: InstallOptions = {}): Promise<InstallResult> {
   const result: InstallResult = { subjectsCreated: 0, subjectsReused: 0, topicsCreated: 0, materialsCreated: 0, cycleId: null }
-  const { rows: existingSubjects } = await backend.list('subjects')
-  let nextOrder = existingSubjects.reduce((m, s) => Math.max(m, s.sort_order), -1) + 1
+  const progress = opts.onProgress ?? (() => {})
+
+  // 1) Matérias: reaproveita pelo nome (sem acento/caixa) ou cria em um único lote.
+  progress('Verificando suas matérias…')
+  const { rows: existing } = await backend.list('subjects')
+  let nextOrder = existing.reduce((m, s) => Math.max(m, s.sort_order), -1) + 1
   const subjectIds: string[] = []
-
+  const newSubjects: Array<Insert<'subjects'> & { id: string }> = []
+  const reactivate: string[] = []
+  const byName = new Map(existing.map((s) => [norm(s.name), s] as const))
   for (const { subject: def, weight } of items) {
-    let subject: Subject | undefined = existingSubjects.find((s) => norm(s.name) === norm(def.name))
-    if (subject) {
+    const found: Subject | undefined = byName.get(norm(def.name))
+    if (found) {
       result.subjectsReused++
-      if (subject.status === 'archived') {
-        ;[subject] = await backend.update('subjects', [eq('id', subject.id)], { status: 'active', archived_at: null })
-      }
-    } else {
-      ;[subject] = await backend.insert('subjects', [
-        {
-          name: def.name,
-          description: def.description,
-          color: def.color,
-          icon: def.icon,
-          difficulty: def.difficulty,
-          priority: Math.min(5, Math.max(1, Math.round(weight >= 10 ? 5 : weight >= 8 ? 4 : weight >= 5 ? 3 : 2))),
-          status: 'active',
-          sort_order: nextOrder++,
-        },
-      ])
-      existingSubjects.push(subject)
-      result.subjectsCreated++
+      subjectIds.push(found.id)
+      if (found.status === 'archived') reactivate.push(found.id)
+      continue
     }
-    subjectIds.push(subject.id)
+    const id = crypto.randomUUID()
+    newSubjects.push({
+      id,
+      name: def.name,
+      description: def.description,
+      color: def.color,
+      icon: def.icon,
+      difficulty: def.difficulty,
+      priority: weight >= 10 ? 5 : weight >= 8 ? 4 : weight >= 5 ? 3 : 2,
+      status: 'active',
+      sort_order: nextOrder++,
+    })
+    byName.set(norm(def.name), { id, name: def.name } as Subject)
+    subjectIds.push(id)
+  }
+  if (newSubjects.length) {
+    progress(`Criando ${newSubjects.length} matéria(s)…`)
+    await insertBatched(backend, 'subjects', newSubjects)
+    result.subjectsCreated = newSubjects.length
+  }
+  if (reactivate.length) await backend.update('subjects', [inList('id', reactivate)], { status: 'active', archived_at: null })
 
-    // Tópicos: mescla por nome dentro do mesmo pai.
-    const { rows: topics } = await backend.list('topics', { filters: [eq('subject_id', subject.id)] })
-    const children = new Map<string, Topic[]>()
-    for (const t of topics) {
-      const k = t.parent_id ?? ''
-      children.set(k, [...(children.get(k) ?? []), t])
-    }
-    const walk = async (tree: TopicTree, parentId: string | null) => {
-      const siblings = children.get(parentId ?? '') ?? []
+  // 2) Tópicos: mescla por nome dentro do mesmo pai; agrupa os novos por nível.
+  progress('Montando tópicos…')
+  const reusedIds = subjectIds.filter((id) => !newSubjects.some((s) => s.id === id))
+  const existingTopics: Topic[] = reusedIds.length ? (await backend.list('topics', { filters: [inList('subject_id', reusedIds)] })).rows : []
+  const children = new Map<string, Array<{ id: string; name: string; sort_order: number }>>()
+  const childKey = (subjectId: string, parentId: string | null) => `${subjectId}|${parentId ?? ''}`
+  for (const t of existingTopics) {
+    const k = childKey(t.subject_id, t.parent_id)
+    children.set(k, [...(children.get(k) ?? []), t])
+  }
+  const levels: Array<Array<Insert<'topics'> & { id: string }>> = []
+  const seenSubject = new Set<string>()
+  items.forEach(({ subject: def }, idx) => {
+    const subjectId = subjectIds[idx]
+    if (seenSubject.has(subjectId)) return // mesma matéria repetida na lista
+    seenSubject.add(subjectId)
+    const walk = (tree: TopicTree, parentId: string | null, depth: number) => {
+      const k = childKey(subjectId, parentId)
+      const siblings = children.get(k) ?? []
+      children.set(k, siblings)
       let order = siblings.reduce((m, t) => Math.max(m, t.sort_order), -1) + 1
       for (const node of tree) {
         const [name, sub] = typeof node === 'string' ? [node, null] : node
         let topic = siblings.find((t) => norm(t.name) === norm(name))
         if (!topic) {
-          ;[topic] = await backend.insert('topics', [{ subject_id: subject!.id, parent_id: parentId, name, sort_order: order++ }])
+          topic = { id: crypto.randomUUID(), name, sort_order: order++ }
           siblings.push(topic)
-          children.set(parentId ?? '', siblings)
-          result.topicsCreated++
+          ;(levels[depth] ??= []).push({ id: topic.id, subject_id: subjectId, parent_id: parentId, name, sort_order: topic.sort_order })
         }
-        if (sub) await walk(sub, topic.id)
+        if (sub) walk(sub, topic.id, depth + 1)
       }
     }
-    await walk(def.topics, null)
+    walk(def.topics, null, 0)
+  })
+  for (let depth = 0; depth < levels.length; depth++) {
+    const rows = levels[depth] ?? []
+    if (!rows.length) continue
+    progress(`Gravando tópicos (nível ${depth + 1})…`)
+    await insertBatched(backend, 'topics', rows)
+    result.topicsCreated += rows.length
+  }
 
-    if (def.references?.length) {
-      const { rows: mats } = await backend.list('study_materials', { filters: [eq('subject_id', subject.id)] })
-      const have = new Set(mats.map((m) => m.url))
-      const fresh = def.references.filter((r) => !have.has(r.url)).map((r) => ({ subject_id: subject!.id, topic_id: null, title: r.title, url: r.url }))
-      if (fresh.length) {
-        await backend.insert('study_materials', fresh)
-        result.materialsCreated += fresh.length
-      }
+  // 3) Referências oficiais (sem repetir links que a matéria já tem).
+  const refs = items.flatMap(({ subject: def }, idx) => (def.references ?? []).map((r) => ({ subject_id: subjectIds[idx], title: r.title, url: r.url })))
+  if (refs.length) {
+    const { rows: mats } = await backend.list('study_materials', { filters: [inList('subject_id', [...new Set(refs.map((r) => r.subject_id))])] })
+    const have = new Set(mats.map((m) => `${m.subject_id}|${m.url}`))
+    const fresh = refs.filter((r) => !have.has(`${r.subject_id}|${r.url}`) && (have.add(`${r.subject_id}|${r.url}`), true)).map((r) => ({ ...r, topic_id: null }))
+    if (fresh.length) {
+      await insertBatched(backend, 'study_materials', fresh)
+      result.materialsCreated = fresh.length
     }
   }
 
+  // 4) Ciclo opcional, com durações proporcionais aos pesos.
   if (opts.cycleMinutes && opts.cycleMinutes >= 5 && items.length) {
+    progress('Criando o ciclo de estudos…')
     const durations = distributeByWeight(
       items.map((i) => i.weight),
       opts.cycleMinutes,
@@ -110,7 +152,8 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
       interleaved.push(order[a].i)
       if (a !== b) interleaved.push(order[b].i)
     }
-    await backend.insert(
+    await insertBatched(
+      backend,
       'study_cycle_items',
       interleaved.map((idx, pos) => ({
         cycle_id: cycle.id,
@@ -123,5 +166,6 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
     )
     result.cycleId = cycle.id
   }
+  progress('Pronto!')
   return result
 }

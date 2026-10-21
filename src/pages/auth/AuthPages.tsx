@@ -22,7 +22,10 @@ function AuthLayout({ title, subtitle, children, footer }: { title: string; subt
           <div className="mt-5">{children}</div>
         </div>
         {footer && <div className="mt-4 text-center text-sm text-muted">{footer}</div>}
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <Link to="/inicio" className="inline-flex h-8 items-center rounded-lg px-3 text-sm text-muted hover:bg-bg hover:text-ink">
+            Conheça o EVoLuMentaL
+          </Link>
           <InstallAppButton variant="ghost" size="sm" />
         </div>
       </div>

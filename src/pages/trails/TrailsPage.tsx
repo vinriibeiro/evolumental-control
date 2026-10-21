@@ -278,10 +278,11 @@ function InstallModal({ state, onClose }: { state: { title: string; items: Insta
   const [withCycle, setWithCycle] = useState(true)
   const [hours, setHours] = useState('10')
   const [done, setDone] = useState<InstallResult | null>(null)
+  const [step, setStep] = useState('')
   const toast = useToast()
   const navigate = useNavigate()
   const install = useTransaction(['subjects', 'topics', 'study_materials', 'study_cycles', 'study_cycle_items'], (b, args: { items: InstallItem[]; minutes: number | null; name?: string }) =>
-    installTrail(b, args.items, { cycleMinutes: args.minutes, cycleName: args.name }),
+    installTrail(b, args.items, { cycleMinutes: args.minutes, cycleName: args.name, onProgress: setStep }),
   )
   if (!state) return null
   const h = Number(hours.replace(',', '.'))
@@ -318,7 +319,7 @@ function InstallModal({ state, onClose }: { state: { title: string; items: Insta
           <>
             <Button onClick={close}>Cancelar</Button>
             <Button variant="primary" onClick={run} loading={install.isPending}>
-              Adicionar
+              {install.isPending ? step || 'Adicionando…' : 'Adicionar'}
             </Button>
           </>
         )

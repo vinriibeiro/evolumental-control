@@ -1,4 +1,4 @@
-import { lazy, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth'
 import { DataProvider, makeQueryClient } from './data'
@@ -23,6 +23,7 @@ const ReviewsPage = lazy(() => import('@/pages/reviews/ReviewsPage'))
 const QuestionsPage = lazy(() => import('@/pages/questions/QuestionsPage'))
 const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
+const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
@@ -31,7 +32,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   if (auth.loading) return <Spinner label="Verificando sessão…" className="min-h-screen" />
   if (auth.mode === 'supabase' && auth.recovering) return <Navigate to="/redefinir-senha" replace />
-  if (!auth.user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (!auth.user) return <Navigate to="/inicio" replace state={{ from: location.pathname }} />
   return <>{children}</>
 }
 
@@ -43,7 +44,9 @@ export function App() {
         <ToastProvider>
           <ConfirmProvider>
             <BrowserRouter>
+              <Suspense fallback={<Spinner className="min-h-screen" />}>
               <Routes>
+                <Route path="/inicio" element={<LandingPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/cadastro" element={<SignUpPage />} />
                 <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
@@ -77,6 +80,7 @@ export function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>
+              </Suspense>
             </BrowserRouter>
           </ConfirmProvider>
         </ToastProvider>

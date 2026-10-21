@@ -224,7 +224,8 @@ export default function CalendarPage() {
     if (!(await confirm({ title: 'Replanejar blocos atrasados?', message: `${late.length} bloco(s) pendente(s) ficaram para trás. ${moves.length} será(ão) movido(s) para o próximo horário livre (mesmo horário, a partir de agora).${late.length > moves.length ? ` ${late.length - moves.length} não encontraram vaga nos próximos 60 dias.` : ''}`, confirmLabel: 'Replanejar' })))
       return
     await run(async () => {
-      for (const m of moves) await backend.update('study_plan_items', [eq('id', m.id)], { date: m.date })
+      // Em paralelo, em grupos, para não esperar uma ida ao servidor por bloco.
+      for (let i = 0; i < moves.length; i += 20) await Promise.all(moves.slice(i, i + 20).map((m) => backend.update('study_plan_items', [eq('id', m.id)], { date: m.date })))
       toast.success(`${moves.length} bloco(s) replanejado(s).`)
     })
   }
