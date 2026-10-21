@@ -180,4 +180,14 @@ export class SupabaseBackend implements DataBackend {
     if (error) throw toDataError(error)
     return Boolean(data)
   }
+
+  async resetAllData(): Promise<void> {
+    const { error } = await this.client.rpc('reset_my_data')
+    if (error) throw toDataError(error)
+  }
+
+  async deleteAccount(): Promise<void> {
+    const { error } = await this.client.rpc('delete_my_account')
+    if (error) throw toDataError(error)
+  }
 }

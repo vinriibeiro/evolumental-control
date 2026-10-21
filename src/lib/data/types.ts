@@ -51,6 +51,10 @@ export interface DataBackend {
   updateProfile(patch: Partial<Pick<Profile, 'display_name' | 'settings'>>): Promise<Profile>
   listSessions(query?: ListQuery): Promise<SessionWithPauses[]>
   recordFlashcardReview(input: FlashcardReviewInput): Promise<boolean>
+  /** Apaga todos os dados de estudo e restaura as preferências; mantém a conta. */
+  resetAllData(): Promise<void>
+  /** Exclui a conta e, em cascata, todos os dados. */
+  deleteAccount(): Promise<void>
 }
 
 export class DataError extends Error {

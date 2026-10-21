@@ -282,7 +282,18 @@ export class LocalBackend implements DataBackend {
     return applied
   }
 
-  /** Apaga todos os dados locais (usado em Configurações). */
+  async resetAllData(): Promise<void> {
+    await this.db.transaction('rw', TABLES.map((t) => this.db.t(t)), async () => {
+      for (const t of TABLES) await this.db.t(t).clear()
+    })
+  }
+
+  /** No modo local não há conta: equivale a apagar tudo deste navegador. */
+  async deleteAccount(): Promise<void> {
+    await this.wipe()
+  }
+
+  /** Apaga o banco local inteiro. */
   async wipe(): Promise<void> {
     await this.db.delete()
     this.db = new LocalDb(this.db.name)

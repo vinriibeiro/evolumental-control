@@ -191,4 +191,44 @@ describe('migração + RLS', () => {
       expect(s.rows[0]).toEqual({ subject_id: null, user_id: BOB })
     })
   })
+  it('reset_my_data apaga só os dados do próprio usuário e mantém a conta', async () => {
+    await as(ALICE, async () => {
+      await db.query(`insert into public.subjects (name) values ('Alice fica')`)
+    })
+    const bobBefore = await as(BOB, async () => {
+      await db.query(`insert into public.subjects (name) values ('Bob some')`)
+      await db.query(`select public.reset_my_data()`)
+      const r = await db.query<{ n: number }>(`select count(*)::int as n from public.subjects`)
+      return r.rows[0].n
+    })
+    expect(bobBefore).toBe(0)
+    await as(ALICE, async () => {
+      const r = await db.query<{ n: number }>(`select count(*)::int as n from public.subjects`)
+      expect(r.rows[0].n).toBeGreaterThan(0)
+    })
+    const users = await db.query(`select id from auth.users where id = $1`, [BOB])
+    expect(users.rows).toHaveLength(1)
+  })
+
+  it('delete_my_account remove a conta e os dados do usuário logado, sem afetar outros', async () => {
+    const CAROL = '44444444-4444-4444-8444-444444444444'
+    await db.exec(`insert into auth.users (id, email) values ('${CAROL}', 'carol@example.com')`)
+    await as(CAROL, async () => {
+      await db.query(`insert into public.subjects (name) values ('Carol')`)
+      await db.query(`select public.delete_my_account()`)
+    })
+    const u = await db.query(`select id from auth.users where id = $1`, [CAROL])
+    expect(u.rows).toHaveLength(0)
+    const left = await db.query(`select id from public.subjects where user_id = $1`, [CAROL])
+    expect(left.rows).toHaveLength(0)
+    const alice = await db.query(`select id from auth.users where id = $1`, [ALICE])
+    expect(alice.rows).toHaveLength(1)
+  })
+
+  it('anon não pode chamar as funções de zerar/excluir', async () => {
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
+    await expect(db.query(`select public.delete_my_account()`)).rejects.toThrow()
+    await expect(db.query(`select public.reset_my_data()`)).rejects.toThrow()
+    await db.exec(`reset role;`)
+  })
 })

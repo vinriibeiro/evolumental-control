@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Brain, ExternalLink, Layers, Link2, Network, Pencil, Play, Plus, Trash2 } from 'lucide-react'
+import { Brain, ExternalLink, Layers, Link2, Network, Pencil, Play, Plus, Search, Trash2 } from 'lucide-react'
+import { searchLinks } from '@/lib/search'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { Badge, Progress } from '@/components/ui/layout'
@@ -177,6 +178,20 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
               >
                 Novo mapa deste tópico
               </Button>
+            </div>
+
+            <div>
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+                <Search className="size-4 text-accent-strong" /> Pesquisar na internet
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {searchLinks(topic.name, subject.name).map((l) => (
+                  <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-3 text-sm text-ink hover:bg-surface">
+                    {l.label} <ExternalLink className="size-3" />
+                  </a>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-muted">Encontrou um bom material? Salve o link em "Materiais e links".</p>
             </div>
 
             <Materials subjectId={subject.id} topicId={topic.id} />

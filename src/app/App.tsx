@@ -23,6 +23,7 @@ const ReviewsPage = lazy(() => import('@/pages/reviews/ReviewsPage'))
 const QuestionsPage = lazy(() => import('@/pages/questions/QuestionsPage'))
 const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
+const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -58,6 +59,7 @@ export function App() {
                   <Route path="espaco" element={<WorkspacePage />} />
                   <Route path="materias" element={<SubjectsPage />} />
                   <Route path="materias/:id" element={<SubjectDetailPage />} />
+                  <Route path="trilhas" element={<TrailsPage />} />
                   <Route path="cronometro" element={<TimerPage />} />
                   <Route path="cronograma" element={<SchedulePage />} />
                   <Route path="ciclos" element={<CyclesPage />} />

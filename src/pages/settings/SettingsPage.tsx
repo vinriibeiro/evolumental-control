@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Database, Download, Info, Moon, Palette, RotateCcw, Sun, Timer, User, Volume2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, Database, Download, Info, Upload, Moon, Palette, RotateCcw, Sun, Timer, User, Volume2 } from 'lucide-react'
 import { useAuth } from '@/app/auth'
-import { getLocalBackend, useBackend } from '@/app/data'
+import { useBackend } from '@/app/data'
 import { LogoMark } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select, Switch } from '@/components/ui/Field'
 import { Card, Segmented } from '@/components/ui/layout'
-import { Spinner, useConfirm, useToast } from '@/components/ui/feedback'
-import { fetchAll, fetchAllSessions } from '@/hooks/data'
+import { Spinner, useToast } from '@/components/ui/feedback'
+import { Modal } from '@/components/ui/Modal'
+import { fetchAll, fetchAllSessions, invalidateTables } from '@/hooks/data'
+import { planImport, runImport, type ImportPlan } from '@/services/importData'
 import { useProfile, useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useSpeech } from '@/hooks/useSpeech'
 import { TABLES } from '@/lib/data/schema'
@@ -314,8 +318,14 @@ function DataSection() {
   const backend = useBackend()
   const auth = useAuth()
   const toast = useToast()
-  const confirm = useConfirm()
+  const qc = useQueryClient()
+  const navigate = useNavigate()
   const [busy, setBusy] = useState(false)
+  const [plan, setPlan] = useState<{ name: string; plan: ImportPlan } | null>(null)
+  const [progress, setProgress] = useState<[number, number] | null>(null)
+  const [danger, setDanger] = useState<'reset' | 'delete' | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
   const exportAll = async () => {
     setBusy(true)
     try {
@@ -332,31 +342,193 @@ function DataSection() {
       setBusy(false)
     }
   }
+
+  const onFile = async (file: File | undefined) => {
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file) return
+    if (file.size > 50 * 1024 * 1024) return toast.error('Arquivo muito grande (máx. 50 MB).')
+    try {
+      const json = JSON.parse(await file.text())
+      setPlan({ name: file.name, plan: planImport(json) })
+    } catch (e) {
+      toast.error(e instanceof SyntaxError ? 'O arquivo não é um JSON válido.' : e)
+    }
+  }
+
+  const runPlan = async () => {
+    if (!plan) return
+    setProgress([0, 1])
+    try {
+      const n = await runImport(backend, plan.plan, (d, t) => setProgress([d, t]))
+      toast.success(`${n} registro(s) importado(s).`)
+      setPlan(null)
+    } catch (e) {
+      toast.error(e)
+    } finally {
+      setProgress(null)
+      await invalidateTables(qc, TABLES)
+    }
+  }
+
+  const confirmDanger = async () => {
+    const kind = danger
+    setDanger(null)
+    setBusy(true)
+    try {
+      if (kind === 'reset') {
+        await backend.resetAllData()
+        try {
+          localStorage.removeItem('evl:theme')
+        } catch {
+          /* sem armazenamento local */
+        }
+        await invalidateTables(qc, TABLES)
+        toast.success('Todos os dados foram zerados. Sua conta continua ativa.')
+        navigate('/')
+      } else if (kind === 'delete') {
+        await backend.deleteAccount()
+        await auth.signOut()
+        qc.clear()
+        navigate('/login')
+      }
+    } catch (e) {
+      toast.error(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const counts = plan?.plan.counts
+  const labels: Record<string, string> = { subjects: 'Matérias', topics: 'Tópicos', study_materials: 'Materiais', flashcard_decks: 'Baralhos', flashcards: 'Flashcards', mind_maps: 'Mapas mentais', study_sessions: 'Sessões de estudo', study_session_pauses: 'Pausas' }
+
   return (
-    <Section icon={<Database className="size-5" />} title="Seus dados" description="Exportação completa em JSON (inclui sessões com pausas, cartões, mapas e históricos).">
-      <div className="flex flex-wrap gap-2">
-        <Button icon={<Download className="size-4" />} onClick={exportAll} loading={busy}>
-          Exportar todos os dados
-        </Button>
-        {auth.mode === 'local' && (
-          <Button
-            variant="danger"
-            onClick={async () => {
-              const ok = await confirm({
-                title: 'Apagar todos os dados locais?',
-                message: 'Tudo o que está salvo neste navegador será removido definitivamente. Exporte antes se quiser guardar uma cópia.',
-                danger: true,
-                confirmLabel: 'Apagar tudo',
-              })
-              if (!ok) return
-              await getLocalBackend().wipe()
-              window.location.href = '/'
-            }}
-          >
-            Apagar dados locais
+    <>
+      <Section icon={<Database className="size-5" />} title="Seus dados" description="Exporte um backup completo ou importe conteúdo (matérias, tópicos, flashcards, mapas e sessões de estudo) de um arquivo JSON.">
+        <div className="flex flex-wrap gap-2">
+          <Button icon={<Download className="size-4" />} onClick={exportAll} loading={busy && !danger}>
+            Exportar todos os dados
           </Button>
+          <Button icon={<Upload className="size-4" />} onClick={() => fileRef.current?.click()}>
+            Importar dados (JSON)
+          </Button>
+          <input ref={fileRef} type="file" accept=".json,application/json" className="sr-only" aria-label="Arquivo JSON para importar" onChange={(e) => onFile(e.target.files?.[0])} />
+        </div>
+        <p className="mt-3 text-xs text-muted">A importação sempre cria cópias novas e não altera nem apaga o que você já tem. Importar o mesmo arquivo duas vezes duplica o conteúdo.</p>
+      </Section>
+
+      <Section icon={<AlertTriangle className="size-5 text-danger" />} title="Zona de perigo" description="Ações definitivas. Exporte seus dados antes se quiser guardar uma cópia.">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 basis-64">
+              <p className="text-sm font-medium text-ink">Zerar todos os dados</p>
+              <p className="text-xs text-muted">
+                Apaga matérias, tópicos, sessões e horas, cronogramas, ciclos, flashcards, mapas, revisões, questões e metas, e volta as preferências ao padrão.
+                {auth.mode === 'supabase' ? ' Sua conta e seu login continuam.' : ''}
+              </p>
+            </div>
+            <Button variant="danger" onClick={() => setDanger('reset')} disabled={busy}>
+              Zerar tudo
+            </Button>
+          </div>
+          {auth.mode === 'supabase' && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+              <div className="min-w-0 flex-1 basis-64">
+                <p className="text-sm font-medium text-ink">Excluir minha conta</p>
+                <p className="text-xs text-muted">Remove sua conta e todos os seus dados permanentemente. Para usar de novo, será preciso criar outra conta.</p>
+              </div>
+              <Button variant="danger" onClick={() => setDanger('delete')} disabled={busy}>
+                Excluir conta
+              </Button>
+            </div>
+          )}
+        </div>
+      </Section>
+
+      <Modal
+        open={Boolean(plan)}
+        onClose={() => !progress && setPlan(null)}
+        persistent
+        title="Importar dados"
+        description={plan?.name}
+        footer={
+          <>
+            <Button onClick={() => setPlan(null)} disabled={Boolean(progress)}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={runPlan} loading={Boolean(progress)} disabled={!counts || Object.values(counts).every((n) => n === 0)}>
+              {progress ? `Importando ${progress[0]}/${progress[1]}` : 'Importar'}
+            </Button>
+          </>
+        }
+      >
+        {counts && plan && (
+          <div className="space-y-3">
+            <ul className="grid grid-cols-2 gap-2 text-sm">
+              {Object.entries(counts).map(([k, n]) => (
+                <li key={k} className="flex justify-between rounded-lg bg-surface px-3 py-2">
+                  <span className="text-ink">{labels[k]}</span>
+                  <span className="tabular font-semibold text-ink">{n}</span>
+                </li>
+              ))}
+            </ul>
+            {plan.plan.warnings.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 text-xs text-warning">
+                {plan.plan.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
-      </div>
-    </Section>
+      </Modal>
+
+      <TypedConfirm
+        open={danger !== null}
+        onClose={() => setDanger(null)}
+        onConfirm={confirmDanger}
+        word={danger === 'delete' ? 'EXCLUIR' : 'ZERAR'}
+        title={danger === 'delete' ? 'Excluir sua conta?' : 'Zerar todos os dados?'}
+        message={
+          danger === 'delete'
+            ? 'Sua conta e todos os dados serão apagados para sempre. Não é possível desfazer.'
+            : 'Todos os registros e números (horas, sessões, metas, flashcards, mapas…) serão apagados para sempre. Não é possível desfazer.'
+        }
+      />
+    </>
+  )
+}
+
+function TypedConfirm({ open, onClose, onConfirm, word, title, message }: { open: boolean; onClose: () => void; onConfirm: () => void; word: string; title: string; message: string }) {
+  const [text, setText] = useState('')
+  useEffect(() => {
+    if (open) setText('')
+  }, [open])
+  const ok = text.trim().toUpperCase() === word
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title={title}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button variant="danger" disabled={!ok} onClick={onConfirm}>
+            Confirmar
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-3 text-sm text-muted">{message}</p>
+      <Field
+        label={
+          <>
+            Digite <strong>{word}</strong> para confirmar
+          </>
+        }
+      >
+        {(id) => <Input id={id} value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" />}
+      </Field>
+    </Modal>
   )
 }
