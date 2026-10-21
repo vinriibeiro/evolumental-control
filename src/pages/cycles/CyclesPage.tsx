@@ -390,7 +390,7 @@ function CycleForm({ open, cycle, onClose, onCreated }: { open: boolean; cycle: 
     >
       <div className="grid gap-4">
         <Field label="Nome" required error={error}>
-          {(id, d) => <Input id={id} aria-describedby={d} autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Ciclo pré-edital" />}
+          {(id, d) => <Input id={id} aria-describedby={d} autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Ciclo do semestre" />}
         </Field>
         <Field label="Descrição">{(id) => <Textarea id={id} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
         <Checkbox label="Avançar automaticamente quando o bloco for concluído" checked={auto} onChange={(e) => setAuto(e.target.checked)} />

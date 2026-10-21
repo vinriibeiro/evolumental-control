@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Database, Download, Info, Upload, Moon, Palette, RotateCcw, Sun, Timer, User, Volume2 } from 'lucide-react'
+import { AlertTriangle, Database, Download, Info, Smartphone, Upload, Moon, Palette, RotateCcw, Sun, Timer, User, Volume2 } from 'lucide-react'
 import { useAuth } from '@/app/auth'
 import { useBackend } from '@/app/data'
 import { LogoMark } from '@/components/brand/Logo'
+import { InstallAppSection } from '@/components/InstallApp'
 import { Button } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select, Switch } from '@/components/ui/Field'
 import { Card, Segmented } from '@/components/ui/layout'
@@ -49,6 +50,10 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="mb-2 text-xl font-semibold text-ink">Configurações</h1>
       <ProfileSection displayName={profile.data?.display_name ?? ''} email={auth.user?.email ?? null} mode={auth.mode} onSave={(n) => save({ display_name: n }, 'Perfil atualizado.')} />
+
+      <Section icon={<Smartphone className="size-5" />} title="Aplicativo no celular">
+        <InstallAppSection />
+      </Section>
 
       <Section icon={<Palette className="size-5" />} title="Aparência">
         <Segmented

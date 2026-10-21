@@ -23,8 +23,15 @@ describe('catálogo de trilhas', () => {
     }
   })
 
-  it('tem as cinco carreiras pedidas', () => {
-    expect(CAREER_TRAILS.map((c) => c.key).sort()).toEqual(['analista_dados', 'auditor_fiscal', 'cientista_dados', 'policial_federal', 'programador'])
+  it('tem as carreiras pedidas, incluindo professor da SEEDF e de Português', () => {
+    const keys = CAREER_TRAILS.map((c) => c.key)
+    for (const k of ['analista_dados', 'auditor_fiscal', 'cientista_dados', 'policial_federal', 'programador', 'professor_seedf_portugues', 'professor_portugues']) expect(keys).toContain(k)
+    expect(CAREER_TRAILS.filter((c) => c.area === 'Tecnologia').length).toBeGreaterThanOrEqual(14)
+  })
+
+  it('Professor SEEDF soma as 120 questões da prova (divisão estimada)', () => {
+    const t = CAREER_TRAILS.find((c) => c.key === 'professor_seedf_portugues')!
+    expect(t.subjects.reduce((a, s) => a + s.weight, 0)).toBe(120)
   })
 
   it('Auditor Fiscal soma as 140 questões do último edital (80 + 60)', () => {

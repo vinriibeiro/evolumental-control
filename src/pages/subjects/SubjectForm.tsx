@@ -141,8 +141,8 @@ export function SubjectForm({ open, onClose, subject, nextOrder = 0 }: { open: b
         <Field label="Conclusão prevista" error={errors.target_date}>
           {(id, d) => <Input id={id} aria-describedby={d} type="date" value={form.target_date} invalid={Boolean(errors.target_date)} onChange={(e) => set('target_date', e.target.value)} />}
         </Field>
-        <Field label="Edital ou concurso relacionado" className="sm:col-span-2" error={errors.exam}>
-          {(id) => <Input id={id} value={form.exam} onChange={(e) => set('exam', e.target.value)} placeholder="Ex.: TRF 3ª Região — Analista Judiciário" />}
+        <Field label="Objetivo relacionado (concurso, curso, certificação…)" className="sm:col-span-2" error={errors.exam}>
+          {(id) => <Input id={id} value={form.exam} onChange={(e) => set('exam', e.target.value)} placeholder="Ex.: TRF 3ª Região, Faculdade de Direito, AWS Solutions Architect" />}
         </Field>
         <Field label="Ícone (opcional)" hint="Um emoji ou sigla curta." error={errors.icon}>
           {(id, d) => <Input id={id} aria-describedby={d} maxLength={40} value={form.icon} onChange={(e) => set('icon', e.target.value)} placeholder="⚖️" />}

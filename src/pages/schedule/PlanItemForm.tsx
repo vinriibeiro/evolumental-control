@@ -12,7 +12,7 @@ import { ACTIVITY_LABELS, ACTIVITY_TYPES, PLAN_STATUS_LABELS } from '@/lib/label
 import { conflictsWith } from '@/lib/planner'
 import type { ActivityType, PlanItemStatus, StudyPlan, StudyPlanItem } from '@/types/db'
 
-export function PlanItemForm({ open, onClose, plan, item, defaultDate }: { open: boolean; onClose: () => void; plan: StudyPlan; item?: StudyPlanItem | null; defaultDate?: string }) {
+export function PlanItemForm({ open, onClose, plan, item, defaultDate, defaultTime, defaultDuration }: { open: boolean; onClose: () => void; plan: StudyPlan; item?: StudyPlanItem | null; defaultDate?: string; defaultTime?: string; defaultDuration?: number }) {
   const [date, setDate] = useState('')
   const [time, setTime] = useState('19:00')
   const [duration, setDuration] = useState('50')
@@ -30,15 +30,15 @@ export function PlanItemForm({ open, onClose, plan, item, defaultDate }: { open:
   useEffect(() => {
     if (!open) return
     setDate(item?.date ?? defaultDate ?? plan.start_date)
-    setTime(item?.start_time ?? '19:00')
-    setDuration(String(item?.duration_minutes ?? plan.config.blockMinutes ?? 50))
+    setTime(item?.start_time ?? defaultTime ?? '19:00')
+    setDuration(String(item?.duration_minutes ?? defaultDuration ?? plan.config.blockMinutes ?? 50))
     setLink({ subjectId: item?.subject_id ?? null, topicId: item?.topic_id ?? null })
     setActivity(item?.activity_type ?? plan.config.activityType ?? 'theory')
     setStatus(item?.status ?? 'pending')
     setNotes(item?.notes ?? '')
     setError(null)
     setConflicts(null)
-  }, [open, item, defaultDate, plan])
+  }, [open, item, defaultDate, defaultTime, defaultDuration, plan])
 
   const save = async (force = false) => {
     const mins = Number(duration)

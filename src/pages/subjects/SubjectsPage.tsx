@@ -69,7 +69,7 @@ export default function SubjectsPage() {
     <div>
       <PageHeader
         title="Matérias e tópicos"
-        description="Organize o edital em matérias, tópicos e subtópicos. Arraste para reordenar."
+        description="Organize seus estudos em matérias, tópicos e subtópicos. Arraste para reordenar."
         actions={
           <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
             Nova matéria
@@ -98,7 +98,7 @@ export default function SubjectsPage() {
           <EmptyState
             icon={<BookOpen className="size-8" />}
             title={term ? 'Nenhuma matéria encontrada' : filter === 'archived' ? 'Nenhuma matéria arquivada' : 'Comece cadastrando suas matérias'}
-            description={!term && filter !== 'archived' ? 'Cada matéria pode ter tópicos e subtópicos do edital, metas e prioridades.' : undefined}
+            description={!term && filter !== 'archived' ? 'Cada matéria pode ter tópicos e subtópicos, metas e prioridades — ou comece por uma trilha pronta.' : undefined}
             action={
               !term && filter !== 'archived' ? (
                 <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>

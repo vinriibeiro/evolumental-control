@@ -14,6 +14,7 @@ import { useNow } from '@/hooks/useNow'
 import { netSeconds, openPause, phaseStatus } from '@/lib/timer/engine'
 import { formatClock } from '@/lib/time'
 import { GlobalSearch } from './GlobalSearch'
+import { InstallAppButton } from '@/components/InstallApp'
 import { Notifications } from './Notifications'
 
 function readCollapsed(): boolean {
@@ -256,6 +257,9 @@ function ProfileMenu() {
             >
               <Settings className="size-4" /> Configurações
             </button>
+            <div className="px-1 py-1">
+              <InstallAppButton variant="ghost" size="sm" className="w-full justify-start" />
+            </div>
             {auth.mode === 'supabase' && (
               <button
                 role="menuitem"

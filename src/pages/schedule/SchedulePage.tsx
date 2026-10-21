@@ -427,7 +427,7 @@ function PlanList({ plan, onEdit }: { plan: StudyPlan; onEdit: (i: StudyPlanItem
   )
 }
 
-function ProposalModal({ open, onClose, plan, today }: { open: boolean; onClose: () => void; plan: StudyPlan; today: string }) {
+export function ProposalModal({ open, onClose, plan, today }: { open: boolean; onClose: () => void; plan: StudyPlan; today: string }) {
   const subjects = useSubjects()
   const lookups = useLookups()
   const backend = useBackend()

@@ -118,6 +118,7 @@ await step('mapa mental: criar, adicionar nó, salvar e persistir após recarreg
   await page.locator('.react-flow__node.selected').waitFor()
   await page.keyboard.press('Tab')
   await page.locator('.react-flow__node').nth(1).waitFor()
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Texto do nó')
   await page.keyboard.type('Poder de polícia')
   await page.keyboard.press('Enter')
   await page.waitForTimeout(150)

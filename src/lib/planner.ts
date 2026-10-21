@@ -222,3 +222,44 @@ export function defaultPlanConfig(): PlanConfig {
 export function planRangeDays(from: DayKey, weeks: number): { from: DayKey; to: DayKey } {
   return { from, to: addDays(from, weeks * 7 - 1) }
 }
+
+export interface ReplanBlock extends TimedItem {
+  id: string
+}
+
+/**
+ * Replanejar: move blocos pendentes atrasados para o primeiro dia (a partir de
+ * hoje) em que o mesmo horário esteja livre, dentro da disponibilidade
+ * informada (quando houver) e sem sobrepor outros blocos. Hoje só vale se o
+ * horário ainda não passou. Retorna as novas datas; blocos sem vaga em
+ * `maxDays` dias ficam de fora.
+ */
+export function replanLate<T extends ReplanBlock>(
+  late: T[],
+  scheduled: TimedItem[],
+  today: DayKey,
+  nowMinutes: number,
+  availability?: PlanConfig['availability'],
+  maxDays = 60,
+): Array<{ id: string; date: DayKey }> {
+  const taken = [...scheduled]
+  const out: Array<{ id: string; date: DayKey }> = []
+  const sorted = [...late].sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
+  for (const b of sorted) {
+    const start = hhmmToMinutes(b.start_time)
+    const end = start + b.duration_minutes
+    for (let i = 0; i < maxDays; i++) {
+      const date = addDays(today, i)
+      if (i === 0 && start <= nowMinutes) continue
+      const windows = availability ? windowsToIntervals(availability[weekday(date)]) : null
+      if (windows && windows.length && !windows.some(([ws, we]) => start >= ws && end <= we)) continue
+      if (windows && windows.length === 0 && availability && Object.values(availability).some((w) => (w ?? []).length)) continue
+      const candidate = { date, start_time: b.start_time, duration_minutes: b.duration_minutes }
+      if (conflictsWith(candidate, taken).length) continue
+      taken.push(candidate)
+      out.push({ id: b.id, date })
+      break
+    }
+  }
+  return out
+}

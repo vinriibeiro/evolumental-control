@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { LogoMark } from '@/components/brand/Logo'
+import { InstallAppButton } from '@/components/InstallApp'
 import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { useAuth } from '@/app/auth'
@@ -21,6 +22,9 @@ function AuthLayout({ title, subtitle, children, footer }: { title: string; subt
           <div className="mt-5">{children}</div>
         </div>
         {footer && <div className="mt-4 text-center text-sm text-muted">{footer}</div>}
+        <div className="mt-6 flex justify-center">
+          <InstallAppButton variant="ghost" size="sm" />
+        </div>
       </div>
     </div>
   )

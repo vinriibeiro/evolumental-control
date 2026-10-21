@@ -49,11 +49,14 @@ const MindNodeView = memo(function MindNodeView({ id, data, selected }: NodeProp
   useEffect(() => setDraft(data.label), [data.label])
   useEffect(() => {
     if (!data.editing) return
-    // O React Flow devolve o foco ao nó selecionado; foca o campo logo depois.
-    const t = window.setTimeout(() => {
+    // Foca já e de novo logo depois: o React Flow pode devolver o foco ao nó.
+    const focus = () => {
+      if (document.activeElement === ref.current) return
       ref.current?.focus()
       ref.current?.select()
-    }, 30)
+    }
+    focus()
+    const t = window.setTimeout(focus, 30)
     return () => window.clearTimeout(t)
   }, [data.editing])
   const color = data.color ?? '#DEB887'
@@ -193,6 +196,8 @@ function Editor({ map }: { map: MindMap }) {
     savedVersion.current = versionRef.current
     void save()
   }, [save])
+  const flushRef = useRef(flush)
+  flushRef.current = flush
   useEffect(() => {
     if (debouncedVersion > 0) flush()
   }, [debouncedVersion]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -225,6 +230,8 @@ function Editor({ map }: { map: MindMap }) {
       checkpoint()
       setNodes((ns) => ns.map((n) => (n.id === nid ? { ...n, data: { ...n.data, label: next } } : n)))
       markDirty()
+      // Texto confirmado é salvo na hora (sem esperar o intervalo do autosave).
+      setTimeout(() => flushRef.current(), 0)
     },
     [setNodes, checkpoint, markDirty],
   )

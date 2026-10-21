@@ -127,7 +127,7 @@ export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder =
             </Select>
           )}
         </Field>
-        <Field label="Peso / relevância no edital" hint="Usado no progresso ponderado da matéria." error={errors.weight}>
+        <Field label="Peso / relevância" hint="Usado no progresso ponderado da matéria." error={errors.weight}>
           {(id, d) => <Input id={id} aria-describedby={d} inputMode="decimal" value={form.weight} onChange={(e) => set('weight', e.target.value)} />}
         </Field>
         <Field label="Estimativa de tempo (min)" error={errors.estimated_minutes}>

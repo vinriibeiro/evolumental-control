@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyStudy, skip, summarize } from '@/lib/cycle'
 import { DEFAULT_SRS, masteryLevel, reviewPriority, schedule, type CardSchedule } from '@/lib/srs'
-import { defaultPlanConfig, diffPlan, findConflicts, generatePlan, subtractIntervals } from '@/lib/planner'
+import { defaultPlanConfig, diffPlan, findConflicts, generatePlan, replanLate, subtractIntervals } from '@/lib/planner'
 import { addDays, dayKey, periodRange, startOfWeek, weekday, zonedDayStart } from '@/lib/time'
 import type { StudyCycleItem } from '@/types/db'
 
@@ -186,6 +186,35 @@ describe('planejamento automático', () => {
     expect(d.kept).toBe(1)
     expect(d.added).toBe(1)
     expect(d.removed).toBe(0)
+  })
+})
+
+describe('replanejar atrasados', () => {
+  const late = [
+    { id: 'a', date: '2026-10-19', start_time: '19:00', duration_minutes: 60 },
+    { id: 'b', date: '2026-10-20', start_time: '08:00', duration_minutes: 30 },
+  ]
+  it('move para hoje se o horário ainda não passou, senão para o próximo dia livre', () => {
+    // Hoje 21/10, agora 12:00 → 'a' (19:00) cabe hoje; 'b' (08:00) já passou → amanhã.
+    const r = replanLate(late, [], '2026-10-21', 12 * 60)
+    expect(r).toEqual([
+      { id: 'a', date: '2026-10-21' },
+      { id: 'b', date: '2026-10-22' },
+    ])
+  })
+  it('não sobrepõe blocos existentes nem os já remanejados', () => {
+    const busy = [{ date: '2026-10-21', start_time: '18:30', duration_minutes: 60 }]
+    const two = [late[0], { ...late[0], id: 'c' }]
+    const r = replanLate(two, busy, '2026-10-21', 12 * 60)
+    expect(r).toEqual([
+      { id: 'a', date: '2026-10-22' },
+      { id: 'c', date: '2026-10-23' },
+    ])
+  })
+  it('respeita a disponibilidade do cronograma', () => {
+    const availability = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [{ start: '18:00', end: '22:00' }] }
+    const r = replanLate([late[0]], [], '2026-10-21', 0, availability)
+    expect(r).toEqual([{ id: 'a', date: '2026-10-24' }]) // sábado
   })
 })
 

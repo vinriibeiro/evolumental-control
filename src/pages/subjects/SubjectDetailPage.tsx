@@ -311,7 +311,7 @@ function TopicTree({
         <EmptyState
           icon={<ListTree className="size-8" />}
           title="Nenhum tópico ainda"
-          description="Cadastre os tópicos do edital um a um ou cole a estrutura inteira em texto indentado."
+          description="Cadastre os tópicos um a um ou cole a estrutura inteira (edital, ementa, sumário) em texto indentado."
           action={
             <div className="flex flex-wrap justify-center gap-2">
               <Button icon={<Upload className="size-4" />} onClick={() => setImporting(null)}>
@@ -567,7 +567,7 @@ function ImportOutlineModal({ open, parent, subjectId, nextOrder, onClose }: { o
       open={open}
       onClose={onClose}
       size="lg"
-      title={parent ? `Colar subtópicos em "${parent.name}"` : 'Colar estrutura do edital'}
+      title={parent ? `Colar subtópicos em "${parent.name}"` : 'Colar estrutura de tópicos'}
       description="Uma linha por tópico. Use 2 espaços (ou Tab) de recuo para cada subnível. Marcadores e numeração são removidos."
       footer={
         <>
