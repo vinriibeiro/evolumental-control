@@ -6,6 +6,7 @@ import { cn } from '@/lib/cn'
 import { Input, Select, Textarea } from '@/components/ui/Field'
 import type { Challenge, DataTable, Response, StepChallenge } from '@/game/types'
 import { speak, speechAvailable } from '@/game/speech'
+import { diffWords } from '@/game/engine/dictation'
 
 /** Embaralhamento determinístico (mesma ordem ao recarregar a mesma tentativa). */
 export function seededShuffle<T>(items: T[], seed: string): T[] {
@@ -191,9 +192,14 @@ function TrueFalse({ value, onChange }: { value: boolean | null; onChange: (v: b
   )
 }
 
-function ListenPlayer({ text, lang, onFallback }: { text: string; lang: string; onFallback: () => void }) {
+function ListenPlayer({ text, lang, onFallback, autoPlay }: { text: string; lang: string; onFallback: () => void; autoPlay?: boolean }) {
   const supported = speechAvailable()
   const [shown, setShown] = useState(false)
+  useEffect(() => {
+    if (!autoPlay || !supported) return
+    const t = setTimeout(() => speak(text, lang, 1), 250)
+    return () => clearTimeout(t)
+  }, [autoPlay, supported, text, lang])
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-3">
       {supported ? (
@@ -228,6 +234,12 @@ function ListenPlayer({ text, lang, onFallback }: { text: string; lang: string; 
   )
 }
 
+/** Texto lido no botão de áudio do enunciado (inclui as alternativas, quando houver). */
+function promptSpeech(c: Challenge): string {
+  const opts = c.type === 'mcq' ? c.options : c.type === 'tf' ? ['Verdadeiro', 'Falso'] : []
+  return [c.context, c.prompt, ...opts.map((o, i) => `Opção ${i + 1}: ${o}.`)].filter(Boolean).join(' ')
+}
+
 export interface ChallengeViewProps {
   challenge: Challenge
   seed: string
@@ -241,7 +253,20 @@ export function ChallengeView({ challenge: c, seed, onChange, onTranscript }: Ch
   return (
     <div className="flex flex-col gap-4">
       {c.context && <p className="rounded-lg bg-surface px-3 py-2 text-sm text-muted">{c.context}</p>}
-      <h2 className="text-base leading-snug font-semibold text-ink sm:text-lg">{c.prompt}</h2>
+      <div className="flex items-start gap-2">
+        <h2 className="min-w-0 flex-1 text-base leading-snug font-semibold text-ink sm:text-lg">{c.prompt}</h2>
+        {speechAvailable() && (
+          <button
+            type="button"
+            onClick={() => speak(promptSpeech(c), 'pt-BR', 1)}
+            aria-label="Ouvir o enunciado"
+            title="Ouvir o enunciado"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-ink"
+          >
+            <Volume2 className="size-4" aria-hidden />
+          </button>
+        )}
+      </div>
       {c.table && <TableView table={c.table} />}
       {c.code && c.type !== 'code_complete' && <CodeBlock source={c.code.source} lang={c.code.lang} />}
       <Answer key={c.id + seed} c={c} seed={seed} onChange={onChange} onTranscript={onTranscript} />
@@ -292,6 +317,7 @@ function Answer({ c, seed, onChange, onTranscript }: { c: Challenge; seed: strin
       }
       case 'short':
       case 'code_output':
+      case 'dictation':
         return onChange(text.trim() ? { type: c.type, text } : null)
       case 'multistep':
         return onChange(steps.every(Boolean) ? { type: 'multistep', steps: steps as Response[] } : null)
@@ -308,6 +334,25 @@ function Answer({ c, seed, onChange, onTranscript }: { c: Challenge; seed: strin
         <div className="flex flex-col gap-3">
           <ListenPlayer text={c.say} lang={c.lang ?? 'en-US'} onFallback={() => onTranscript?.()} />
           <Choices options={c.options} value={choice} onChange={setChoice} seed={seed} />
+        </div>
+      )
+    case 'dictation':
+      return (
+        <div className="flex flex-col gap-3">
+          <ListenPlayer text={c.say} lang={c.lang ?? 'en-US'} onFallback={() => onTranscript?.()} autoPlay />
+          <Textarea
+            aria-label="Escreva o que você ouviu"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={2}
+            lang={c.lang ?? 'en-US'}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Escreva o que você ouviu…"
+            className="text-base"
+          />
+          <p className="text-xs text-muted">Pontuação e maiúsculas não contam. Ouça quantas vezes quiser.</p>
         </div>
       )
     case 'tf':
@@ -453,4 +498,27 @@ function Answer({ c, seed, onChange, onTranscript }: { c: Challenge; seed: strin
     default:
       return null
   }
+}
+
+/** Correção do ditado palavra a palavra. */
+export function DictationDiff({ expected, typed }: { expected: string; typed: string }) {
+  const { tokens } = diffWords(expected, typed)
+  return (
+    <p className="mt-1 flex flex-wrap gap-1 text-sm" aria-label="Correção palavra por palavra">
+      {tokens.map((t, i) => (
+        <span
+          key={i}
+          className={cn(
+            'rounded px-1',
+            t.status === 'ok' && 'bg-success/15 text-ink',
+            t.status === 'missing' && 'bg-danger/15 font-semibold text-danger',
+            t.status === 'extra' && 'text-muted line-through',
+          )}
+          title={t.status === 'missing' ? 'Faltou' : t.status === 'extra' ? 'A mais / diferente' : 'Certo'}
+        >
+          {t.word}
+        </span>
+      ))}
+    </p>
+  )
 }

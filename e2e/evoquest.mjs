@@ -173,6 +173,43 @@ await step('inglês: áudio com alternativa acessível', async () => {
   throw new Error('nenhum desafio de escuta apareceu')
 })
 
+await step('ditado: ouve, escreve, acerta e vê a correção palavra a palavra', async () => {
+  await page.goto(`${BASE}/evoquest/ingles`)
+  await page.getByRole('link', { name: /Treino de escuta/ }).click()
+  await page.waitForURL(/sessao=/)
+  let right = false
+  let diff = false
+  for (let i = 0; i < 20 && !(right && diff); i++) {
+    const verify = page.getByRole('button', { name: 'Verificar' })
+    await verify.waitFor()
+    if (!(await page.getByRole('button', { name: 'Ouvir o enunciado' }).isVisible().catch(() => false)) && i === 0) throw new Error('sem botão de ouvir o enunciado')
+    const box = page.getByLabel('Escreva o que você ouviu')
+    if (await box.isVisible().catch(() => false)) {
+      if (!right) {
+        // Usa a alternativa acessível para descobrir a frase e responder certo.
+        await page.getByRole('button', { name: /mostrar o texto/ }).click()
+        const said = (await page.locator('p[lang^=en]').innerText()).replace(/[“”]/g, '')
+        await box.fill(said.toUpperCase().replace(/[.?!,]/g, ''))
+      } else await box.fill('this is not the sentence')
+    } else await answerAnything()
+    await page.waitForTimeout(1100)
+    await verify.click()
+    await page.getByRole('button', { name: 'Continuar' }).waitFor()
+    if (await box.count()) {
+      if (!right && (await page.getByText('Correto!').isVisible())) {
+        right = true
+        await page.screenshot({ path: `${OUT}/11b-ditado-certo.png`, fullPage: true })
+      } else if (right && (await page.getByLabel('Correção palavra por palavra').isVisible().catch(() => false))) {
+        diff = true
+        await page.screenshot({ path: `${OUT}/11c-ditado-correcao.png`, fullPage: true })
+      }
+    }
+    if (await page.getByText(/Partida concluída|Subiu para o nível/).first().isVisible().catch(() => false)) break
+    await page.getByRole('button', { name: 'Continuar' }).click()
+  }
+  if (!right || !diff) throw new Error(`ditado: certo=${right} correção=${diff}`)
+})
+
 await step('histórico, revisão, relógio, casos práticos e flashcards abrem', async () => {
   for (const [path, text] of [
     ['/evoquest/historico', 'Últimas partidas'],

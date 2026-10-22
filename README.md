@@ -101,7 +101,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql` e `20261022000100_evoquest_catalog.sql`. Em um projeto já existente, aplique **só as que ainda não rodou**.
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql` e `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente). Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -139,11 +139,11 @@ npm run screenshots  # capturas de estados com dados de exemplo
 
 Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a mesma identidade visual, no modo local e no Supabase.
 
-**Conteúdo:** 8 disciplinas, 3 unidades cada, com lição antes da prática e um chefe por unidade. São 284 desafios no total, cada um com explicação, id estável e versão.
+**Conteúdo:** 8 disciplinas, 3 unidades cada, com lição antes da prática e um chefe por unidade. São 296 desafios no total, cada um com explicação, id estável e versão.
 
 | Disciplina | Desafios | Destaques |
 |---|---|---|
-| Inglês (A1→B1) | 37 | escuta com voz do navegador (normal/lenta), tradução após responder, texto alternativo acessível |
+| Inglês (A1→B1) | 49 | escuta com voz do navegador (normal/lenta), **ditado** (ouvir e escrever, correção palavra a palavra), treino só de escuta, tradução após responder, texto alternativo acessível |
 | Português (concursos) | 33 | acentuação, concordância, regência, crase, pontuação, interpretação |
 | Raciocínio Lógico | 36 | equivalências, argumentos, diagramas, contagem, probabilidade |
 | Estatística | 36 | cálculos conferidos automaticamente pelos testes |
@@ -161,7 +161,7 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 - laboratório;
 - flashcards em modo jogo (reaproveita seus cartões e o SM-2).
 
-**Tipos de desafio:** múltipla escolha, V/F, lacunas, associação, ordenação, categorização (arrastar ou tocar), achar o erro, numérico com tolerância, resposta curta, completar código, prever saída, multietapas, escuta, SQL e Python.
+**Tipos de desafio:** múltipla escolha, V/F, ditado, lacunas, associação, ordenação, categorização (arrastar ou tocar), achar o erro, numérico com tolerância, resposta curta, completar código, prever saída, multietapas, escuta, SQL e Python.
 
 **Regras** (fonte única em `src/game/engine/rules.ts`, espelhada em SQL):
 - **XP:**
@@ -191,7 +191,7 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 **Adicionar conteúdo ou disciplina:**
 1. Crie `src/game/content/<id>.ts` usando os construtores de `_build.ts`.
 2. Registre a disciplina em `src/game/catalog.ts`.
-3. Rode `npm run game:catalog`, que regenera `supabase/migrations/20261022000100_evoquest_catalog.sql` (idempotente; reaplique no SQL Editor).
+3. Se a versão atual do catálogo já foi aplicada, crie um nome novo em `CATALOG_MIGRATION` (`src/game/catalogSql.ts`). Depois rode `npm run game:catalog` para gerar o SQL (idempotente) e aplique-o no SQL Editor.
 4. Rode `npm test`.
 
 O motor não muda. Nunca reutilize um id; ao corrigir um gabarito, incremente `v`.

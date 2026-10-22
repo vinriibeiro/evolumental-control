@@ -50,6 +50,8 @@ export type Challenge =
   | (Base & { type: 'code_output'; accept: string[] })
   | (Base & { type: 'multistep'; steps: StepChallenge[] })
   | (Base & { type: 'listen'; say: string; lang?: string; options: string[]; answer: number; translation?: string })
+  /** Ditado: ouvir o áudio e escrever o que foi dito. */
+  | (Base & { type: 'dictation'; say: string; lang?: string; accept: string[]; translation?: string })
   | (Base & { type: 'sql'; dataset: string; solution: string; orderMatters?: boolean; starter?: string })
   | (Base & { type: 'python'; starter: string; solution: string; entry: string; tests: Array<{ args: unknown[]; expected: unknown }>; packages?: string[] })
 
@@ -103,7 +105,7 @@ export type Response =
   | { type: 'categorize'; assignment: Record<string, number> }
   | { type: 'find_error'; index: number }
   | { type: 'numeric'; value: number }
-  | { type: 'short' | 'code_output'; text: string }
+  | { type: 'short' | 'code_output' | 'dictation'; text: string }
   | { type: 'multistep'; steps: Response[] }
   | { type: 'sql'; query: string; result?: { columns: string[]; rows: unknown[][] }; matches?: boolean; error?: string }
   | { type: 'python'; code: string; passed?: number; total?: number; error?: string }

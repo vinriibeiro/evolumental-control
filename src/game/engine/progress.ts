@@ -111,6 +111,8 @@ export interface BuildInput {
   minutes: number
   unitId?: string | null
   now: number
+  /** Restringe a partida a alguns tipos (ex.: treino de escuta). */
+  types?: Challenge['type'][]
   seed?: number
 }
 
@@ -139,14 +141,14 @@ export function skillLevel(challenges: Challenge[], answers: AnswerLike[]): numb
   return Math.min(5, Math.max(1, weighted / total))
 }
 
-const FAST_TYPES = new Set(['mcq', 'tf', 'fill', 'listen', 'find_error', 'numeric'])
+const FAST_TYPES = new Set(['mcq', 'tf', 'fill', 'listen', 'find_error', 'numeric', 'dictation'])
 
 export function buildQueue(i: BuildInput): Challenge[] {
   const random = rng(i.seed ?? i.now)
   const states = challengeStates(i.answers)
   const unlocked = unlockedUnits(i.content, i.answers, states)
   const units = i.content.units.filter((u) => (i.unitId ? u.id === i.unitId : unlocked.has(u.id)))
-  const all = units.flatMap((u) => u.challenges).filter((c) => !LAB_TYPES.includes(c.type))
+  const all = units.flatMap((u) => u.challenges).filter((c) => !LAB_TYPES.includes(c.type) && (!i.types || i.types.includes(c.type)))
   const skill = skillLevel(all, i.answers)
   const budget = i.minutes * 60
 

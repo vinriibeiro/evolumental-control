@@ -1,5 +1,5 @@
 import type { SubjectContent } from '../types'
-import { cat, err, fill, listen, match, mcq, multi, order, short, step, tf } from './_build'
+import { cat, dictate, err, fill, listen, match, mcq, multi, order, short, step, tf } from './_build'
 
 const content: SubjectContent = {
   subjectId: 'ingles',
@@ -18,6 +18,7 @@ const content: SubjectContent = {
         { title: 'Simple present', body: 'Hábitos e fatos. Na 3ª pessoa do singular (he/she/it) o verbo ganha -s/-es: she works, he watches. Negativa e pergunta usam do/does + verbo sem -s.', example: 'He works in Brasília. Does he work on Saturdays? No, he doesn’t.' },
         { title: 'Advérbios de frequência', body: 'always > usually > often > sometimes > rarely > never. Ficam antes do verbo principal e depois do verb to be.', example: 'I usually study at night. She is always late.' },
         { title: 'Ouvir com calma', body: 'Nos desafios de áudio, ouça primeiro em velocidade normal e depois em velocidade lenta. A tradução aparece só depois da sua resposta.' },
+        { title: 'Ditado', body: 'No ditado você ouve uma frase e a escreve. Pontuação e maiúsculas não contam, e contrações valem igual à forma completa (I’m = I am). Se errar, a correção mostra palavra por palavra o que faltou ou sobrou — e quase acertar ainda rende parte do XP.' },
       ],
       challenges: [
         fill('ingles.u1.c01', 'tobe', 1, 'Complete com o verb to be.', 'She ___ a teacher.', [{ accept: ['is'], options: ['am', 'is', 'are'] }], 'He/she/it → is.'),
@@ -31,6 +32,10 @@ const content: SubjectContent = {
         tf('ingles.u1.c09', 'tobe', 1, '"They isn’t at school" está correto.', false, 'They → aren’t: They aren’t at school.'),
         short('ingles.u1.c10', 'vocab1', 2, 'Traduza para o inglês: "Eu tenho vinte anos."', ["I am twenty years old", "I'm twenty years old", "I am twenty", "I'm twenty", 'I am 20 years old', "I'm 20 years old", "I'm 20", 'I am 20'], 'Idade em inglês usa o verb to be: I am twenty (years old) — nunca "I have twenty years".', { whyWrong: '"I have 20 years" é um decalque do português.' }),
         cat('ingles.u1.c11', 'present', 2, 'Classifique cada verbo na 3ª pessoa (he/she/it).', ['+s', '+es', '+ies'], [['work → works', 0], ['watch → watches', 1], ['study → studies', 2], ['go → goes', 1], ['play → plays', 0]], 'Terminações -ch, -sh, -s, -x, -o levam -es; consoante + y vira -ies; vogal + y só +s.'),
+        dictate('ingles.u1.d01', 'tobe', 1, 'I am a student.', 'Eu sou estudante.', 'Verb to be com "I": I am (ou a contração I’m).'),
+        dictate('ingles.u1.d02', 'present', 2, 'She works in a hospital.', 'Ela trabalha em um hospital.', 'Repare no -s de "works": 3ª pessoa do singular no simple present.'),
+        dictate('ingles.u1.d03', 'present', 2, 'Where do you live?', 'Onde você mora?', 'Pergunta com wh-word + do + sujeito + verbo.'),
+        dictate('ingles.u1.d04', 'vocab1', 2, 'We usually have lunch at noon.', 'Nós geralmente almoçamos ao meio-dia.', '"have lunch" = almoçar; "at noon" = ao meio-dia. O advérbio "usually" vem antes do verbo.', { hint: 'São 7 palavras.' }),
         multi('ingles.u1.boss', 'present', 3, 'Chefe da unidade A1: um perfil.', [
           step.mcq('ingles.u1.boss.s1', '"Maria ___ a nurse."', ['am', 'is', 'are', 'be'], 1, 'Maria = she → is.'),
           step.mcq('ingles.u1.boss.s2', '"She ___ in a hospital."', ['work', 'works', 'working', 'is work'], 1, 'Simple present, 3ª pessoa → works.'),
@@ -65,6 +70,10 @@ const content: SubjectContent = {
         listen('ingles.u2.c09', 'past', 2, 'Ouça e responda: quando a pessoa chegou?', 'I arrived home late last night because the bus broke down.', ['Ontem à noite', 'Hoje cedo', 'Na semana passada', 'Amanhã'], 0, '"last night" = ontem à noite. "broke down" = quebrou (veículo).', { translation: 'Cheguei tarde em casa ontem à noite porque o ônibus quebrou.' }),
         listen('ingles.u2.c10', 'future', 2, 'Ouça e escolha o que a pessoa vai fazer.', "I'm going to visit my grandparents next weekend.", ['Visitar os avós no próximo fim de semana', 'Visitou os avós no fim de semana passado', 'Visitar os pais amanhã', 'Ligar para os avós hoje'], 0, '"going to" + next weekend = plano futuro.', { translation: 'Vou visitar meus avós no próximo fim de semana.' }),
         order('ingles.u2.c11', 'past', 2, 'Monte a frase.', ['We', "didn't", 'watch', 'the', 'game.'], 'Sujeito + didn’t + verbo base + complemento.'),
+        dictate('ingles.u2.d01', 'past', 2, 'I went to the bank yesterday.', 'Fui ao banco ontem.', '"went" é o passado irregular de "go".'),
+        dictate('ingles.u2.d02', 'past', 3, 'Did you watch the game last night?', 'Você assistiu ao jogo ontem à noite?', 'Pergunta no passado: did + sujeito + verbo na forma base ("watch", sem -ed).'),
+        dictate('ingles.u2.d03', 'compar', 2, 'This laptop is cheaper than that one.', 'Este notebook é mais barato que aquele.', 'Comparativo de adjetivo curto: cheap → cheaper than.'),
+        dictate('ingles.u2.d04', 'future', 3, "I'm going to visit my parents next week.", 'Vou visitar meus pais na semana que vem.', '"going to" para planos. Na fala, "going to" pode soar como "gonna" — na escrita formal, use "going to".'),
         multi('ingles.u2.boss', 'past', 4, 'Chefe A2: uma viagem.', [
           step.mcq('ingles.u2.boss.s1', '"Last year we ___ to Salvador."', ['go', 'went', 'gone', 'going'], 1, 'Passado simples de go.'),
           step.mcq('ingles.u2.boss.s2', '"It was ___ than Brasília." (hot)', ['hoter', 'hotter', 'more hot', 'hottest'], 1, 'CVC dobra a consoante: hot → hotter.'),
@@ -100,6 +109,10 @@ const content: SubjectContent = {
         short('ingles.u3.c10', 'phrasal', 3, 'Escreva o phrasal verb que significa "descobrir" (ex.: ___ the truth).', ['find out', 'found out', 'finds out'], 'find out = descobrir uma informação.'),
         tf('ingles.u3.c11', 'perfect', 2, '"I have known her since ten years" está correto.', false, 'Duração usa for: I have known her for ten years.'),
         mcq('ingles.u3.c12', 'perfect', 3, 'Leia: "Tom has just finished the report." O que sabemos?', ['Ele terminou há pouco', 'Ele vai terminar', 'Ele terminou há anos', 'Ele nunca termina'], 0, 'just + present perfect = ação acabada de acontecer.'),
+        dictate('ingles.u3.d01', 'perfect', 3, 'I have lived here for five years.', 'Moro aqui há cinco anos.', 'Present perfect + for (duração). Também aceito com o número 5.', { accept: ['I have lived here for 5 years.'] }),
+        dictate('ingles.u3.d02', 'cond', 3, 'If it rains, we will stay home.', 'Se chover, ficaremos em casa.', 'First conditional: if + presente, will + verbo ("we will" = "we’ll").'),
+        dictate('ingles.u3.d03', 'perfect', 4, 'She has just finished the report.', 'Ela acabou de terminar o relatório.', '"has just" + particípio = acabou de. Atenção ao som fraco de "has" na fala rápida.'),
+        dictate('ingles.u3.d04', 'phrasal', 4, 'I gave up coffee last month.', 'Parei de tomar café no mês passado.', '"gave up" (passado de give up) = parar com, desistir de.'),
         multi('ingles.u3.boss', 'cond', 5, 'Chefe final B1: e-mail de trabalho.', [
           step.mcq('ingles.u3.boss.s1', '"I ___ the files to you this morning." (enviar, manhã já terminou)', ['sent', 'have sent', 'send', 'am sending'], 0, 'Tempo terminado e definido → simple past.'),
           step.mcq('ingles.u3.boss.s2', '"___ you received them yet?"', ['Did', 'Have', 'Do', 'Are'], 1, 'yet em perguntas → present perfect: Have you received...?'),

@@ -15,7 +15,7 @@ import { comboMultiplier, levelFromXp } from '@/game/engine/rules'
 import { playSfx } from '@/game/speech'
 import type { Challenge, Response, SubjectContent } from '@/game/types'
 import { MODE_LABELS, finishGame, gameSettings, startGame, submitAnswer, useGameData, useGameMutation, useSubjectContent } from '@/game/useGame'
-import { ChallengeView } from './ChallengeView'
+import { ChallengeView, DictationDiff } from './ChallengeView'
 
 const TIME_ATTACK_SECONDS = 90
 const BOSS_LIVES = 3
@@ -34,6 +34,7 @@ function Starter() {
   const mode = (params.get('m') ?? 'quick') as GameMode
   const unitId = params.get('u')
   const minutes = Math.min(120, Math.max(1, Number(params.get('min')) || 5))
+  const listening = params.get('foco') === 'escuta'
   const content = useSubjectContent(subject)
   const data = useGameData()
   const start = useGameMutation(startGame)
@@ -44,7 +45,7 @@ function Starter() {
     if (started.current || !content.data || data.isPending || data.isError) return
     if (mode === 'cards') return
     started.current = true
-    const queue = buildQueue({ content: content.data, answers: data.answers, mode, minutes, unitId, now: Date.now() })
+    const queue = buildQueue({ content: content.data, answers: data.answers, mode, minutes, unitId, now: Date.now(), types: listening ? ['listen', 'dictation'] : undefined })
     if (queue.length === 0) return setEmpty(true)
     start
       .mutateAsync({ subjectId: subject, unitId, mode, queue: queue.map((c) => c.id), plannedSeconds: mode === 'time_attack' ? TIME_ATTACK_SECONDS : minutes * 60 })
@@ -165,6 +166,7 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
   const [usedHint, setUsedHint] = useState(false)
   const [showHint, setShowHint] = useState(false)
   const [feedback, setFeedback] = useState<Played | null>(null)
+  const [answered, setAnswered] = useState<Response | null>(null)
   const [summary, setSummary] = useState<Awaited<ReturnType<typeof finishGame>> | null>(session.status !== 'active' ? { session, time: 'disabled' } : null)
   const [shownAt, setShownAt] = useState(Date.now())
   // Semente do embaralhamento: estável durante o desafio (e ao recarregar).
@@ -233,6 +235,7 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
       })
       const p: Played = { challenge: current, correct: r.correct, xp: r.xp, coins: r.coins, combo: r.combo }
       if (game.sound) playSfx(r.correct ? 'right' : 'wrong')
+      setAnswered(response)
       setFeedback(p)
       setPlayed((xs) => [...xs, p])
     } catch (e) {
@@ -367,7 +370,7 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
           {p.correct ? <CheckCircle2 className="mt-0.5 size-7 shrink-0 text-success" aria-hidden /> : <XCircle className="mt-0.5 size-7 shrink-0 text-danger" aria-hidden />}
           <div className="min-w-0 flex-1">
             <p className={cn('text-base font-semibold', p.correct ? 'text-success' : 'text-danger')}>
-              {p.correct ? 'Correto!' : 'Ainda não'}
+              {p.correct ? 'Correto!' : p.xp > 0 ? 'Quase lá' : 'Ainda não'}
               {lastXpLabel && <span className="ml-2 rounded-full bg-accent/40 px-2 py-0.5 text-xs text-ink">{lastXpLabel}</span>}
               {p.correct && p.xp === 0 && <span className="ml-2 text-xs font-normal text-muted">(repetição recente: sem XP)</span>}
             </p>
@@ -378,6 +381,12 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
             )}
             <p className="mt-1 text-sm text-muted">{c.explanation}</p>
             {!p.correct && c.whyWrong && <p className="mt-1 text-sm text-muted">{c.whyWrong}</p>}
+            {c.type === 'dictation' && answered?.type === 'dictation' && !p.correct && <DictationDiff expected={c.say} typed={answered.text} />}
+            {c.type === 'dictation' && c.translation && (
+              <p className="mt-1 text-sm text-ink">
+                <span className="text-muted">Tradução:</span> {c.translation}
+              </p>
+            )}
             {c.type === 'listen' && c.translation && (
               <p className="mt-1 text-sm text-ink">
                 <span className="text-muted">Áudio:</span> <span lang="en">“{c.say}”</span> — {c.translation}

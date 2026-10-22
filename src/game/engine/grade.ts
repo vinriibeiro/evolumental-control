@@ -1,6 +1,7 @@
 // Correção de desafios. Cada tipo registra seu corretor aqui; adicionar um tipo
 // novo não exige mudar os demais nem o restante do jogo.
 import type { Challenge, ChallengeType, GradeResult, Response } from '../types'
+import { dictationMatches, dictationScore } from './dictation'
 
 /** Normaliza texto livre sem mudar o sentido: espaços, aspas e (opcional) caixa/acentos. */
 export function normalizeText(s: string, opts: { caseSensitive?: boolean; accentSensitive?: boolean } = {}): string {
@@ -76,6 +77,12 @@ const GRADERS: { [T in ChallengeType]: Grader<T> } = {
     const norm = (s: string) => s.replace(/\r/g, '').replace(/[ \t]+$/gm, '').trim()
     return ok(c.accept.some((a) => norm(a) === norm(r.text)))
   },
+  dictation: (c, r) => {
+    if (r.type !== 'dictation' && r.type !== 'short') return ok(false)
+    if (dictationMatches(c.accept, r.text)) return ok(true)
+    const score = Math.max(...c.accept.map((a) => dictationScore(a, r.text)))
+    return { correct: false, score, detail: `${Math.round(score * 100)}% das palavras` }
+  },
   multistep: (c, r) => {
     if (r.type !== 'multistep') return ok(false)
     const results = c.steps.map((s, i) => grade(s, r.steps[i] ?? ({ type: 'short', text: '' } as Response)))
@@ -125,6 +132,8 @@ export function correctResponse(c: Challenge): Response {
       return { type: 'short', text: c.accept[0] }
     case 'code_output':
       return { type: 'code_output', text: c.accept[0] }
+    case 'dictation':
+      return { type: 'dictation', text: c.accept[0] }
     case 'multistep':
       return { type: 'multistep', steps: c.steps.map(correctResponse) }
     case 'sql':
@@ -159,6 +168,8 @@ export function describeAnswer(c: Challenge): string {
       return c.accept[0]
     case 'code_output':
       return c.accept[0]
+    case 'dictation':
+      return c.say
     case 'multistep':
       return c.steps.map((s, i) => `${i + 1}) ${describeAnswer(s)}`).join('  ')
     case 'sql':
@@ -173,7 +184,7 @@ export function estimatedSeconds(c: Challenge): number {
   if (c.seconds) return c.seconds
   const base: Record<ChallengeType, number> = {
     mcq: 35, listen: 40, tf: 20, fill: 40, code_complete: 60, match: 50, order: 50, categorize: 60,
-    find_error: 40, numeric: 60, short: 45, code_output: 50, multistep: 120, sql: 240, python: 300,
+    find_error: 40, numeric: 60, dictation: 60, short: 45, code_output: 50, multistep: 120, sql: 240, python: 300,
   }
   return base[c.type]
 }

@@ -44,6 +44,11 @@ export const multi = (...[id, topic, difficulty, prompt, steps, explanation, ext
 export const listen = (...[id, topic, difficulty, prompt, say, options, answer, explanation, extra]: [...Common, string, string[], number, string, (Extra & { translation?: string })?]): Challenge => ({
   type: 'listen', id, topic, difficulty, prompt, say, lang: 'en-US', options, answer, explanation, ...extra,
 })
+/** Ditado: o áudio é `say`; `accept` traz variações (contrações já são equivalentes). */
+export const dictate = (...[id, topic, difficulty, say, translation, explanation, extra]: [id: string, topic: string, difficulty: Difficulty, say: string, translation: string, explanation: string, (Extra & { accept?: string[] })?]): Challenge => {
+  const { accept = [], ...rest } = extra ?? {}
+  return { type: 'dictation', id, topic, difficulty, prompt: 'Ouça e escreva a frase em inglês.', say, lang: 'en-US', accept: [say, ...accept], translation, explanation, ...rest }
+}
 export const sqlLab = (...[id, topic, difficulty, prompt, solution, explanation, extra]: [...Common, string, string, (Extra & { orderMatters?: boolean; starter?: string; dataset?: string })?]): Challenge => ({
   type: 'sql', id, topic, difficulty, prompt, dataset: extra?.dataset ?? 'loja', solution, explanation, seconds: 240, ...extra,
 })

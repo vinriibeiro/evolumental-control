@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { BookOpen, Brain, Crown, FlaskConical, Lock, Map as MapIcon, Swords, Timer } from 'lucide-react'
+import { BookOpen, Brain, Crown, FlaskConical, Headphones, Lock, Map as MapIcon, Swords, Timer } from 'lucide-react'
 import { Card, Progress } from '@/components/ui/layout'
 import { EmptyState, ErrorState, Spinner } from '@/components/ui/feedback'
 import { Select } from '@/components/ui/Field'
@@ -75,6 +75,11 @@ export default function SubjectPage() {
         <Link to={`/evoquest/jogar?s=${subject}&m=time_attack`} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
           <Timer className="size-4" aria-hidden /> Contra o relógio
         </Link>
+        {meta.capabilities.includes('speech') && (
+          <Link to={`/evoquest/jogar?s=${subject}&m=quick&min=10&foco=escuta`} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
+            <Headphones className="size-4" aria-hidden /> Treino de escuta
+          </Link>
+        )}
         <Link to={`/evoquest/laboratorio?s=${subject}`} className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
           <FlaskConical className="size-4" aria-hidden /> {view.labs > 0 ? 'Laboratório' : 'Casos práticos'}
         </Link>

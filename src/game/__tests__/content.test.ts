@@ -8,7 +8,8 @@ import { join } from 'node:path'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { SUBJECTS } from '../catalog'
-import { buildCatalogSql } from '../catalogSql'
+import { CATALOG_MIGRATION, buildCatalogSql } from '../catalogSql'
+import { diffWords, dictationMatches, dictationScore } from '../engine/dictation'
 import { correctResponse, grade } from '../engine/grade'
 import { compareResults, runQuery } from '../lab/sqlCore'
 import type { Challenge, Response, SubjectContent } from '../types'
@@ -64,6 +65,7 @@ function wrongResponse(c: Challenge): Response | null {
       return { type: 'order', items: [...c.items].reverse() }
     case 'short':
     case 'code_output':
+    case 'dictation':
       return { type: c.type, text: '___resposta errada___' }
     case 'fill':
     case 'code_complete':
@@ -155,6 +157,11 @@ describe('conteúdo do EvoQuest', () => {
         case 'code_output':
           expect(c.accept.length).toBeGreaterThan(0)
           break
+        case 'dictation':
+          // O que se ouve precisa ser aceito como resposta.
+          expect(dictationMatches(c.accept, c.say), c.id).toBe(true)
+          expect(c.translation, c.id).toBeTruthy()
+          break
         case 'multistep':
           expect(c.steps.length).toBeGreaterThanOrEqual(2)
           expect(new Set(c.steps.map((s) => s.id)).size).toBe(c.steps.length)
@@ -222,6 +229,28 @@ describe('conteúdo do EvoQuest', () => {
     expect(() => runQuery(SQL, ds, 'SELEC nome FROM produtos')).toThrow()
   })
 
+  it('ditado: ignora pontuação/caixa, aceita contrações e mostra a diferença palavra a palavra', () => {
+    expect(dictationMatches(['I am a student.'], "i'm a STUDENT")).toBe(true)
+    expect(dictationMatches(['If it rains, we will stay home.'], 'If it rains we’ll stay home')).toBe(true)
+    expect(dictationMatches(['She works in a hospital.'], 'She work in a hospital')).toBe(false)
+    expect(dictationMatches(['Where do you live?'], '')).toBe(false)
+    // 4 de 5 palavras certas e 1 diferente: (4 − 0,5) / 5
+    expect(dictationScore('She works in a hospital.', 'She work in a hospital')).toBeCloseTo(0.7, 5)
+    expect(dictationScore('Where do you live?', 'Where do you live live live live live')).toBeLessThan(1)
+    const d = diffWords('I went to the bank yesterday.', 'I go to bank yesterday')
+    expect(d.tokens.filter((t) => t.status === 'missing').map((t) => t.word)).toEqual(['went', 'the'])
+    expect(d.tokens.filter((t) => t.status === 'extra').map((t) => t.word)).toEqual(['go'])
+    expect(d.matched).toBe(4)
+  })
+
+  it('o inglês tem treino de escuta: ditados e escuta com alternativas em todas as unidades', () => {
+    const ingles = contents.find((s) => s.subjectId === 'ingles')!
+    for (const u of ingles.units) {
+      expect(u.challenges.filter((c) => c.type === 'dictation').length, u.id).toBeGreaterThanOrEqual(4)
+      expect(u.challenges.filter((c) => c.type === 'listen').length, u.id).toBeGreaterThanOrEqual(1)
+    }
+  })
+
   it('valores de referência do banco de exemplo (usados em vários desafios)', () => {
     const ds = contents.find((s) => s.subjectId === 'sql')!.datasets!.loja
     const one = (q: string) => runQuery(SQL, ds, q).rows[0][0]
@@ -236,7 +265,7 @@ describe('conteúdo do EvoQuest', () => {
   })
 
   it('a migração do catálogo está sincronizada com o conteúdo', () => {
-    const file = join(__dirname, '..', '..', '..', 'supabase', 'migrations', '20261022000100_evoquest_catalog.sql')
+    const file = join(__dirname, '..', '..', '..', 'supabase', 'migrations', CATALOG_MIGRATION)
     const sql = buildCatalogSql(contents)
     if (process.env.UPDATE_CATALOG) writeFileSync(file, sql)
     expect(readFileSync(file, 'utf8').replace(/\r\n/g, '\n'), 'Rode `npm run game:catalog`').toBe(sql)
