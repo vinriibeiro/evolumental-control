@@ -239,6 +239,10 @@ export class SupabaseBackend implements DataBackend {
     return { xp: Number(r?.xp ?? 0), coins: Number(r?.coins ?? 0) }
   }
 
+  gameCompleteStep(step: string, answer: string | null) {
+    return this.rpc<{ applied: boolean; xp: number; coins: number }>('game_complete_step', { p_step: step, p_answer: answer })
+  }
+
   async resetAllData(): Promise<void> {
     const { error } = await this.client.rpc('reset_my_data')
     if (error) throw toDataError(error)

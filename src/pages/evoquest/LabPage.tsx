@@ -34,7 +34,7 @@ export function LabListPage() {
 
   return (
     <div>
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <PageHeader
         title="Laboratório prático"
         description="SQL roda de verdade em SQLite no navegador; Python roda em Pyodide (CPython em WebAssembly), isolado em um worker. DAX e M são praticados com casos de resultado conhecido — sem simular o Power BI."

@@ -40,7 +40,7 @@ export default function ProfilePage() {
 
   return (
     <div>
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <PageHeader title="Perfil, sequência e loja" />
       <div className="grid gap-4 lg:grid-cols-2">
         <PlayerCard summary={summary} game={game} name={profile.data?.display_name ?? 'Estudante'} />

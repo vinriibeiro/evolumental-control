@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Award, Brain, FlaskConical, History, Layers, Play, ShoppingBag, Swords, Target, Timer } from 'lucide-react'
+import { Award, Brain, Map as MapIcon, FlaskConical, History, Layers, Play, ShoppingBag, Swords, Target, Timer } from 'lucide-react'
 import { Card, CardHeader, PageHeader, Progress } from '@/components/ui/layout'
 import { ErrorState, Skeleton } from '@/components/ui/feedback'
 import { useProfile } from '@/hooks/useSettings'
@@ -45,8 +45,13 @@ export default function EvoQuestHome() {
   return (
     <div>
       <PageHeader
-        title="EvoQuest — Aprenda Jogando"
-        description="Desafios curtos, revisão inteligente e laboratórios práticos. Ganhe XP, mantenha a sequência e domine cada disciplina."
+        title="Treino do EvoQuest"
+        description="Desafios rápidos, revisão inteligente e laboratórios livres. A aventura de verdade acontece no Mundo Evolumental."
+        actions={
+          <Link to="/evoquest" className="inline-flex h-10 items-center gap-2 rounded-lg bg-brown px-4 text-sm font-semibold text-wheat hover:opacity-90 dark:bg-wheat dark:text-brown">
+            <MapIcon className="size-4" /> Entrar no mundo
+          </Link>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">

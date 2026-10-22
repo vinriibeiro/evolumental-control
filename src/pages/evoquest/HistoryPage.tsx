@@ -41,7 +41,7 @@ export default function HistoryPage() {
 
   return (
     <div>
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <PageHeader title="Histórico e estatísticas" description="Desempenho por disciplina e as últimas partidas." />
 
       <Card>
@@ -87,7 +87,7 @@ export default function HistoryPage() {
 
       <h2 className="mt-6 mb-3 text-sm font-semibold text-ink">Últimas partidas</h2>
       {sessions.length === 0 ? (
-        <EmptyState title="Nenhuma partida ainda" description="Suas partidas aparecem aqui com acertos, XP e tempo." action={<Link to="/evoquest" className="underline">Começar a jogar</Link>} />
+        <EmptyState title="Nenhuma partida ainda" description="Suas partidas aparecem aqui com acertos, XP e tempo." action={<Link to="/evoquest/treino" className="underline">Começar a jogar</Link>} />
       ) : (
         <ul className="flex flex-col gap-2">
           {sessions.map((s) => {

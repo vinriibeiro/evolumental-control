@@ -107,6 +107,11 @@ export interface DataBackend {
   /** Compra um cosmético com moedas virtuais. false = já possuía. */
   gameBuy(itemId: string): Promise<boolean>
   gameTotals(): Promise<{ xp: number; coins: number }>
+  /**
+   * Conclui uma etapa de missão do RPG. O backend confere a ordem e o hash da
+   * resposta e credita a recompensa do catálogo uma única vez.
+   */
+  gameCompleteStep(step: string, answer: string | null): Promise<{ applied: boolean; xp: number; coins: number }>
   /** Apaga todos os dados de estudo e restaura as preferências; mantém a conta. */
   resetAllData(): Promise<void>
   /** Exclui a conta e, em cascata, todos os dados. */

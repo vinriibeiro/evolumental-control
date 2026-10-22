@@ -228,7 +228,21 @@ export default function QuestionsPage() {
   )
 }
 
-function QuestionForm({ open, record, onClose, defaultSubject, today }: { open: boolean; record: QuestionRecord | null; onClose: () => void; defaultSubject: string | null; today: string }) {
+export function QuestionForm({
+  open,
+  record,
+  onClose,
+  defaultSubject,
+  defaultTopic = null,
+  today,
+}: {
+  open: boolean
+  record: QuestionRecord | null
+  onClose: () => void
+  defaultSubject: string | null
+  defaultTopic?: string | null
+  today: string
+}) {
   const [link, setLink] = useState<{ subjectId: string | null; topicId: string | null }>({ subjectId: null, topicId: null })
   const [values, setValues] = useState({ date: today, total: '', correct: '', wrong: '', board: '', exam: '', source: '', notes: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -237,7 +251,7 @@ function QuestionForm({ open, record, onClose, defaultSubject, today }: { open: 
   const toast = useToast()
   useEffect(() => {
     if (!open) return
-    setLink({ subjectId: record?.subject_id ?? defaultSubject ?? null, topicId: record?.topic_id ?? null })
+    setLink({ subjectId: record?.subject_id ?? defaultSubject ?? null, topicId: record?.topic_id ?? defaultTopic ?? null })
     setValues({
       date: record?.date ?? today,
       total: record ? String(record.total) : '',
@@ -249,7 +263,7 @@ function QuestionForm({ open, record, onClose, defaultSubject, today }: { open: 
       notes: record?.notes ?? '',
     })
     setErrors({})
-  }, [open, record, defaultSubject, today])
+  }, [open, record, defaultSubject, defaultTopic, today])
   const set = (k: keyof typeof values, v: string) => setValues((s) => ({ ...s, [k]: v }))
   // Preenche "erros" automaticamente quando ainda vazio.
   const autoWrong = values.wrong === '' && values.total !== '' && values.correct !== '' ? String(Math.max(0, Number(values.total) - Number(values.correct))) : values.wrong

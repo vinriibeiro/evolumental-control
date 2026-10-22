@@ -46,7 +46,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
       ])
       return [
         ...subjects.rows.map((s): Hit => ({ id: s.id, kind: 'Matéria', label: s.name, sub: s.exam ?? undefined, to: `/materias/${s.id}` })),
-        ...topics.rows.map((t): Hit => ({ id: t.id, kind: 'Tópico', label: t.name, to: `/materias/${t.subject_id}?topico=${t.id}` })),
+        ...topics.rows.map((t): Hit => ({ id: t.id, kind: 'Tópico', label: t.name, to: `/materias/${t.subject_id}/topico/${t.id}` })),
         ...decks.rows.map((d): Hit => ({ id: d.id, kind: 'Baralho', label: d.name, to: `/flashcards/${d.id}` })),
         ...cards.rows.map((c): Hit => ({ id: c.id, kind: 'Flashcard', label: c.front, sub: c.back, to: `/flashcards/${c.deck_id}?cartao=${c.id}` })),
         ...maps.rows.map((m): Hit => ({ id: m.id, kind: 'Mapa', label: m.title, to: `/mapas/${m.id}` })),

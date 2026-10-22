@@ -132,7 +132,7 @@ function Runner({ sessionId }: { sessionId: string }) {
   const content = useSubjectContent(session?.subject_id)
   if (data.isError) return <ErrorState error={data.error} onRetry={data.refetch} />
   if (data.isPending || (session && content.isPending)) return <Spinner label="Carregando partida…" className="min-h-[50vh]" />
-  if (!session) return <EmptyState title="Partida não encontrada" description="Ela pode ter sido apagada." action={<Link className="underline" to="/evoquest">Voltar ao EvoQuest</Link>} />
+  if (!session) return <EmptyState title="Partida não encontrada" description="Ela pode ter sido apagada." action={<Link className="underline" to="/evoquest/treino">Voltar ao EvoQuest</Link>} />
   if (content.isError || !content.data) return <ErrorState error={content.error} onRetry={() => content.refetch()} />
   return <Game session={session} content={content.data} answers={data.answers} />
 }

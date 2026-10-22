@@ -25,7 +25,7 @@ export default function ModePickPage({ mode }: { mode: 'review' | 'time_attack' 
   const list = review ? [...SUBJECTS].sort((a, b) => (due.get(b.id) ?? 0) - (due.get(a.id) ?? 0)) : SUBJECTS
   return (
     <div>
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <PageHeader
         title={review ? 'Revisão inteligente' : 'Contra o relógio'}
         description={

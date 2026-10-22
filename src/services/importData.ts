@@ -1,5 +1,5 @@
 // Importação de pacotes/backups JSON (mesmo formato da exportação de
-// Configurações). Importa matérias, tópicos, materiais, baralhos, cartões,
+// Configurações). Importa pastas, matérias, tópicos, materiais, baralhos, cartões,
 // mapas mentais e sessões de estudo concluídas (com pausas). Sempre cria cópias novas: os IDs do arquivo são
 // trocados por IDs novos e os vínculos internos são refeitos, então nada de
 // outro usuário ou de outra importação é sobrescrito.
@@ -8,7 +8,7 @@ import type { Insert, MindMapData, TableName } from '@/types/db'
 
 type Raw = Record<string, unknown>
 
-export const IMPORT_TABLES = ['subjects', 'topics', 'study_materials', 'flashcard_decks', 'flashcards', 'mind_maps', 'study_sessions', 'study_session_pauses'] as const
+export const IMPORT_TABLES = ['study_folders', 'subjects', 'topics', 'study_materials', 'flashcard_decks', 'flashcards', 'mind_maps', 'study_sessions', 'study_session_pauses'] as const
 export type ImportTable = (typeof IMPORT_TABLES)[number]
 
 export interface ImportPlan {
@@ -33,6 +33,25 @@ const iso = (v: unknown): string | null => (typeof v === 'string' && !Number.isN
 const color = (v: unknown, def = '#DEB887') => (typeof v === 'string' && /^#[0-9A-Fa-f]{6}$/.test(v) ? v.toUpperCase() : def)
 const arr = (v: unknown): Raw[] => (Array.isArray(v) ? v.filter((x): x is Raw => Boolean(x) && typeof x === 'object') : [])
 
+/** Ordena linhas com parent_id para que os pais venham antes dos filhos. */
+function sortParentsFirst(raw: Raw[]): Array<{ t: Raw; i: number }> {
+  const byOld = new Map(raw.filter((t) => typeof t.id === 'string').map((t) => [t.id as string, t]))
+  const depth = (t: Raw) => {
+    let d = 0
+    let cur: Raw | undefined = t
+    const seen = new Set<unknown>()
+    while (cur && typeof cur.parent_id === 'string' && byOld.has(cur.parent_id) && !seen.has(cur.parent_id) && d < 100) {
+      seen.add(cur.parent_id)
+      cur = byOld.get(cur.parent_id)
+      d++
+    }
+    return d
+  }
+  return raw
+    .map((t, i) => ({ t, i, d: depth(t) }))
+    .sort((a, b) => a.d - b.d || a.i - b.i)
+}
+
 /** Valida o arquivo e prepara as linhas com IDs novos. Não grava nada. */
 export function planImport(input: unknown): ImportPlan {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Arquivo inválido: o JSON precisa ser um objeto.')
@@ -41,12 +60,38 @@ export function planImport(input: unknown): ImportPlan {
   const subjMap = new Map<string, string>()
   const topicMap = new Map<string, string>()
   const deckMap = new Map<string, string>()
+  const folderMap = new Map<string, string>()
   const remap = (m: Map<string, string>, v: unknown) => (typeof v === 'string' ? (m.get(v) ?? null) : null)
   const newId = (m: Map<string, string>, old: unknown) => {
     const id = crypto.randomUUID()
     if (typeof old === 'string') m.set(old, id)
     return id
   }
+
+  // Pastas (arquivos antigos não têm: tudo vai para a raiz). Pais antes dos filhos.
+  const rawFolders = arr(src.study_folders)
+  for (const f of rawFolders) if (typeof f.id === 'string') folderMap.set(f.id, crypto.randomUUID())
+  const study_folders = sortParentsFirst(rawFolders).flatMap(({ t: f, i }) => {
+    const name = str(f.name, 160)
+    if (!name) return warnings.push(`Pasta #${i + 1} sem nome foi ignorada.`), []
+    const id = (typeof f.id === 'string' && folderMap.get(f.id)) || crypto.randomUUID()
+    const kind = oneOf(f.kind, ['area', 'folder'] as const, 'folder')
+    const parent = kind === 'area' ? null : remap(folderMap, f.parent_id)
+    return [
+      {
+        id,
+        kind,
+        parent_id: parent && parent !== id ? parent : null,
+        name,
+        color: f.color == null ? null : color(f.color),
+        icon: str(f.icon, 40),
+        sort_order: int(f.sort_order, -1e6, 1e6, i),
+        favorite: f.favorite === true,
+      },
+    ]
+  })
+  const keptFolders = new Set(study_folders.map((f) => f.id))
+  for (const f of study_folders) if (f.parent_id && !keptFolders.has(f.parent_id)) f.parent_id = null
 
   const subjects = arr(src.subjects).flatMap((s, i) => {
     const name = str(s.name, 160)
@@ -67,28 +112,16 @@ export function planImport(input: unknown): ImportPlan {
         status: oneOf(s.status, ['active', 'paused', 'completed', 'archived'] as const, 'active'),
         exam: str(s.exam, 200),
         sort_order: int(s.sort_order, -1e6, 1e6, i),
+        folder_id: keptFolders.has(remap(folderMap, s.folder_id) ?? '') ? remap(folderMap, s.folder_id) : null,
+        favorite: s.favorite === true,
       },
     ]
   })
 
   // Tópicos: pais antes dos filhos, independentemente da ordem no arquivo.
   const rawTopics = arr(src.topics)
-  const byOld = new Map(rawTopics.filter((t) => typeof t.id === 'string').map((t) => [t.id as string, t]))
-  const depth = (t: Raw) => {
-    let d = 0
-    let cur: Raw | undefined = t
-    const seen = new Set<unknown>()
-    while (cur && typeof cur.parent_id === 'string' && byOld.has(cur.parent_id) && !seen.has(cur.parent_id) && d < 100) {
-      seen.add(cur.parent_id)
-      cur = byOld.get(cur.parent_id)
-      d++
-    }
-    return d
-  }
   for (const t of rawTopics) if (typeof t.id === 'string') topicMap.set(t.id, crypto.randomUUID())
-  const topics = [...rawTopics]
-    .map((t, i) => ({ t, i, d: depth(t) }))
-    .sort((a, b) => a.d - b.d || a.i - b.i)
+  const topics = sortParentsFirst(rawTopics)
     .flatMap(({ t, i }) => {
       const name = str(t.name, 300)
       const subject_id = remap(subjMap, t.subject_id)
@@ -100,6 +133,8 @@ export function planImport(input: unknown): ImportPlan {
           id,
           subject_id,
           parent_id: parent && parent !== id ? parent : null,
+          kind: oneOf(t.kind, ['topic', 'folder'] as const, 'topic'),
+          favorite: t.favorite === true,
           name,
           description: str(t.description, 4000),
           sort_order: int(t.sort_order, -1e6, 1e6, i),
@@ -255,7 +290,7 @@ export function planImport(input: unknown): ImportPlan {
   })
   if (skippedSessions) warnings.push(`${skippedSessions} sessão(ões) ignorada(s) (não concluídas, datas inválidas, no futuro ou com mais de 24 h).`)
 
-  const rows = { subjects, topics, study_materials, flashcard_decks, flashcards, mind_maps, study_sessions, study_session_pauses } as ImportPlan['rows']
+  const rows = { study_folders, subjects, topics, study_materials, flashcard_decks, flashcards, mind_maps, study_sessions, study_session_pauses } as ImportPlan['rows']
   const counts = Object.fromEntries(IMPORT_TABLES.map((t) => [t, rows[t].length])) as ImportPlan['counts']
   const unsupported = Object.keys(src).filter((k) => Array.isArray(src[k]) && !(IMPORT_TABLES as readonly string[]).includes(k) && k !== 'study_session_pauses' && (src[k] as unknown[]).length > 0)
   if (unsupported.length) warnings.push(`Não importados nesta versão (histórico): ${unsupported.join(', ')}.`)
@@ -268,19 +303,19 @@ export async function runImport(backend: DataBackend, plan: ImportPlan, onProgre
   let done = 0
   for (const table of IMPORT_TABLES) {
     const rows = plan.rows[table]
-    // Tópicos em lotes por nível: um lote nunca contém filho antes do pai.
-    const size = table === 'topics' ? 1 : 300
-    if (table === 'topics') {
-      const levels: Array<ImportPlan['rows']['topics']> = []
+    // Hierarquias em lotes por nível: um lote nunca contém filho antes do pai.
+    const size = 300
+    if (table === 'topics' || table === 'study_folders') {
+      const levels: Array<Array<{ id: string; parent_id?: string | null }>> = []
       const level = new Map<string, number>()
-      for (const t of rows as ImportPlan['rows']['topics']) {
+      for (const t of rows as Array<{ id: string; parent_id?: string | null }>) {
         const l = t.parent_id ? (level.get(t.parent_id) ?? 0) + 1 : 0
         level.set(t.id, l)
         ;(levels[l] ??= []).push(t)
       }
       for (const group of levels) {
         for (let i = 0; i < group.length; i += 300) {
-          await backend.insert('topics', group.slice(i, i + 300) as never)
+          await backend.insert(table, group.slice(i, i + 300) as never)
           done += Math.min(300, group.length - i)
           onProgress?.(done, total)
         }

@@ -13,6 +13,8 @@ export interface Relation {
 }
 
 export const RELATIONS: Relation[] = [
+  { child: 'study_folders', column: 'parent_id', parent: 'study_folders', onDelete: 'cascade' },
+  { child: 'subjects', column: 'folder_id', parent: 'study_folders', onDelete: 'set null' },
   { child: 'topics', column: 'subject_id', parent: 'subjects', onDelete: 'cascade' },
   { child: 'topics', column: 'parent_id', parent: 'topics', onDelete: 'cascade' },
   { child: 'study_materials', column: 'subject_id', parent: 'subjects', onDelete: 'cascade' },
@@ -52,6 +54,7 @@ export const RELATIONS: Relation[] = [
 
 export const TABLES: TableName[] = [
   'profiles',
+  'study_folders',
   'subjects',
   'topics',
   'study_materials',
@@ -73,6 +76,8 @@ export const TABLES: TableName[] = [
   'game_answers',
   'game_rewards',
   'game_purchases',
+  'game_quest_progress',
+  'game_saves',
 ]
 
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
@@ -105,7 +110,10 @@ type Defaults = { [K in TableName]: Partial<Tables[K]> }
 /** Valores padrão das colunas (equivalentes aos DEFAULT do SQL). */
 export const DEFAULTS: Defaults = {
   profiles: { display_name: null, settings: {} },
+  study_folders: { parent_id: null, kind: 'folder', color: null, icon: null, sort_order: 0, favorite: false, archived_at: null },
   subjects: {
+    folder_id: null,
+    favorite: false,
     description: null,
     color: '#DEB887',
     icon: null,
@@ -122,6 +130,8 @@ export const DEFAULTS: Defaults = {
   },
   topics: {
     parent_id: null,
+    kind: 'topic',
+    favorite: false,
     description: null,
     sort_order: 0,
     status: 'not_started',
@@ -191,10 +201,13 @@ export const DEFAULTS: Defaults = {
   game_answers: { challenge_version: 1, score: 0, used_hint: false, attempt: 1, xp: 0, coins: 0, combo: 0 },
   game_rewards: { xp: 0, coins: 0 },
   game_purchases: {},
+  game_quest_progress: {},
+  game_saves: { slot: 'main', data: {} },
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
   profiles: 'perfis',
+  study_folders: 'pastas',
   subjects: 'matérias',
   topics: 'tópicos',
   study_materials: 'materiais',
@@ -216,4 +229,6 @@ export const TABLE_LABELS: Record<TableName, string> = {
   game_answers: 'respostas do EvoQuest',
   game_rewards: 'recompensas do EvoQuest',
   game_purchases: 'itens do EvoQuest',
+  game_quest_progress: 'etapas de missões do EvoQuest',
+  game_saves: 'salvamentos do EvoQuest',
 }

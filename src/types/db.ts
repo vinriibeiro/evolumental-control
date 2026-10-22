@@ -80,6 +80,8 @@ export interface UserSettings {
   /** Bloco de notas rápido do "Meu espaço de estudos". */
   scratchpad?: string
   evoquest?: EvoQuestSettings
+  /** Visualização preferida do Explorador de Estudos. */
+  explorerView?: 'tree' | 'list' | 'cards'
 }
 
 export interface EvoQuestSettings {
@@ -94,7 +96,22 @@ export interface EvoQuestSettings {
   reducedMotion: boolean
 }
 
+/** Área de estudo (raiz) ou pasta do Explorador. */
+export interface StudyFolder extends Owned {
+  parent_id: UUID | null
+  kind: 'area' | 'folder'
+  name: string
+  color: string | null
+  icon: string | null
+  sort_order: number
+  favorite: boolean
+  archived_at: ISODateTime | null
+}
+
 export interface Subject extends Owned {
+  /** Pasta/área do Explorador (null = raiz). */
+  folder_id: UUID | null
+  favorite: boolean
   name: string
   description: string | null
   color: string
@@ -111,9 +128,14 @@ export interface Subject extends Owned {
   archived_at: ISODateTime | null
 }
 
+export type TopicKind = 'topic' | 'folder'
+
 export interface Topic extends Owned {
   subject_id: UUID
   parent_id: UUID | null
+  /** 'folder' organiza tópicos dentro da matéria e não entra no progresso. */
+  kind: TopicKind
+  favorite: boolean
   name: string
   description: string | null
   sort_order: number
@@ -409,8 +431,21 @@ export interface GamePurchase extends Owned {
   price: number
 }
 
+/** Etapa de missão do RPG confirmada pelo servidor (gravada só pela RPC). */
+export interface GameQuestProgress extends Owned {
+  step_key: string
+  completed_at: ISODateTime
+}
+
+/** Salvamento do mundo do RPG (posição, inventário, escolhas). */
+export interface GameSave extends Owned {
+  slot: string
+  data: Record<string, unknown>
+}
+
 export interface Tables {
   profiles: Profile
+  study_folders: StudyFolder
   subjects: Subject
   topics: Topic
   study_materials: StudyMaterial
@@ -432,6 +467,8 @@ export interface Tables {
   game_answers: GameAnswer
   game_rewards: GameReward
   game_purchases: GamePurchase
+  game_quest_progress: GameQuestProgress
+  game_saves: GameSave
 }
 
 export type TableName = keyof Tables

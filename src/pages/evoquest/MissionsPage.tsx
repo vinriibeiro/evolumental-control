@@ -41,7 +41,7 @@ export default function MissionsPage() {
   const unlocked = views.achievements.filter((a) => a.claimed).length
   return (
     <div>
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <PageHeader title="Missões e conquistas" description="Toda meta é conferida pelo servidor a partir do que você realmente respondeu. Resgate quando concluir." />
       <Tabs
         value={tab}

@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronsLeft, ChevronsRight, CloudOff, LogOut, Menu, Pause, Play, Search, Settings, X } from 'lucide-react'
-import { NAV, titleFor } from './nav'
+import { NAV, NAV_GROUPS, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { IconButton } from '@/components/ui/Button'
@@ -159,32 +159,38 @@ function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: bool
         </Link>
       </div>
       <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-2">
-        <ul className="flex flex-col gap-0.5">
-          {NAV.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.to === '/'}
-                title={collapsed ? item.label : undefined}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-lg font-medium transition-colors',
-                    large ? 'px-3 py-3 text-[15px]' : 'px-3 py-2 text-sm',
-                    collapsed && 'justify-center px-0',
-                    isActive ? 'bg-accent/35 text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink',
-                  )
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
-                    {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
-                  </>
-                )}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+        {NAV_GROUPS.map((g) => (
+          <div key={g.id} className={cn(g.id !== 'estudar' && 'mt-3')}>
+            {g.label && !collapsed && <p className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted uppercase">{g.label}</p>}
+            {g.label && collapsed && <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />}
+            <ul className="flex flex-col gap-0.5" aria-label={g.label ?? undefined}>
+              {NAV.filter((n) => n.group === g.id).map((item) => (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    end={item.to === '/' || item.to === '/evoquest'}
+                    title={collapsed ? item.label : undefined}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-lg font-medium transition-colors',
+                        large ? 'px-3 py-3 text-[15px]' : 'px-3 py-2 text-sm',
+                        collapsed && 'justify-center px-0',
+                        isActive ? 'bg-accent/35 text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink',
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
+                        {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
     </>
   )

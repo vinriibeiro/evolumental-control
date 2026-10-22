@@ -8,8 +8,7 @@ import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignUpPage } from '@/
 
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'))
 const WorkspacePage = lazy(() => import('@/pages/workspace/WorkspacePage'))
-const SubjectsPage = lazy(() => import('@/pages/subjects/SubjectsPage'))
-const SubjectDetailPage = lazy(() => import('@/pages/subjects/SubjectDetailPage'))
+const ExplorerPage = lazy(() => import('@/features/explorer/ExplorerPage'))
 const TimerPage = lazy(() => import('@/pages/timer/TimerPage'))
 const SchedulePage = lazy(() => import('@/pages/schedule/SchedulePage'))
 const CyclesPage = lazy(() => import('@/pages/cycles/CyclesPage'))
@@ -27,6 +26,7 @@ const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 const EvoQuestHome = lazy(() => import('@/pages/evoquest/EvoQuestHome'))
+const WorldPage = lazy(() => import('@/features/evoquest/WorldPage'))
 const EvoSubjectPage = lazy(() => import('@/pages/evoquest/SubjectPage'))
 const EvoLessonPage = lazy(() => import('@/pages/evoquest/LessonPage'))
 const EvoPlayPage = lazy(() => import('@/pages/evoquest/PlayPage'))
@@ -62,6 +62,15 @@ export function App() {
                 <Route path="/cadastro" element={<SignUpPage />} />
                 <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
                 <Route path="/redefinir-senha" element={<ResetPasswordPage />} />
+                {/* O mundo do EvoQuest ocupa a tela toda, fora do layout do Control. */}
+                <Route
+                  path="/evoquest"
+                  element={
+                    <RequireAuth>
+                      <WorldPage />
+                    </RequireAuth>
+                  }
+                />
                 <Route
                   element={
                     <RequireAuth>
@@ -71,8 +80,10 @@ export function App() {
                 >
                   <Route index element={<DashboardPage />} />
                   <Route path="espaco" element={<WorkspacePage />} />
-                  <Route path="materias" element={<SubjectsPage />} />
-                  <Route path="materias/:id" element={<SubjectDetailPage />} />
+                  <Route path="materias" element={<ExplorerPage />} />
+                  <Route path="materias/pasta/:folderId" element={<ExplorerPage />} />
+                  <Route path="materias/:subjectId" element={<ExplorerPage />} />
+                  <Route path="materias/:subjectId/topico/:topicId" element={<ExplorerPage />} />
                   <Route path="trilhas" element={<TrailsPage />} />
                   <Route path="cronometro" element={<TimerPage />} />
                   <Route path="cronograma" element={<SchedulePage />} />
@@ -88,7 +99,7 @@ export function App() {
                   <Route path="metas" element={<GoalsPage />} />
                   <Route path="relatorios" element={<ReportsPage />} />
                   <Route path="configuracoes" element={<SettingsPage />} />
-                  <Route path="evoquest" element={<EvoQuestHome />} />
+                  <Route path="evoquest/treino" element={<EvoQuestHome />} />
                   <Route path="evoquest/jogar" element={<EvoPlayPage />} />
                   <Route path="evoquest/revisao" element={<EvoModePickPage mode="review" />} />
                   <Route path="evoquest/relogio" element={<EvoModePickPage mode="time_attack" />} />

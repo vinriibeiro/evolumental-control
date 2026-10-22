@@ -44,7 +44,7 @@ export default function SubjectPage() {
     }
   }, [content.data, data.answers])
 
-  if (!meta) return <EmptyState title="Disciplina não encontrada" action={<Link to="/evoquest" className="underline">Voltar</Link>} />
+  if (!meta) return <EmptyState title="Disciplina não encontrada" action={<Link to="/evoquest/treino" className="underline">Voltar</Link>} />
   if (content.isError) return <ErrorState error={content.error} onRetry={() => content.refetch()} />
   if (data.isError) return <ErrorState error={data.error} onRetry={data.refetch} />
   if (!view || data.isPending) return <Spinner label="Carregando o mapa…" />
@@ -53,7 +53,7 @@ export default function SubjectPage() {
 
   return (
     <div>
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <span className="flex size-14 items-center justify-center rounded-2xl text-3xl" style={{ background: `color-mix(in srgb, ${meta.color} 18%, transparent)` }} aria-hidden>
           {meta.icon}

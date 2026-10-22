@@ -75,11 +75,12 @@ export function topicPath(topicsById: Map<string, Pick<Topic, 'name' | 'parent_i
 
 /**
  * Progresso ponderado: soma dos pesos dos tópicos-folha concluídos ÷ soma dos
- * pesos de todas as folhas. Tópicos com subtópicos são agregadores.
+ * pesos de todas as folhas. Tópicos com subtópicos e pastas são agregadores.
  */
-export function weightedProgress(topics: Pick<Topic, 'id' | 'parent_id' | 'status' | 'weight'>[]): { percent: number; done: number; total: number } {
+export function weightedProgress(topics: Array<Pick<Topic, 'id' | 'parent_id' | 'status' | 'weight'> & { kind?: Topic['kind'] }>): { percent: number; done: number; total: number } {
   const parents = new Set(topics.map((t) => t.parent_id).filter(Boolean) as string[])
-  const leaves = topics.filter((t) => !parents.has(t.id))
+  // Pastas dentro da matéria só organizam: nunca contam como conteúdo.
+  const leaves = topics.filter((t) => !parents.has(t.id) && t.kind !== 'folder')
   const total = leaves.reduce((a, t) => a + Number(t.weight || 1), 0)
   const doneW = leaves.filter((t) => t.status === 'completed').reduce((a, t) => a + Number(t.weight || 1), 0)
   return { percent: total > 0 ? (doneW / total) * 100 : 0, done: leaves.filter((t) => t.status === 'completed').length, total: leaves.length }

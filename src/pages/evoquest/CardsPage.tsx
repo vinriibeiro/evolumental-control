@@ -56,7 +56,7 @@ export default function CardsPage() {
   if (cards.length === 0)
     return (
       <div>
-        <BackLink to="/evoquest">EvoQuest</BackLink>
+        <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
         <EmptyState icon={<Layers className="size-8" />} title="Nenhum flashcard vencido" description="Crie baralhos ou importe cartões no módulo Flashcards. Quando vencerem, eles aparecem aqui em modo jogo." action={<Link to="/flashcards" className="underline">Abrir Flashcards</Link>} />
       </div>
     )
@@ -101,7 +101,7 @@ export default function CardsPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <BackLink to="/evoquest">EvoQuest</BackLink>
+      <BackLink to="/evoquest/treino">Treino do EvoQuest</BackLink>
       <PageHeader title="Flashcards em modo jogo" description="Seus cartões vencidos, com combo. A revisão usa o mesmo agendamento do módulo Flashcards." />
       <div className="mb-3 flex items-center gap-3">
         <Progress value={(Math.min(index, cards.length) / cards.length) * 100} className="h-3 flex-1" label="Progresso" />
@@ -129,7 +129,7 @@ export default function CardsPage() {
             <Button variant="primary" onClick={() => queue.refetch().then(() => { setIndex(0); setRatings([]); setCombo(0); startedAt.current = Date.now(); setTimeNote(null) })}>
               Mais cartões
             </Button>
-            <Link to="/evoquest" className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
+            <Link to="/evoquest/treino" className="inline-flex h-10 items-center justify-center rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
               Voltar
             </Link>
           </div>

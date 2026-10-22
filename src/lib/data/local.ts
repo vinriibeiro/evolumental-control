@@ -30,7 +30,8 @@ type AnyRow = Record<string, unknown> & { id: string }
 
 const INDEXES: Record<TableName, string> = {
   profiles: 'id',
-  subjects: 'id, status',
+  study_folders: 'id, parent_id',
+  subjects: 'id, status, folder_id',
   topics: 'id, subject_id, parent_id',
   study_materials: 'id, topic_id, subject_id',
   study_sessions: 'id, status, started_at, subject_id, topic_id',
@@ -51,16 +52,36 @@ const INDEXES: Record<TableName, string> = {
   game_answers: 'id, session_id, challenge_id, answered_at',
   game_rewards: 'id, &source',
   game_purchases: 'id, &item_id',
+  game_quest_progress: 'id, &step_key',
+  game_saves: 'id, &slot',
 }
 
-const V1_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !t.startsWith('game_')))
+const V1_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !t.startsWith('game_') && t !== 'study_folders').map(([t, i]) => [t, t === 'subjects' ? 'id, status' : i]))
+const RPG_TABLES = ['game_quest_progress', 'game_saves']
+const V2_INDEXES = { ...V1_INDEXES, ...Object.fromEntries(Object.entries(INDEXES).filter(([t]) => t.startsWith('game_') && !RPG_TABLES.includes(t))) }
+const V3_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !RPG_TABLES.includes(t)))
 
 class LocalDb extends Dexie {
   constructor(name: string) {
     super(name)
     this.version(1).stores(V1_INDEXES)
     // v2: tabelas do EvoQuest (as demais não mudam).
-    this.version(2).stores(INDEXES)
+    this.version(2).stores(V2_INDEXES)
+    // v3: Explorador — pastas; matérias e tópicos ganham colunas com padrão.
+    this.version(3)
+      .stores(V3_INDEXES)
+      .upgrade(async (tx) => {
+        await tx.table('subjects').toCollection().modify((r: AnyRow) => {
+          r.folder_id ??= null
+          r.favorite ??= false
+        })
+        await tx.table('topics').toCollection().modify((r: AnyRow) => {
+          r.kind ??= 'topic'
+          r.favorite ??= false
+        })
+      })
+    // v4: EvoQuest RPG — progresso de missões e salvamento do mundo.
+    this.version(4).stores(INDEXES)
   }
   t(table: TableName): Table<AnyRow, string> {
     return this.table(table)
@@ -152,6 +173,15 @@ export class LocalBackend implements DataBackend {
     }
   }
 
+  private async checkNoCycle(table: 'topics' | 'study_folders', id: string, parentId: string) {
+    let cur: string | null = parentId
+    for (let guard = 0; cur && guard < 1000; guard++) {
+      if (cur === id) throw new DataError('validation', table === 'topics' ? 'Não é possível mover um tópico para dentro dele mesmo.' : 'Não é possível mover uma pasta para dentro dela mesma.')
+      const row: AnyRow | undefined = await this.db.t(table).get(cur)
+      cur = (row?.parent_id as string | null) ?? null
+    }
+  }
+
   async list<T extends TableName>(table: T, query?: ListQuery): Promise<ListResult<Row<T>>> {
     const rows = (await this.db.t(table).toArray()) as unknown as Row<T>[]
     return applyQuery(rows as unknown as Record<string, unknown>[], query) as unknown as ListResult<Row<T>>
@@ -203,6 +233,10 @@ export class LocalBackend implements DataBackend {
           // Mesmo comportamento do gatilho topics_track_completion.
           if (next.status === 'completed' && t.status !== 'completed') next.completed_at = next.completed_at ?? this.now()
           else if (next.status !== 'completed') next.completed_at = null
+        }
+        if ((table === 'topics' || table === 'study_folders') && next.parent_id && next.parent_id !== t.parent_id) {
+          // Mesmo comportamento dos gatilhos *_no_cycle.
+          await this.checkNoCycle(table, next.id, next.parent_id as string)
         }
         await this.checkUnique(table, next)
         await this.db.t(table).put(next)
@@ -476,6 +510,23 @@ export class LocalBackend implements DataBackend {
   async gameTotals(): Promise<{ xp: number; coins: number }> {
     const rows = (await this.db.t('game_rewards').toArray()) as unknown as Array<{ xp: number; coins: number }>
     return { xp: rows.reduce((s, r) => s + r.xp, 0), coins: rows.reduce((s, r) => s + r.coins, 0) }
+  }
+
+  async gameCompleteStep(step: string, answer: string | null): Promise<{ applied: boolean; xp: number; coins: number }> {
+    // Mesmas regras da RPC game_complete_step, com o catálogo do conteúdo.
+    const { questCatalogRows } = await import('@/features/evoquest/catalogSql')
+    const { sha256 } = await import('@/features/evoquest/challenges')
+    const c = questCatalogRows().find((r) => r.key === step)
+    if (!c) throw new DataError('validation', 'Etapa desconhecida')
+    const done = async (k: string) => Boolean(await this.db.t('game_quest_progress').where('step_key').equals(k).first())
+    if (await done(step)) return { applied: false, xp: 0, coins: 0 }
+    if (c.requires && !(await done(c.requires))) throw new DataError('validation', 'Etapa anterior não concluída')
+    if (c.hash && (answer == null || (await sha256(answer)) !== c.hash)) throw new DataError('validation', 'Resposta não confere')
+    await this.db.transaction('rw', this.db.t('game_quest_progress'), this.db.t('game_rewards'), async () => {
+      await this.db.t('game_quest_progress').add({ ...this.stamp(), id: crypto.randomUUID(), step_key: step, completed_at: this.now() } as AnyRow)
+      if (c.xp > 0 || c.coins > 0) await this.db.t('game_rewards').add({ ...this.stamp(), id: crypto.randomUUID(), source: `quest:${step}`, kind: 'mission', xp: c.xp, coins: c.coins } as AnyRow)
+    })
+    return { applied: true, xp: c.xp, coins: c.coins }
   }
 
   async resetAllData(): Promise<void> {
