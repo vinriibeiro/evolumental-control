@@ -1,4 +1,4 @@
-import type { Insert, Patch, Profile, Row, StudySession, StudySessionPause, TableName } from '@/types/db'
+import type { GameMode, GameSession, Insert, Patch, Profile, Row, StudySession, StudySessionPause, TableName } from '@/types/db'
 
 export type FilterOp = 'eq' | 'neq' | 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'is' | 'not_null' | 'contains'
 
@@ -38,6 +38,54 @@ export interface FlashcardReviewInput {
   dueAt: string
 }
 
+export interface GameStartInput {
+  id: string
+  subjectId: string
+  unitId: string | null
+  mode: GameMode
+  queue: string[]
+  plannedSeconds: number | null
+}
+
+export interface GameAnswerInput {
+  /** Gerado no cliente: reenviar a mesma resposta não duplica recompensas. */
+  id: string
+  sessionId: string
+  challengeId: string
+  version: number
+  topic: string
+  correct: boolean
+  score: number
+  usedHint: boolean
+  seconds: number
+  /** Resposta bruta: o servidor recorrige os tipos objetivos com o gabarito. */
+  response: unknown
+  /** Usados apenas no modo local (no servidor vêm do catálogo). */
+  local: { difficulty: number; subjectId: string }
+}
+
+export interface GameAnswerResult {
+  xp: number
+  coins: number
+  combo: number
+  correct: boolean
+  novelty: number | null
+  duplicate: boolean
+}
+
+export interface GameFinishInput {
+  sessionId: string
+  activeSeconds: number
+  status: 'finished' | 'abandoned'
+  studySessionId: string | null
+}
+
+export interface GameClaimInput {
+  rule: string
+  period: string | null
+  param: string | null
+}
+
 export interface DataBackend {
   readonly kind: 'supabase' | 'local'
   list<T extends TableName>(table: T, query?: ListQuery): Promise<ListResult<Row<T>>>
@@ -51,6 +99,14 @@ export interface DataBackend {
   updateProfile(patch: Partial<Pick<Profile, 'display_name' | 'settings'>>): Promise<Profile>
   listSessions(query?: ListQuery): Promise<SessionWithPauses[]>
   recordFlashcardReview(input: FlashcardReviewInput): Promise<boolean>
+  gameStart(input: GameStartInput): Promise<GameSession>
+  gameAnswer(input: GameAnswerInput): Promise<GameAnswerResult>
+  gameFinish(input: GameFinishInput): Promise<GameSession>
+  /** Resgata missão/conquista; o backend confere a meta. false = já resgatada. */
+  gameClaim(input: GameClaimInput): Promise<{ applied: boolean; xp: number; coins: number }>
+  /** Compra um cosmético com moedas virtuais. false = já possuía. */
+  gameBuy(itemId: string): Promise<boolean>
+  gameTotals(): Promise<{ xp: number; coins: number }>
   /** Apaga todos os dados de estudo e restaura as preferências; mantém a conta. */
   resetAllData(): Promise<void>
   /** Exclui a conta e, em cascata, todos os dados. */

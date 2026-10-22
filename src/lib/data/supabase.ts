@@ -1,9 +1,22 @@
 // Backend Supabase/PostgreSQL. O isolamento por usuário é garantido no banco
 // (RLS + user_id default auth.uid()); o cliente nunca envia user_id.
 import type { SupabaseClient, PostgrestError } from '@supabase/supabase-js'
-import type { Insert, Patch, Profile, Row, TableName } from '@/types/db'
+import type { GameSession, Insert, Patch, Profile, Row, TableName } from '@/types/db'
 import { DEFAULTS } from './schema'
-import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type SessionWithPauses } from './types'
+import {
+  DataError,
+  type DataBackend,
+  type Filter,
+  type FlashcardReviewInput,
+  type GameAnswerInput,
+  type GameAnswerResult,
+  type GameClaimInput,
+  type GameFinishInput,
+  type GameStartInput,
+  type ListQuery,
+  type ListResult,
+  type SessionWithPauses,
+} from './types'
 
 function toDataError(e: PostgrestError | Error | null): DataError {
   if (!e) return new DataError('unknown', 'Erro desconhecido.')
@@ -11,6 +24,8 @@ function toDataError(e: PostgrestError | Error | null): DataError {
   const msg = e.message ?? ''
   if (code === '23505') return new DataError('duplicate', 'Registro duplicado.')
   if (code === '23514' || code === '23502' || code === '22P02') return new DataError('validation', 'Dados inválidos: ' + msg)
+  if (code === '22023') return new DataError('validation', msg)
+  if (code === 'P0002') return new DataError('not_found', msg)
   if (code === '23503') return new DataError('validation', 'Registro relacionado inexistente.')
   if (code === '42501' || code === 'PGRST301' || /JWT/i.test(msg)) return new DataError('auth', 'Sessão expirada ou sem permissão. Entre novamente.')
   if (/fetch|network|Failed to fetch/i.test(msg)) return new DataError('network', 'Falha de conexão. Verifique a internet e tente novamente.')
@@ -179,6 +194,49 @@ export class SupabaseBackend implements DataBackend {
     })
     if (error) throw toDataError(error)
     return Boolean(data)
+  }
+
+  private async rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+    const { data, error } = await this.client.rpc(fn, args)
+    if (error) throw toDataError(error)
+    return data as T
+  }
+
+  gameStart(i: GameStartInput): Promise<GameSession> {
+    return this.rpc('game_start_session', { p_id: i.id, p_subject: i.subjectId, p_unit: i.unitId, p_mode: i.mode, p_queue: i.queue, p_planned_seconds: i.plannedSeconds })
+  }
+
+  gameAnswer(i: GameAnswerInput): Promise<GameAnswerResult> {
+    return this.rpc('game_submit_answer', {
+      p_id: i.id,
+      p_session: i.sessionId,
+      p_challenge: i.challengeId,
+      p_version: i.version,
+      p_topic: i.topic,
+      p_correct: i.correct,
+      p_score: i.score,
+      p_used_hint: i.usedHint,
+      p_seconds: Math.round(i.seconds),
+      p_response: i.response ?? null,
+    })
+  }
+
+  gameFinish(i: GameFinishInput): Promise<GameSession> {
+    return this.rpc('game_finish_session', { p_session: i.sessionId, p_active_seconds: Math.round(i.activeSeconds), p_status: i.status, p_study_session: i.studySessionId })
+  }
+
+  gameClaim(i: GameClaimInput) {
+    return this.rpc<{ applied: boolean; xp: number; coins: number }>('game_claim', { p_rule: i.rule, p_period: i.period, p_param: i.param })
+  }
+
+  gameBuy(itemId: string): Promise<boolean> {
+    return this.rpc('game_buy', { p_item: itemId })
+  }
+
+  async gameTotals(): Promise<{ xp: number; coins: number }> {
+    const rows = await this.rpc<Array<{ xp: number | string; coins: number | string }> | { xp: number | string; coins: number | string }>('game_totals', {})
+    const r = Array.isArray(rows) ? rows[0] : rows
+    return { xp: Number(r?.xp ?? 0), coins: Number(r?.coins ?? 0) }
   }
 
   async resetAllData(): Promise<void> {

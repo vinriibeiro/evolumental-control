@@ -14,6 +14,7 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 - [Configurar o backend (Supabase)](#configurar-o-backend-supabase)
 - [Aplicar as migrações](#aplicar-as-migrações)
 - [Testes e verificações](#testes-e-verificações)
+- [EvoQuest — Aprenda Jogando](#evoquest--aprenda-jogando)
 - [Arquitetura](#arquitetura)
 - [Regras de negócio importantes](#regras-de-negócio-importantes)
 - [Segurança](#segurança)
@@ -100,7 +101,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` (hoje: `20261021000000_init.sql`).
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql` e `20261022000100_evoquest_catalog.sql`. Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -133,6 +134,85 @@ Testes de ponta a ponta no navegador (modo local; requer `npm run dev` em outro 
 npm run test:e2e     # fluxos reais + todas as páginas em desktop e celular
 npm run screenshots  # capturas de estados com dados de exemplo
 ```
+
+## EvoQuest — Aprenda Jogando
+
+Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a mesma identidade visual, no modo local e no Supabase.
+
+**Conteúdo:** 8 disciplinas, 3 unidades cada, com lição antes da prática e um chefe por unidade. São 284 desafios no total, cada um com explicação, id estável e versão.
+
+| Disciplina | Desafios | Destaques |
+|---|---|---|
+| Inglês (A1→B1) | 37 | escuta com voz do navegador (normal/lenta), tradução após responder, texto alternativo acessível |
+| Português (concursos) | 33 | acentuação, concordância, regência, crase, pontuação, interpretação |
+| Raciocínio Lógico | 36 | equivalências, argumentos, diagramas, contagem, probabilidade |
+| Estatística | 36 | cálculos conferidos automaticamente pelos testes |
+| DAX | 33 | casos com tabelas e resultado conhecido (não executa Power BI) |
+| Linguagem M | 33 | casos com resultado deduzido das regras (não executa Power Query) |
+| SQL | 38 | 6 laboratórios reais em SQLite (sql.js/WASM) |
+| Python para Dados | 38 | 4 laboratórios reais em Pyodide (CPython + pandas em WASM) |
+
+**Modos:**
+- partida rápida (3/5/10/15 min ou personalizada);
+- trilha por unidade;
+- chefe, com 3 vidas;
+- revisão inteligente: caixas de Leitner com intervalos de 1, 3, 7, 16 e 35 dias, e erro volta em 10 min;
+- contra o relógio (90 s);
+- laboratório;
+- flashcards em modo jogo (reaproveita seus cartões e o SM-2).
+
+**Tipos de desafio:** múltipla escolha, V/F, lacunas, associação, ordenação, categorização (arrastar ou tocar), achar o erro, numérico com tolerância, resposta curta, completar código, prever saída, multietapas, escuta, SQL e Python.
+
+**Regras** (fonte única em `src/game/engine/rules.ts`, espelhada em SQL):
+- **XP:**
+  - base de 8 + 4 × dificuldade;
+  - combo +10% a cada 3 acertos, até +50%;
+  - dica ×0,75; nova tentativa ×0,5;
+  - repetir um desafio já acertado há menos de 20 h rende 0 XP; revisar depois rende ×0,5;
+  - respostas em menos de 1 s rendem 0 XP.
+- **Combo:** um erro só reduz o combo pela metade.
+- **Níveis:** cada nível exige 50 XP a mais que o anterior.
+- **Moedas:** só para cosméticos. Não há dinheiro real, sorteio nem caixa surpresa.
+- **Domínio:** é conservador, calculado como cobertura × (acerto recente suavizado + retenção nas revisões).
+
+**Segurança e integridade** (migração `20261022000000_evoquest.sql`):
+- as tabelas `game_*` têm RLS **somente leitura**; toda escrita passa pelas RPCs `game_start_session`, `game_submit_answer`, `game_finish_session`, `game_claim` e `game_buy`, que são `security definer` e agem só sobre `auth.uid()`;
+- o XP é calculado no servidor. Os tipos objetivos (escolha, V/F, erro, numérico) são recorrigidos com o gabarito do catálogo; o servidor limita o tempo informado ao tempo real;
+- respostas têm id gerado no cliente e o livro-razão `game_rewards` é único por origem, então recarregar ou reenviar não duplica recompensas;
+- missões e conquistas são conferidas por métricas recalculadas no servidor, com limite de 3 missões por dia e 3 por semana;
+- o catálogo global (`game_challenge_catalog`, `game_reward_rules`, `game_shop_items`) não tem política de escrita, e o gabarito não é legível pelos usuários.
+
+**Tempo de estudo:**
+- ao encerrar uma partida, o tempo ativo é registrado como sessão de estudo (atividade "Questões") na matéria vinculada no mapa da disciplina;
+- só conta tempo com a aba visível e interação nos últimos 2 min;
+- se já houver sessão no mesmo intervalo (ex.: cronômetro ligado), **não** registra de novo;
+- o registro pode ser desligado em Perfil.
+
+**Adicionar conteúdo ou disciplina:**
+1. Crie `src/game/content/<id>.ts` usando os construtores de `_build.ts`.
+2. Registre a disciplina em `src/game/catalog.ts`.
+3. Rode `npm run game:catalog`, que regenera `supabase/migrations/20261022000100_evoquest_catalog.sql` (idempotente; reaplique no SQL Editor).
+4. Rode `npm test`.
+
+O motor não muda. Nunca reutilize um id; ao corrigir um gabarito, incremente `v`.
+
+**Testes do EvoQuest:**
+- `src/game/__tests__/content.test.ts` verifica:
+  - a estrutura de todos os desafios;
+  - que todo gabarito é aceito e uma resposta errada é recusada;
+  - os cálculos de estatística;
+  - as soluções SQL executadas no SQLite;
+  - que o catálogo SQL está sincronizado.
+- `src/game/__tests__/python.test.ts` valida as saídas e as soluções de Python com CPython local + pandas. É pulado se não houver Python; use as variáveis `PYTHON` e `PYTHONPATH`.
+- `supabase/tests/evoquest.test.ts` verifica em PostgreSQL real:
+  - fórmula de XP idêntica entre SQL e TS (> 1.000 combinações);
+  - recorreção pelo gabarito e idempotência;
+  - anti-farm e RLS;
+  - missões, conquistas e loja;
+  - "zerar dados".
+- `npm run test:e2e:evoquest` é o E2E no navegador: trilha, retomada após recarregar, laboratórios SQL/Python, conquistas, escuta, celular e tema escuro. `SKIP_PYTHON=1` pula o Pyodide.
+
+**Dependências novas:** `sql.js` (SQLite WASM, empacotado no app). O Pyodide v314.0.7 (Python 3.14, pandas 3.0) é carregado **sob demanda** do CDN jsDelivr só ao abrir um laboratório de Python, dentro de um Web Worker com limite de tempo.
 
 ## Arquitetura
 

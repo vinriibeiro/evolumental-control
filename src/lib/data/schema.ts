@@ -46,6 +46,8 @@ export const RELATIONS: Relation[] = [
   { child: 'flashcard_reviews', column: 'card_id', parent: 'flashcards', onDelete: 'cascade' },
   { child: 'mind_maps', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
   { child: 'mind_maps', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
+  { child: 'game_answers', column: 'session_id', parent: 'game_sessions', onDelete: 'cascade' },
+  { child: 'game_sessions', column: 'study_session_id', parent: 'study_sessions', onDelete: 'set null' },
 ]
 
 export const TABLES: TableName[] = [
@@ -67,6 +69,10 @@ export const TABLES: TableName[] = [
   'mind_maps',
   'study_goals',
   'question_records',
+  'game_sessions',
+  'game_answers',
+  'game_rewards',
+  'game_purchases',
 ]
 
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
@@ -167,6 +173,24 @@ export const DEFAULTS: Defaults = {
   mind_maps: { description: null, folder: null, subject_id: null, topic_id: null, data: { nodes: [], edges: [] } },
   study_goals: { title: null, subject_id: null, status: 'active', end_date: null, previous_goal_id: null },
   question_records: { subject_id: null, topic_id: null, board: null, exam: null, source: null, notes: null },
+  game_sessions: {
+    unit_id: null,
+    status: 'active',
+    queue: [],
+    planned_seconds: null,
+    finished_at: null,
+    answered: 0,
+    correct: 0,
+    xp: 0,
+    coins: 0,
+    combo: 0,
+    best_combo: 0,
+    active_seconds: 0,
+    study_session_id: null,
+  },
+  game_answers: { challenge_version: 1, score: 0, used_hint: false, attempt: 1, xp: 0, coins: 0, combo: 0 },
+  game_rewards: { xp: 0, coins: 0 },
+  game_purchases: {},
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
@@ -188,4 +212,8 @@ export const TABLE_LABELS: Record<TableName, string> = {
   mind_maps: 'mapas mentais',
   study_goals: 'metas',
   question_records: 'registros de questões',
+  game_sessions: 'partidas do EvoQuest',
+  game_answers: 'respostas do EvoQuest',
+  game_rewards: 'recompensas do EvoQuest',
+  game_purchases: 'itens do EvoQuest',
 }

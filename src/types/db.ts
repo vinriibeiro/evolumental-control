@@ -79,6 +79,19 @@ export interface UserSettings {
   srs: SrsParams
   /** Bloco de notas rápido do "Meu espaço de estudos". */
   scratchpad?: string
+  evoquest?: EvoQuestSettings
+}
+
+export interface EvoQuestSettings {
+  /** Disciplina do jogo → matéria do planejamento (para registrar o tempo). */
+  links: Record<string, UUID | null>
+  /** Registrar o tempo jogado como sessão de estudo. */
+  registerTime: boolean
+  dailyMinutes: number
+  sound: boolean
+  avatar: string | null
+  title: string | null
+  reducedMotion: boolean
 }
 
 export interface Subject extends Owned {
@@ -342,6 +355,60 @@ export interface QuestionRecord extends Owned {
   notes: string | null
 }
 
+// ── EvoQuest ──────────────────────────────────────────────────────────────
+export type GameMode = 'quick' | 'trail' | 'review' | 'time_attack' | 'boss' | 'lab' | 'cards'
+export type GameSessionStatus = 'active' | 'finished' | 'abandoned'
+
+export interface GameSession extends Owned {
+  subject_id: string
+  unit_id: string | null
+  mode: GameMode
+  status: GameSessionStatus
+  /** Fila planejada de desafios (permite retomar a partida). */
+  queue: string[]
+  planned_seconds: number | null
+  started_at: ISODateTime
+  finished_at: ISODateTime | null
+  answered: number
+  correct: number
+  xp: number
+  coins: number
+  combo: number
+  best_combo: number
+  active_seconds: number
+  study_session_id: UUID | null
+}
+
+export interface GameAnswer extends Owned {
+  session_id: UUID
+  challenge_id: string
+  challenge_version: number
+  subject_id: string
+  topic: string
+  correct: boolean
+  score: number
+  used_hint: boolean
+  attempt: number
+  seconds: number
+  xp: number
+  coins: number
+  combo: number
+  answered_at: ISODateTime
+}
+
+/** Livro-razão de recompensas: saldo = soma das linhas. Único por (usuário, origem). */
+export interface GameReward extends Owned {
+  source: string
+  kind: 'answer' | 'mission' | 'achievement' | 'purchase'
+  xp: number
+  coins: number
+}
+
+export interface GamePurchase extends Owned {
+  item_id: string
+  price: number
+}
+
 export interface Tables {
   profiles: Profile
   subjects: Subject
@@ -361,6 +428,10 @@ export interface Tables {
   mind_maps: MindMap
   study_goals: StudyGoal
   question_records: QuestionRecord
+  game_sessions: GameSession
+  game_answers: GameAnswer
+  game_rewards: GameReward
+  game_purchases: GamePurchase
 }
 
 export type TableName = keyof Tables

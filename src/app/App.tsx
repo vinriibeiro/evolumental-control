@@ -26,6 +26,17 @@ const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
 const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
+const EvoQuestHome = lazy(() => import('@/pages/evoquest/EvoQuestHome'))
+const EvoSubjectPage = lazy(() => import('@/pages/evoquest/SubjectPage'))
+const EvoLessonPage = lazy(() => import('@/pages/evoquest/LessonPage'))
+const EvoPlayPage = lazy(() => import('@/pages/evoquest/PlayPage'))
+const EvoModePickPage = lazy(() => import('@/pages/evoquest/ModePickPage'))
+const EvoLabPage = lazy(() => import('@/pages/evoquest/LabPage'))
+const EvoLabListPage = lazy(() => import('@/pages/evoquest/LabPage').then((m) => ({ default: m.LabListPage })))
+const EvoMissionsPage = lazy(() => import('@/pages/evoquest/MissionsPage'))
+const EvoProfilePage = lazy(() => import('@/pages/evoquest/ProfilePage'))
+const EvoHistoryPage = lazy(() => import('@/pages/evoquest/HistoryPage'))
+const EvoCardsPage = lazy(() => import('@/pages/evoquest/CardsPage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
@@ -77,6 +88,18 @@ export function App() {
                   <Route path="metas" element={<GoalsPage />} />
                   <Route path="relatorios" element={<ReportsPage />} />
                   <Route path="configuracoes" element={<SettingsPage />} />
+                  <Route path="evoquest" element={<EvoQuestHome />} />
+                  <Route path="evoquest/jogar" element={<EvoPlayPage />} />
+                  <Route path="evoquest/revisao" element={<EvoModePickPage mode="review" />} />
+                  <Route path="evoquest/relogio" element={<EvoModePickPage mode="time_attack" />} />
+                  <Route path="evoquest/laboratorio" element={<EvoLabListPage />} />
+                  <Route path="evoquest/laboratorio/:id" element={<EvoLabPage />} />
+                  <Route path="evoquest/missoes" element={<EvoMissionsPage />} />
+                  <Route path="evoquest/perfil" element={<EvoProfilePage />} />
+                  <Route path="evoquest/historico" element={<EvoHistoryPage />} />
+                  <Route path="evoquest/cartoes" element={<EvoCardsPage />} />
+                  <Route path="evoquest/:subject" element={<EvoSubjectPage />} />
+                  <Route path="evoquest/:subject/licao/:unit" element={<EvoLessonPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>

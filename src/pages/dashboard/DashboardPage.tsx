@@ -15,6 +15,7 @@ import { breakdown, isNoSubject, series, streak } from '@/lib/stats'
 import { netSeconds } from '@/lib/timer/engine'
 import { addDays, dayKey, eachDay, formatDayKey, formatDuration, formatHours, formatTime, periodRange, startOfWeek, todayKey, type DayRange, minuteIso } from '@/lib/time'
 import type { ActivityType } from '@/types/db'
+import { EvoQuestCard } from '@/pages/evoquest/DashboardCard'
 
 const fmtH = (s: number) => formatHours(s)
 
@@ -109,6 +110,8 @@ export default function DashboardPage() {
           hint={topicsTotal.data ? `${(topicsTotal.data ?? 0) - (topicsDone.data ?? 0)} pendente(s)` : 'Cadastre tópicos'}
         />
       </div>
+
+      <EvoQuestCard />
 
       <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-ink">Análise do período</h2>
