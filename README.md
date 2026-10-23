@@ -101,7 +101,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql` e `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente). Em um projeto já existente, aplique **só as que ainda não rodou**.
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql` e `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina). Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -151,6 +151,18 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 | Linguagem M | 33 | casos com resultado deduzido das regras (não executa Power Query) |
 | SQL | 38 | 6 laboratórios reais em SQLite (sql.js/WASM) |
 | Python para Dados | 38 | 4 laboratórios reais em Pyodide (CPython + pandas em WASM) |
+
+**Mundo (`/evoquest`):** cada disciplina é uma cidade. Da **Rodoviária** da Vila Evolumental (ao sul da praça) sai um ônibus para cada cidade, e o bilhete é comprado no balcão com moedas:
+- a primeira passagem é o vale da Guilda, entregue no fim do tutorial: é grátis e vale para a cidade que o jogador escolher;
+- as demais custam 80 moedas cada; comprada uma vez, a linha fica liberada para sempre, e a volta para a Vila é grátis;
+- a compra passa pela RPC `game_buy_ticket` (no modo local, pela mesma regra em `LocalBackend`); `game_buy` não vende passagens.
+
+| Cidade | Disciplina | Como joga |
+|---|---|---|
+| Cidade dos Dados | SQL | história escrita à mão (terminal SQL real, Sentinela, chefe ROOT) |
+| Aurora, Babel, Silogia, Gaussópolis, Vernácula, Medida Certa, Pipeline | Python, Inglês, Lógica, Estatística, Português, DAX, M | geradas das unidades do modo clássico (`content/generatedCity.ts`): cada unidade é um prédio com um guardião (lição, treino e chefe); vencer o chefe, conferido no servidor em `game_answers`, cumpre a etapa e rende 25 moedas |
+
+**Minha Cidade:** depois da primeira viagem, a Arquiteta Lina (na Rodoviária) entrega a escritura de um terreno com 6 lotes. Cada lote recebe uma matéria do Control, e o prédio cresce com o tempo líquido estudado nela: Fundação com 1 h, Casa com 5 h, Sobrado com 15 h, Prédio com 40 h e Torre com 100 h. Pelo prédio dá para abrir o cronômetro, os flashcards e a página daquela matéria.
 
 **Modos:**
 - partida rápida (3/5/10/15 min ou personalizada);

@@ -26,6 +26,7 @@ const saveSchema = z.object({
   steps: z.array(z.string().max(120)).max(1000),
   unlocked: z.array(z.string()).max(50),
   introSeen: z.boolean(),
+  myCity: z.object({ lots: z.array(z.string().max(60).nullable()).max(12) }).optional(),
 })
 
 export function parseSave(raw: unknown): WorldState | null {

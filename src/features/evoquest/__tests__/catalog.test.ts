@@ -13,7 +13,7 @@ import { canonResult, sha256, sqlFeedback, type SqlChallenge } from '../challeng
 import { WORLD } from '../content'
 import { DATASETS } from '../content/datasets'
 import { EXPECTED } from '../content/expected'
-import { questCatalogSql } from '../catalogSql'
+import { WORLD_CATALOG_MIGRATION, worldCatalogSql } from '../catalogSql'
 import { RAW_SOLUTIONS, SQL_SOLUTIONS, WRONG_ANSWERS } from './solutions'
 
 let SQL: SqlJsStatic
@@ -59,10 +59,10 @@ describe('catálogo do mundo', () => {
     else expect(EXPECTED).toEqual(generated)
   })
 
-  it('a migração do servidor tem o mesmo catálogo de etapas (recompensas e hashes)', () => {
-    const file = join(ROOT, 'supabase/migrations/20261023000100_evoquest_rpg.sql')
+  it('a migração do servidor tem o mesmo catálogo de etapas e passagens (recompensas, hashes e preços)', () => {
+    const file = join(ROOT, 'supabase/migrations', WORLD_CATALOG_MIGRATION)
     const sqlText = readFileSync(file, 'utf8').replace(/\r\n/g, '\n')
-    const section = `-- <catalogo>\n${questCatalogSql()}\n-- </catalogo>`
+    const section = `-- <catalogo>\n${worldCatalogSql()}\n-- </catalogo>`
     if (UPDATE) writeFileSync(file, sqlText.replace(/-- <catalogo>[\s\S]*-- <\/catalogo>/, section))
     else expect(sqlText.match(/-- <catalogo>[\s\S]*-- <\/catalogo>/)?.[0], 'Rode com UPDATE_QUEST_CATALOG=1').toBe(section)
   })

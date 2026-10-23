@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBackend } from '@/app/data'
+import { invalidateTables, useAll, useSessions } from '@/hooks/data'
 import { useProfile } from '@/hooks/useSettings'
+import { eq, inList } from '@/lib/data/types'
+import { netSeconds } from '@/lib/timer/engine'
 import { levelFromXp } from '@/game/engine/rules'
 import { useGameSettings } from '@/game/useGame'
 import type { SqlChallenge, SwitchPuzzle } from './challenges'
 import { WORLD } from './content'
-import { currentStep } from './engine/state'
+import { cityById, cityOfTicket, type CityDef } from './content/cities'
+import { buildMyCity, levelFor, LOT_COUNT, MY_CITY, type LotView } from './content/myCity'
+import { currentStep, stepKey } from './engine/state'
 import type { EntityDef, Interaction } from './engine/types'
 import { GameRuntime } from './render/runtime'
 import { recordPlayTime } from './services/world'
@@ -15,8 +20,10 @@ import { play } from './ui/audio'
 import { Hud, TouchControls } from './ui/Controls'
 import { Dialogue, SayBox } from './ui/Dialogue'
 import { BossView, CombatView, PuzzleView } from './ui/Encounters'
+import { MyCityPanel } from './ui/MyCityPanel'
 import { Onboarding } from './ui/Onboarding'
 import { Panels, type PanelTab } from './ui/Panels'
+import { BusBoarding, BusRide, TicketCounter } from './ui/Station'
 import { Terminal } from './ui/Terminal'
 import { useWorld } from './ui/useWorld'
 
@@ -28,6 +35,10 @@ type Overlay =
   | { kind: 'puzzle'; id: string }
   | { kind: 'boss'; id: string }
   | { kind: 'panel'; tab: PanelTab }
+  | { kind: 'tickets' }
+  | { kind: 'bus' }
+  | { kind: 'ride'; to: string }
+  | { kind: 'lot'; lot: number | null }
 
 const TEXT_KEY = 'evl-world-text'
 const IDLE_MS = 120_000
@@ -51,7 +62,9 @@ export default function WorldPage() {
   const navigate = useNavigate()
   const profile = useProfile()
   const { game, save: saveGame } = useGameSettings()
+  const qc = useQueryClient()
   const totals = useQuery({ queryKey: ['data', ['game_rewards'], 'totals', backend.kind], queryFn: () => backend.gameTotals() })
+  const purchases = useAll('game_purchases')
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const runtime = useRef<GameRuntime | null>(null)
   const [overlay, setOverlay] = useState<Overlay | null>(null)
@@ -113,6 +126,12 @@ export default function WorldPage() {
           return setOverlay({ kind: 'boss', id: i.boss })
         case 'worldmap':
           return setOverlay({ kind: 'panel', tab: 'map' })
+        case 'tickets':
+          return setOverlay({ kind: 'tickets' })
+        case 'bus':
+          return setOverlay({ kind: 'bus' })
+        case 'lot':
+          return setOverlay({ kind: 'lot', lot: i.lot })
         case 'effects':
           w.apply(i.effects)
           if (i.text) w.toast(i.text)
@@ -158,7 +177,8 @@ export default function WorldPage() {
       const t = e.target as HTMLElement
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return
       if (e.key === 'Escape') {
-        if (overlay && overlay.kind !== 'dialogue') setOverlay(null)
+        // O ônibus não para no meio da estrada.
+        if (overlay && overlay.kind !== 'dialogue' && overlay.kind !== 'ride') setOverlay(null)
         return
       }
       const map: Record<string, PanelTab> = { KeyI: 'inventory', KeyJ: 'journal', KeyK: 'skills', KeyM: 'map', KeyO: 'settings' }
@@ -190,12 +210,83 @@ export default function WorldPage() {
     navigate('/')
   }
 
-  const travel = (region: string) => {
-    const r = WORLD.regions[region]
-    setOverlay(null)
-    w.apply([{ type: 'teleport', region, x: r.spawn.x + 0.5, y: r.spawn.y + 0.5 }])
-    w.toast(`${r.name} — ${r.subtitle}`)
+  // ── Rodoviária ──────────────────────────────────────────────────────────
+  const owned = useMemo(() => new Set((purchases.data ?? []).map((p) => cityOfTicket(p.item_id)).filter((c): c is string => Boolean(c))), [purchases.data])
+
+  const buyTicket = async (c: CityDef) => {
+    const r = await backend.gameBuyTicket(c.id)
+    await invalidateTables(qc, ['game_purchases', 'game_rewards'])
+    if (!r.bought) return
+    play('success', sound)
+    if (r.price === 0 && w.world.current?.inventory.includes('vale_bilhete')) w.apply([{ type: 'take', item: 'vale_bilhete' }])
+    w.toast(r.price ? `Passagem para ${c.name}: −${r.price} moedas.` : `Vale trocado: passagem para ${c.name}.`, 'reward')
+    setOverlay({ kind: 'bus' })
   }
+
+  /** Chegada do ônibus: a primeira viagem a uma cidade cumpre a etapa do tutorial. */
+  const arrive = useCallback(
+    (region: string) => {
+      const r = WORLD.regions[region]
+      setOverlay(null)
+      w.apply([...(cityById(region) ? [{ type: 'flag' as const, flag: 'first_trip' }] : []), { type: 'teleport', region, x: r.spawn.x + 0.5, y: r.spawn.y + 0.5 }])
+      w.toast(`${r.name} — ${r.subtitle}`)
+    },
+    [w],
+  )
+
+  // ── Minha Cidade: matérias do Control viram prédios ────────────────────
+  const myCityOn = Boolean(state?.flags.my_city_unlocked)
+  const subjects = useAll('subjects', {}, { enabled: myCityOn })
+  const studied = useSessions({ filters: [eq('status', 'completed')] }, { enabled: myCityOn })
+  const citySubjects = useMemo(() => (subjects.data ?? []).filter((s) => !s.archived_at).map((s) => ({ id: s.id, name: s.name, color: s.color })), [subjects.data])
+  const secondsBySubject = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const s of studied.data ?? []) if (s.subject_id) m.set(s.subject_id, (m.get(s.subject_id) ?? 0) + netSeconds(s, s.pauses))
+    return m
+  }, [studied.data])
+  const lots = state?.myCity?.lots
+  useEffect(() => {
+    const byId = new Map(citySubjects.map((s) => [s.id, s]))
+    const view: LotView[] = Array.from({ length: LOT_COUNT }, (_, i) => {
+      const s = lots?.[i] ? byId.get(lots[i]!) : undefined
+      return s ? { subjectId: s.id, name: s.name, color: s.color, level: levelFor(secondsBySubject.get(s.id) ?? 0).level } : { subjectId: null, name: 'Terreno livre', color: '#8a6239', level: 0 }
+    })
+    // O runtime lê as regiões a cada quadro: trocar o objeto redesenha a cidade.
+    WORLD.regions[MY_CITY] = buildMyCity(view)
+  }, [citySubjects, secondsBySubject, lots])
+
+  const assignLot = (lot: number, subjectId: string | null) => {
+    const s = w.world.current
+    if (!s) return
+    const next = Array.from({ length: LOT_COUNT }, (_, i) => s.myCity?.lots[i] ?? null)
+    next[lot] = subjectId
+    w.commit({ ...s, myCity: { lots: next } })
+    void w.save()
+    if (subjectId) w.toast('Obra iniciada! O prédio cresce conforme você estuda essa matéria.', 'reward')
+  }
+
+  // ── Chefes do modo clássico cumprem etapas das cidades geradas ─────────
+  const checked = useRef(new Set<string>())
+  useEffect(() => {
+    const s = w.world.current
+    if (!s || w.loading) return
+    const targets: string[] = []
+    for (const q of Object.values(WORLD.quests)) {
+      const st = currentStep(s, q)
+      if (st?.objective.type === 'answered' && !s.steps.includes(stepKey(q.id, st.id)) && !checked.current.has(st.objective.challenge)) targets.push(st.objective.challenge)
+    }
+    if (!targets.length) return
+    for (const t of targets) checked.current.add(t)
+    void backend
+      .list('game_answers', { filters: [inList('challenge_id', targets), eq('correct', true)], limit: 200 })
+      .then(async ({ rows }) => {
+        const won = new Set(rows.map((r) => r.challenge_id))
+        for (const t of targets) if (won.has(t)) await w.fire({ type: 'answered', challenge: t })
+      })
+      .catch(() => targets.forEach((t) => checked.current.delete(t)))
+    // version: a etapa atual muda a cada commit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w.version, w.loading, backend])
 
   const objective = useMemo(() => {
     if (!state) return null
@@ -304,13 +395,39 @@ export default function WorldPage() {
           {overlay.kind === 'boss' && (
             <BossView boss={WORLD.bosses[overlay.id]} phase={bossPhase} sound={sound} onSolvePhase={(challenge, answer) => w.fire({ type: 'solve', challenge }, answer)} onClose={close} />
           )}
+          {overlay.kind === 'tickets' && <TicketCounter region={state.region} owned={owned} coins={totals.data?.coins ?? 0} onBuy={buyTicket} onBoard={() => setOverlay({ kind: 'bus' })} onClose={close} />}
+          {overlay.kind === 'bus' && (
+            <BusBoarding
+              region={state.region}
+              owned={owned}
+              myCity={Boolean(state.flags.my_city_unlocked)}
+              onBoard={(to) => setOverlay({ kind: 'ride', to })}
+              onTickets={() => setOverlay({ kind: 'tickets' })}
+              onClose={close}
+            />
+          )}
+          {overlay.kind === 'ride' && <BusRide to={WORLD.regions[overlay.to].name} reducedMotion={reducedMotion} onArrive={() => arrive(overlay.to)} />}
+          {overlay.kind === 'lot' && (
+            <MyCityPanel
+              lots={state.myCity?.lots ?? []}
+              subjects={citySubjects}
+              seconds={secondsBySubject}
+              focus={overlay.lot}
+              onAssign={assignLot}
+              onNavigate={(to) => {
+                close()
+                void w.save().then(() => flushTime()).then(() => navigate(to))
+              }}
+              onClose={close}
+            />
+          )}
           {overlay.kind === 'panel' && (
             <Panels
               tab={overlay.tab}
               state={state}
               onTab={(tab) => setOverlay({ kind: 'panel', tab })}
               onClose={close}
-              onTravel={travel}
+              owned={owned}
               prefs={{ textLarge, reducedMotion: game.reducedMotion, sound }}
               onPrefs={(p) => {
                 if (p.textLarge !== undefined) {

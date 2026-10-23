@@ -349,7 +349,7 @@ function Editor({ map }: { map: MindMap }) {
   }
 
   return (
-    <div className="-mx-4 -my-6 flex h-[calc(100dvh-var(--app-top,4rem))] flex-col sm:-mx-6 lg:-mx-8">
+    <div className="-mx-4 -mt-4 -mb-[calc(var(--app-bottom)+1.5rem)] flex h-[calc(100dvh-var(--app-top,4rem)-var(--app-bottom))] flex-col sm:-mx-6 lg:-mx-8 lg:-mt-6">
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-bg px-3 py-2">
         <Link to="/mapas" className="flex items-center gap-1 text-sm text-muted hover:text-ink" aria-label="Voltar aos mapas">
           <ArrowLeft className="size-4" />

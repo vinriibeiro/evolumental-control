@@ -155,14 +155,18 @@ export function useWorld() {
 
   const enterRegion = useCallback(
     async (region: string) => {
+      // Efeitos de chegada (ex.: a missão da cidade começa) antes da marca de visita.
+      const onEnter = WORLD.regions[region]?.onEnter
+      if (onEnter?.length) commit(applyEffects(world.current!, onEnter).state)
       const flag = `visited_${region}`
       if (!world.current!.flags[flag]) {
         commit({ ...world.current!, flags: { ...world.current!.flags, [flag]: true } })
         await fire({ type: 'flag', flag })
       }
+      await followUps(onEnter)
       await save()
     },
-    [commit, fire, save],
+    [commit, fire, followUps, save],
   )
 
   return {

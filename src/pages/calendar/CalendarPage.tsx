@@ -508,7 +508,7 @@ function TimeGrid(props: {
       </div>
 
       {/* Grade de 30 em 30 minutos */}
-      <div ref={scrollRef} className="scroll-thin max-h-[calc(100dvh-var(--app-top,4rem)-13rem)] min-h-80 overflow-y-auto">
+      <div ref={scrollRef} className="scroll-thin max-h-[calc(100dvh-var(--app-top,4rem)-var(--app-bottom)-13rem)] min-h-80 overflow-y-auto">
         <div className="relative flex" style={{ height: rows * SLOT }}>
           <div className="w-14 shrink-0">
             {Array.from({ length: rows }, (_, i) => (

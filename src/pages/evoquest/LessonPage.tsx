@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Swords } from 'lucide-react'
 import { Card } from '@/components/ui/layout'
 import { EmptyState, ErrorState, Spinner } from '@/components/ui/feedback'
@@ -9,6 +9,7 @@ import { CodeBlock } from './ChallengeView'
 
 export default function LessonPage() {
   const { subject = '', unit: unitId = '' } = useParams()
+  const fromWorld = useSearchParams()[0].get('volta') === 'mundo'
   const meta = subjectMeta(subject)
   const content = useSubjectContent(subject)
   if (!meta) return <EmptyState title="Disciplina não encontrada" />
@@ -20,7 +21,7 @@ export default function LessonPage() {
 
   return (
     <article className="mx-auto max-w-2xl">
-      <BackLink to={`/evoquest/${subject}`}>{meta.name}</BackLink>
+      <BackLink to={fromWorld ? '/evoquest' : `/evoquest/${subject}`}>{fromWorld ? 'Voltar à cidade' : meta.name}</BackLink>
       <p className="text-xs font-semibold tracking-wide text-accent-strong uppercase">
         {meta.icon} Unidade {index + 1} · Lição
       </p>
@@ -44,9 +45,9 @@ export default function LessonPage() {
         ))}
       </div>
 
-      <div className="sticky bottom-0 mt-6 -mx-4 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
+      <div className="sticky bottom-[var(--app-bottom)] mt-6 -mx-4 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
         <Link
-          to={`/evoquest/jogar?s=${subject}&m=trail&u=${unit.id}&min=8`}
+          to={`/evoquest/jogar?s=${subject}&m=trail&u=${unit.id}&min=8${fromWorld ? '&volta=mundo' : ''}`}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent text-sm font-semibold text-accent-ink hover:bg-accent-strong"
         >
           <Swords className="size-4" aria-hidden /> Praticar esta unidade

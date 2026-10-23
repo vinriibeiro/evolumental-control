@@ -49,7 +49,7 @@ function Starter() {
     if (queue.length === 0) return setEmpty(true)
     start
       .mutateAsync({ subjectId: subject, unitId, mode, queue: queue.map((c) => c.id), plannedSeconds: mode === 'time_attack' ? TIME_ATTACK_SECONDS : minutes * 60 })
-      .then((s) => navigate(`/evoquest/jogar?sessao=${s.id}`, { replace: true }))
+      .then((s) => navigate(`/evoquest/jogar?sessao=${s.id}${params.get('volta') === 'mundo' ? '&volta=mundo' : ''}`, { replace: true }))
       .catch(() => (started.current = false))
   }, [content.data, data.isPending, data.isError]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -145,6 +145,7 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
   const game = gameSettings(settings)
   const meta = subjectMeta(session.subject_id)!
   const finish = useGameMutation(finishGame, ['game_sessions', 'game_answers', 'game_rewards', 'study_sessions'])
+  const fromWorld = useSearchParams()[0].get('volta') === 'mundo'
   const submit = useGameMutation(submitAnswer)
 
   // Estado inicial: fila planejada menos o que já foi respondido (retomada).
@@ -193,13 +194,13 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
         } catch {
           /* ignora */
         }
-        if (status === 'abandoned') return navigate(`/evoquest/${session.subject_id}`)
+        if (status === 'abandoned') return navigate(fromWorld ? '/evoquest' : `/evoquest/${session.subject_id}`)
         setSummary(r)
       } catch (e) {
         toast.error(errorMessage(e))
       }
     },
-    [active, finish, game, navigate, session, toast],
+    [active, finish, fromWorld, game, navigate, session, toast],
   )
 
   // Fim por tempo (contra o relógio) ou por vidas (chefe).
@@ -277,7 +278,7 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
     )
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col max-sm:min-h-[calc(100dvh-9rem)]">
+    <div className="mx-auto flex max-w-2xl flex-col max-sm:min-h-[calc(100dvh-9rem-var(--app-bottom))]">
       {/* Barra superior: sair, progresso e status */}
       <div className="mb-4 flex items-center gap-3">
         <button type="button" onClick={leave} aria-label="Encerrar partida" className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-ink">
@@ -334,7 +335,7 @@ function Game({ session, content, answers }: { session: GameSession; content: Su
       </Card>
 
       {/* Ações fixas no rodapé: alcançáveis com o polegar */}
-      <div className="sticky bottom-0 -mx-4 mt-4 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
+      <div className="sticky bottom-[var(--app-bottom)] -mx-4 mt-4 border-t border-line bg-bg/95 px-4 py-3 backdrop-blur sm:mx-0 sm:rounded-xl sm:border">
         {feedback ? (
           <Feedback played={feedback} onNext={next} lastXpLabel={feedback.xp > 0 ? `+${feedback.xp} XP` : null} />
         ) : (
@@ -421,6 +422,8 @@ function Summary({
   const settings = useSettings()
   const game = gameSettings(settings)
   const data = useGameData()
+  // Partida aberta por um guardião do mundo: volta para a cidade.
+  const fromWorld = useSearchParams()[0].get('volta') === 'mundo'
   const meta = subjectMeta(session.subject_id)!
   const xp = played.reduce((s, p) => s + p.xp, 0)
   const coins = played.reduce((s, p) => s + p.coins, 0)
@@ -441,7 +444,7 @@ function Summary({
     if (leveledUp && game.sound) playSfx('level')
   }, [leveledUp]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const again = `/evoquest/jogar?s=${session.subject_id}&m=${session.mode}${session.unit_id ? `&u=${session.unit_id}` : ''}&min=${Math.max(1, Math.round((session.planned_seconds ?? 300) / 60))}`
+  const again = `/evoquest/jogar?s=${session.subject_id}&m=${session.mode}${session.unit_id ? `&u=${session.unit_id}` : ''}&min=${Math.max(1, Math.round((session.planned_seconds ?? 300) / 60))}${fromWorld ? '&volta=mundo' : ''}`
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-4">
@@ -513,9 +516,15 @@ function Summary({
         <Link to={again} reloadDocument={false} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-4 text-sm font-semibold text-accent-ink hover:bg-accent-strong">
           <RotateCcw className="size-4" aria-hidden /> Jogar de novo
         </Link>
-        <Link to={`/evoquest/${session.subject_id}`} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
-          <Flag className="size-4" aria-hidden /> Mapa da disciplina
-        </Link>
+        {fromWorld ? (
+          <Link to="/evoquest" className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
+            <Flag className="size-4" aria-hidden /> Voltar à cidade
+          </Link>
+        ) : (
+          <Link to={`/evoquest/${session.subject_id}`} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
+            <Flag className="size-4" aria-hidden /> Mapa da disciplina
+          </Link>
+        )}
         <Link to="/evoquest/missoes" className="inline-flex h-12 flex-1 items-center justify-center rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
           Missões
         </Link>

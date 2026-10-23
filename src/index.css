@@ -100,6 +100,31 @@ body {
   border-radius: 6px;
 }
 
+/*
+ * Aplicativo (celular, < lg) × sistema web (computador).
+ * No celular o Control vira app: barra de abas embaixo e áreas seguras
+ * (notch, barra de gestos). --app-bottom é a altura que a barra de abas ocupa;
+ * avisos e barras "grudadas" no rodapé ficam acima dela.
+ */
+:root {
+  --app-bottom: 0px;
+}
+@media (max-width: 1023.98px) {
+  :root:has(.app-tabbar) {
+    --app-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+.app-tabbar {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.app-safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+/* No app instalado não há barra de endereço: o topo encosta na barra de status. */
+html[data-app='standalone'] body {
+  overscroll-behavior-y: none;
+}
+
 /* Itens de grid podem encolher: evita que textos/controles alarguem a página. */
 @layer base {
   .grid > * {
@@ -257,6 +282,17 @@ body {
 }
 .eq-root[data-motion='reduced'] .eq-pop {
   animation: none;
+}
+@keyframes eq-ride {
+  from {
+    left: -2.5rem;
+  }
+  to {
+    left: 100%;
+  }
+}
+.eq-ride {
+  animation: eq-ride linear forwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .eq-pop {

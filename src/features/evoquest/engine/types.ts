@@ -63,8 +63,14 @@ export type Interaction = { when?: Cond } & (
   | { do: 'combat'; encounter: string }
   | { do: 'puzzle'; puzzle: string }
   | { do: 'boss'; boss: string }
-  /** Abre o mapa do mundo (Portal das Disciplinas). */
+  /** Abre o mapa do mundo. */
   | { do: 'worldmap' }
+  /** Balcão da Rodoviária: compra de passagens. */
+  | { do: 'tickets' }
+  /** Ônibus: embarque para uma cidade com passagem. */
+  | { do: 'bus' }
+  /** Minha Cidade: prefeitura (todos os lotes) ou um lote específico. */
+  | { do: 'lot'; lot: number | null }
   | { do: 'effects'; effects: Effect[]; text?: string }
   | { do: 'say'; text: string }
 )
@@ -79,6 +85,8 @@ export interface RegionDef {
   map: MapDef
   spawn: { x: number; y: number }
   entities: EntityDef[]
+  /** Efeitos aplicados ao entrar na região (ex.: iniciar a missão da cidade). */
+  onEnter?: Effect[]
 }
 
 export interface Speaker {
@@ -126,6 +134,11 @@ export type Objective =
   | { type: 'flag'; flag: string }
   /** Resolvido por um desafio de conhecimento (terminal, combate, puzzle). */
   | { type: 'solve'; challenge: string }
+  /**
+   * Desafio do modo clássico respondido corretamente (ex.: chefe da unidade).
+   * O servidor confere em game_answers; o cliente só avisa que vale tentar.
+   */
+  | { type: 'answered'; challenge: string }
 
 export interface QuestStep {
   id: string
@@ -179,6 +192,8 @@ export interface WorldState {
   steps: string[]
   unlocked: string[]
   introSeen: boolean
+  /** Minha Cidade: matéria do Control construída em cada lote (null = terreno vazio). */
+  myCity?: { lots: Array<string | null> }
 }
 
 export interface ItemDef {

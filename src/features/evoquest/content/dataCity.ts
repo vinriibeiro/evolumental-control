@@ -4,6 +4,7 @@
 import type { InputChallenge, SqlChallenge, SwitchPuzzle } from '../challenges'
 import type { EncounterDef } from '../engine/combat'
 import type { DialogueDef, QuestDef, RegionDef } from '../engine/types'
+import { STATION_SPOT } from './cities'
 import { canvas, exp, type BossDef } from './registry'
 
 const W = 34
@@ -30,6 +31,7 @@ export const DATA_CITY: RegionDef = {
   subject: 'sql',
   palette: 'data',
   spawn: { x: 6, y: 19 },
+  onEnter: [{ type: 'startQuest', quest: 'sql_main' }, { type: 'flag', flag: 'city_visited' }],
   map: {
     rows: m.rows(),
     legend: {
@@ -50,10 +52,10 @@ export const DATA_CITY: RegionDef = {
       kind: 'portal',
       x: 2,
       y: 21,
-      name: 'Portal de volta à Vila',
-      sprite: 'portal',
-      verb: 'Voltar',
-      on: [{ do: 'effects', effects: [{ type: 'teleport', region: 'hub', x: 15.5, y: 11.5 }], text: 'Você atravessa o portal de volta à Vila Evolumental.' }],
+      name: 'Ponto de ônibus',
+      sprite: 'bus_stop',
+      verb: 'Embarcar',
+      on: [{ do: 'effects', effects: [{ type: 'teleport', ...STATION_SPOT }], text: 'O ônibus leva você de volta à Rodoviária da Vila Evolumental.' }],
     },
     {
       id: 'maya',
@@ -316,7 +318,7 @@ export const DATA_CITY_QUESTS: QuestDef[] = [
     summary: 'Alguém está alterando os registros da Cidade dos Dados durante a madrugada.',
     rewardText: 'XP, moedas e o Emblema da Cidade dos Dados',
     steps: [
-      { id: 'travel', text: 'Atravesse o Portal das Disciplinas até a Cidade dos Dados.', objective: { type: 'flag', flag: 'visited_data_city' } },
+      { id: 'travel', text: 'Pegue o ônibus da Rodoviária até a Cidade dos Dados.', objective: { type: 'flag', flag: 'visited_data_city' } },
       { id: 'talk_maya', text: 'Fale com Maya no saguão.', objective: { type: 'talk', npc: 'maya', dialogueEnds: 'm4' } },
       {
         id: 'door',

@@ -1,8 +1,15 @@
+import { subjectMeta } from '@/game/catalog'
 import { stepKey } from '../engine/state'
+import { CITIES } from './cities'
 import { ITEMS, SPEAKERS } from './common'
 import { DATA_CITY, DATA_CITY_CHALLENGES, DATA_CITY_DIALOGUES, DATA_CITY_INPUTS, DATA_CITY_QUESTS, POWER_PUZZLE, ROOT_BOSS, SENTINEL } from './dataCity'
+import { buildCity, CLASSIC_CONTENT, GENERATED_REWARDS } from './generatedCity'
 import { GUILD_BOARD, HUB, HUB_DIALOGUES, TUTORIAL } from './hub'
+import { buildMyCity, emptyLots } from './myCity'
 import { byId, type WorldContent } from './registry'
+
+/** Cidades sem história escrita à mão: geradas das unidades do modo clássico. */
+const GENERATED = CITIES.filter((c) => CLASSIC_CONTENT[c.subject]).map((c) => buildCity(c, CLASSIC_CONTENT[c.subject], subjectMeta(c.subject)?.name ?? c.blurb))
 
 /**
  * Recompensas por etapa. Só etapas que exigem conhecimento validado rendem
@@ -24,34 +31,28 @@ const REWARDS: Record<string, { xp: number; coins: number }> = {
   'side_badges:find': { xp: 70, coins: 10 },
   'side_cafe:find': { xp: 60, coins: 10 },
 }
+for (const g of GENERATED)
+  for (const s of g.quest.steps) {
+    if (s.objective.type === 'answered') REWARDS[stepKey(g.quest.id, s.id)] = GENERATED_REWARDS.unit
+    if (s.id === 'finale') REWARDS[stepKey(g.quest.id, s.id)] = GENERATED_REWARDS.finale
+  }
 
-const quests = byId([TUTORIAL, ...DATA_CITY_QUESTS])
+const quests = byId([TUTORIAL, ...DATA_CITY_QUESTS, ...GENERATED.map((g) => g.quest)])
 const rewards: WorldContent['rewards'] = {}
 for (const q of Object.values(quests)) for (const s of q.steps) rewards[stepKey(q.id, s.id)] = REWARDS[stepKey(q.id, s.id)] ?? { xp: 0, coins: 0 }
 
 export const WORLD: WorldContent = {
-  regions: byId([HUB, DATA_CITY]),
-  speakers: byId(SPEAKERS),
-  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES]),
-  items: byId(ITEMS),
+  // my_city é trocada em tempo de execução pela versão com as matérias do jogador.
+  regions: byId([HUB, DATA_CITY, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
+  speakers: byId([...SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
+  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
+  items: byId([...ITEMS, ...GENERATED.flatMap((g) => g.items)]),
   quests,
   challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE]),
   encounters: byId([SENTINEL]),
   bosses: byId([ROOT_BOSS]),
   rewards,
 }
-
-/** Regiões do mapa do mundo (as que ainda não têm fatia jogável aparecem bloqueadas). */
-export const WORLD_MAP: Array<{ id: string; name: string; subject: string; blurb: string; playable: boolean; x: number; y: number }> = [
-  { id: 'data_city', name: 'Cidade dos Dados', subject: 'sql', blurb: 'SQL · DAX · Linguagem M', playable: true, x: 78, y: 50 },
-  { id: 'lab_aurora', name: 'Laboratório Aurora', subject: 'python', blurb: 'Python para Dados', playable: false, x: 50, y: 84 },
-  { id: 'language_tower', name: 'Torre dos Idiomas', subject: 'ingles', blurb: 'Inglês', playable: false, x: 50, y: 14 },
-  { id: 'logic_temple', name: 'Templo da Lógica', subject: 'logica', blurb: 'Raciocínio Lógico', playable: false, x: 20, y: 50 },
-  { id: 'observatory', name: 'Observatório', subject: 'estatistica', blurb: 'Estatística', playable: false, x: 24, y: 20 },
-  { id: 'archive', name: 'Arquivo Público', subject: 'portugues', blurb: 'Português', playable: false, x: 22, y: 80 },
-  { id: 'command_tower', name: 'Torre de Comando', subject: 'dax', blurb: 'DAX', playable: false, x: 78, y: 20 },
-  { id: 'refinery', name: 'Refinaria', subject: 'm', blurb: 'Linguagem M', playable: false, x: 78, y: 82 },
-]
 
 /** Árvore de habilidades de SQL (ver docs/REDESIGN.md). */
 export const SQL_SKILLS: Array<{ id: string; name: string; requires: string[]; covers: string[] }> = [

@@ -1,13 +1,15 @@
 // Vila Evolumental — o HUB. Funcionalidades viram lugares: a Sala de
-// Troféus é uma sala, o Quadro de Missões é um objeto, o Portal leva às regiões.
+// Troféus é uma sala, o Quadro de Missões é um objeto, a Rodoviária leva às
+// cidades (uma por disciplina) e à cidade do próprio jogador.
 import type { SqlChallenge } from '../challenges'
 import type { DialogueDef, QuestDef, RegionDef } from '../engine/types'
 import { canvas, exp } from './registry'
 
 const W = 32
-const H = 22
+const H = 31
 
-// Legenda: # cerca · . grama · , caminho · O praça · T árvore · R telhado · B parede · D porta · F flores · ~ água · = ponte
+// Legenda: # cerca · . grama · , caminho · O praça · T árvore · R telhado · B parede · D porta · F flores · ~ água
+// Rodoviária: Q telhado azul · W parede · K guichê · A asfalto · 1–8 ônibus (4 × 2 tiles)
 const map = canvas(W, H, '.')
 map.rect(0, 0, W - 1, 0, '#').rect(0, H - 1, W - 1, H - 1, '#').rect(0, 0, 0, H - 1, '#').rect(W - 1, 0, W - 1, H - 1, '#')
 const building = (x: number, y: number) => {
@@ -31,6 +33,14 @@ map.rect(4, 18, 27, 18, ',')
 map.rect(4, 19, 4, 19, ',').rect(26, 19, 26, 19, ',')
 map.rect(12, 15, 13, 17, '~').rect(17, 15, 18, 17, '~')
 map.rect(1, 19, 1, 20, 'T').rect(30, 19, 30, 20, 'T').set(9, 3, 'T').set(22, 3, 'T').set(10, 16, 'F').set(20, 16, 'F').set(9, 9, 'F').set(22, 9, 'F')
+// Rodoviária, ao sul da praça
+map.rect(15, 19, 15, 23, ',')
+map.rect(5, 21, 13, 22, 'Q').rect(5, 23, 13, 23, 'W').set(8, 23, 'K').set(10, 23, 'K')
+map.rect(4, 24, 27, 26, 'O')
+map.rect(4, 27, 27, 29, 'A')
+map.rect(17, 27, 20, 27, '1').set(18, 27, '2').set(19, 27, '3').set(20, 27, '4')
+map.rect(17, 28, 20, 28, '5').set(18, 28, '6').set(19, 28, '7').set(20, 28, '8')
+map.set(2, 25, 'T').set(29, 25, 'T').set(24, 22, 'F').set(26, 22, 'F')
 
 export const HUB: RegionDef = {
   id: 'hub',
@@ -52,6 +62,11 @@ export const HUB: RegionDef = {
       D: { solid: true, sprite: 'door' },
       F: { solid: false, sprite: 'flowers' },
       '~': { solid: true, sprite: 'water' },
+      Q: { solid: true, sprite: 'roof:#2f5f8a' },
+      W: { solid: true, sprite: 'wall' },
+      K: { solid: true, sprite: 'ticket_window' },
+      A: { solid: false, sprite: 'asphalt' },
+      ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [String(i + 1), { solid: true, sprite: `bus_${i}` }])),
     },
   },
   entities: [
@@ -89,15 +104,55 @@ export const HUB: RegionDef = {
       ],
     },
     {
-      id: 'portal',
-      kind: 'portal',
+      id: 'placa_rodoviaria',
+      kind: 'object',
       x: 15,
       y: 9,
-      name: 'Portal das Disciplinas',
-      sprite: 'portal',
-      verb: 'Atravessar',
-      marker: { at: 'sql_main:travel' },
-      on: [{ when: { flag: 'map_unlocked' }, do: 'worldmap' }, { do: 'say', text: 'O portal pulsa, mas não reage. A Guilda guarda a chave dele.' }],
+      name: 'Placa da Rodoviária',
+      sprite: 'sign',
+      verb: 'Ler',
+      on: [{ do: 'say', text: 'RODOVIÁRIA ↓ — ao sul da praça. Ônibus para todas as cidades. Passagens no balcão.' }],
+    },
+    {
+      id: 'dora',
+      kind: 'npc',
+      x: 9,
+      y: 24,
+      name: 'Dora, bilheteira',
+      sprite: 'dora',
+      solid: true,
+      verb: 'Comprar passagem',
+      marker: { at: 'tutorial:trip' },
+      on: [
+        { when: { notFlag: 'map_unlocked' }, do: 'say', text: 'A bilheteria só atende quem tem registro na Guilda. Fale com a Mestra Iara primeiro.' },
+        { do: 'tickets' },
+      ],
+    },
+    {
+      id: 'onibus',
+      kind: 'object',
+      x: 16,
+      y: 26,
+      name: 'Ônibus',
+      sprite: 'bus_stop',
+      verb: 'Embarcar',
+      on: [{ when: { notFlag: 'map_unlocked' }, do: 'say', text: 'O motorista só leva quem tem passagem. A bilheteria fica no prédio da Rodoviária.' }, { do: 'bus' }],
+    },
+    {
+      id: 'lina',
+      kind: 'npc',
+      x: 23,
+      y: 24,
+      name: 'Arquiteta Lina',
+      sprite: 'lina',
+      solid: true,
+      verb: 'Falar',
+      marker: { flag: 'city_visited', notItem: 'escritura' },
+      on: [
+        { when: { notFlag: 'city_visited' }, do: 'dialogue', dialogue: 'lina_wait' },
+        { when: { notItem: 'escritura' }, do: 'dialogue', dialogue: 'lina_deed' },
+        { do: 'dialogue', dialogue: 'lina_idle' },
+      ],
     },
     {
       id: 'tomo',
@@ -201,10 +256,40 @@ export const HUB_DIALOGUES: DialogueDef[] = [
     id: 'iara_report',
     start: 'r1',
     nodes: [
-      { id: 'r1', speaker: 'iara', text: '"O Servidor Fantasma"... A Cidade dos Dados está pedindo ajuda há dois dias e ninguém conseguia ler o pedido.', next: 'r2' },
-      { id: 'r2', speaker: 'iara', text: 'Leve este Mapa do Mundo. O Portal no centro da praça agora responde a você.', next: 'r3', effects: [{ type: 'give', item: 'mapa_mundo' }] },
-      { id: 'r3', speaker: 'iara', text: 'Lá, ninguém vai te dar alternativas para marcar. Vão te dar um terminal. Boa sorte.' },
+      { id: 'r1', speaker: 'iara', text: '"O Servidor Fantasma"... A Cidade dos Dados está pedindo ajuda há dois dias. E não é a única: cada cidade do mundo cuida de uma disciplina, e todas precisam de alguém.', next: 'r2' },
+      {
+        id: 'r2',
+        speaker: 'iara',
+        text: 'Leve o Mapa do Mundo e este vale da Guilda. Na Rodoviária, ao sul da praça, a Dora troca o vale pela sua primeira passagem.',
+        next: 'r3',
+        effects: [{ type: 'give', item: 'mapa_mundo' }, { type: 'give', item: 'vale_bilhete' }],
+      },
+      { id: 'r3', speaker: 'iara', text: 'Escolha a cidade que quiser. As próximas passagens você paga com as moedas que ganhar resolvendo problemas por aí.' },
     ],
+  },
+  {
+    id: 'lina_wait',
+    start: 'l1',
+    nodes: [{ id: 'l1', speaker: 'lina', text: 'Sou arquiteta da Prefeitura. Volte aqui depois da sua primeira viagem: tenho um terreno com o seu nome.' }],
+  },
+  {
+    id: 'lina_deed',
+    start: 'l1',
+    nodes: [
+      { id: 'l1', speaker: 'lina', text: 'Já conheceu uma cidade de verdade! Agora é a sua vez de construir uma.', next: 'l2' },
+      { id: 'l2', speaker: 'lina', text: 'Cada lote da sua cidade recebe uma das matérias que você estuda no Control. O prédio cresce com as horas estudadas: fundação, casa, sobrado, prédio e torre.', next: 'l3' },
+      {
+        id: 'l3',
+        speaker: 'lina',
+        text: 'Aqui está a escritura. O ônibus da linha "Minha Cidade" é de graça para a proprietária ou o proprietário.',
+        effects: [{ type: 'give', item: 'escritura' }, { type: 'flag', flag: 'my_city_unlocked' }, { type: 'toast', text: 'Linha "Minha Cidade" liberada no ônibus.' }],
+      },
+    ],
+  },
+  {
+    id: 'lina_idle',
+    start: 'l1',
+    nodes: [{ id: 'l1', speaker: 'lina', text: 'A planta da sua cidade fica na Prefeitura de lá. Escolha a matéria de cada lote e estude: o resto a obra faz sozinha.' }],
   },
   {
     id: 'iara_idle',
@@ -236,7 +321,7 @@ export const TUTORIAL: QuestDef = {
   title: 'A Guilda dos Estudos',
   region: 'hub',
   summary: 'O Quadro de Missões apagou. Faça-o responder.',
-  rewardText: 'Mapa do Mundo e o Portal das Disciplinas',
+  rewardText: 'Mapa do Mundo e o vale da primeira passagem',
   steps: [
     { id: 'talk_iara', text: 'Fale com a Mestra Iara, em frente à Guilda.', objective: { type: 'talk', npc: 'iara', dialogueEnds: 'i4' } },
     { id: 'board', text: 'Faça o Quadro de Missões mostrar as missões abertas.', objective: { type: 'solve', challenge: 'guild_board' }, skills: ['select', 'where'] },
@@ -244,7 +329,12 @@ export const TUTORIAL: QuestDef = {
       id: 'report',
       text: 'Conte à Mestra Iara o que o quadro revelou.',
       objective: { type: 'talk', npc: 'iara', dialogueEnds: 'r3' },
-      onComplete: [{ type: 'flag', flag: 'map_unlocked' }, { type: 'startQuest', quest: 'sql_main' }, { type: 'toast', text: 'Portal das Disciplinas desbloqueado.' }],
+      onComplete: [{ type: 'flag', flag: 'map_unlocked' }, { type: 'toast', text: 'Rodoviária liberada: escolha sua primeira cidade.' }],
+    },
+    {
+      id: 'trip',
+      text: 'Na Rodoviária, ao sul da praça, troque o vale por uma passagem e embarque para a cidade que escolher.',
+      objective: { type: 'flag', flag: 'first_trip' },
     },
   ],
 }

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Backpack, BookOpen, Check, Circle, CircleDot, Lock, Map as MapIcon, Settings2, Sparkles, Star, X } from 'lucide-react'
-import { SQL_SKILLS, WORLD, WORLD_MAP } from '../content'
+import { Backpack, BookOpen, Check, Circle, CircleDot, Lock, Map as MapIcon, Settings2, Sparkles, Star, Ticket, X } from 'lucide-react'
+import { SQL_SKILLS, WORLD } from '../content'
+import { CITIES } from '../content/cities'
+import { cityQuestId } from '../content/generatedCity'
+import { MY_CITY } from '../content/myCity'
 import { currentStep, stepKey } from '../engine/state'
 import type { WorldState } from '../engine/types'
 import { getVolume, setVolume } from './audio'
@@ -21,12 +24,13 @@ interface Props {
   state: WorldState
   onTab: (t: PanelTab) => void
   onClose: () => void
-  onTravel: (region: string) => void
+  /** Cidades com passagem comprada. */
+  owned: Set<string>
   prefs: { textLarge: boolean; reducedMotion: boolean; sound: boolean }
   onPrefs: (p: Partial<{ textLarge: boolean; reducedMotion: boolean; sound: boolean }>) => void
 }
 
-export function Panels({ tab, state, onTab, onClose, onTravel, prefs, onPrefs }: Props) {
+export function Panels({ tab, state, onTab, onClose, owned, prefs, onPrefs }: Props) {
   return (
     <div className="eq-panel eq-pop flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden" role="dialog" aria-modal aria-label={TABS.find((t) => t.id === tab)?.label}>
       <div className="flex items-center gap-1 overflow-x-auto border-b-2 border-[var(--eq-edge-dark)] p-2" role="tablist">
@@ -50,7 +54,7 @@ export function Panels({ tab, state, onTab, onClose, onTravel, prefs, onPrefs }:
         {tab === 'inventory' && <Inventory state={state} />}
         {tab === 'journal' && <Journal state={state} />}
         {tab === 'skills' && <SkillTree state={state} />}
-        {tab === 'map' && <WorldMap state={state} onTravel={onTravel} />}
+        {tab === 'map' && <WorldMap state={state} owned={owned} />}
         {tab === 'settings' && <Prefs prefs={prefs} onPrefs={onPrefs} />}
       </div>
     </div>
@@ -197,42 +201,45 @@ function SkillTree({ state }: { state: WorldState }) {
   )
 }
 
-function WorldMap({ state, onTravel }: { state: WorldState; onTravel: (region: string) => void }) {
+function WorldMap({ state, owned }: { state: WorldState; owned: Set<string> }) {
   const unlocked = Boolean(state.flags.map_unlocked)
+  const here = (id: string) => state.region === id
   return (
     <div>
-      <p className="mb-3 text-sm text-[var(--eq-muted)]">{unlocked ? 'Escolha um destino no Portal das Disciplinas.' : 'O mapa ainda está em branco. A Guilda pode ajudar.'}</p>
+      <p className="mb-3 text-sm text-[var(--eq-muted)]">
+        {unlocked ? 'Cada cidade cuida de uma disciplina. Para viajar, pegue o ônibus na Rodoviária da Vila; as passagens ficam no balcão.' : 'O mapa ainda está em branco. A Guilda pode ajudar.'}
+      </p>
       <div className="relative mx-auto aspect-[4/3] w-full max-w-xl rounded-md border-2 border-[var(--eq-edge-dark)] bg-[radial-gradient(circle_at_50%_50%,#2d2418,#14100c)]" aria-label="Mapa do Mundo Evolumental" role="group">
-        <button
-          className="absolute -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-[var(--eq-edge)] bg-[#2a2016] px-2 py-1 text-xs font-semibold"
-          style={{ left: '50%', top: '50%' }}
-          onClick={() => onTravel('hub')}
-          disabled={state.region === 'hub'}
-        >
-          Vila Evolumental {state.region === 'hub' && '· você está aqui'}
-        </button>
-        {WORLD_MAP.map((r) => (
-          <div key={r.id} className="absolute w-32 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: `${r.x}%`, top: `${r.y}%` }}>
-            {r.playable && unlocked ? (
-              <button className="eq-btn eq-btn-primary w-full flex-col py-1 text-xs" onClick={() => onTravel(r.id)} disabled={state.region === r.id}>
-                {r.name}
-                <span className="text-[10px] font-normal">{state.region === r.id ? 'você está aqui' : r.blurb}</span>
-              </button>
-            ) : (
-              <div className="rounded-md border-2 border-dashed border-[var(--eq-edge-dark)] bg-[#120e0b]/80 px-2 py-1 text-xs">
-                <Lock className="mx-auto size-3.5" aria-hidden />
-                <span className="block font-semibold">{r.name}</span>
-                <span className="block text-[10px] text-[var(--eq-muted)]">{r.playable ? 'bloqueada' : 'em construção'}</span>
-                {!r.playable && (
-                  <Link to={`/evoquest/${r.subject}`} className="text-[10px] text-[var(--eq-gold)] underline">
-                    treinar {r.blurb}
-                  </Link>
-                )}
-              </div>
-            )}
+        <div className="absolute -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-[var(--eq-edge)] bg-[#2a2016] px-2 py-1 text-center text-xs font-semibold" style={{ left: '50%', top: '50%' }}>
+          Vila Evolumental
+          <span className="block text-[10px] font-normal text-[var(--eq-muted)]">{here('hub') ? 'você está aqui' : 'Rodoviária'}</span>
+        </div>
+        {state.flags.my_city_unlocked && (
+          <div className="absolute -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-[var(--eq-gold)] bg-[#2a2112] px-2 py-1 text-center text-xs font-semibold" style={{ left: '50%', top: '66%' }}>
+            Minha Cidade
+            <span className="block text-[10px] font-normal text-[var(--eq-muted)]">{here(MY_CITY) ? 'você está aqui' : 'linha grátis'}</span>
           </div>
-        ))}
+        )}
+        {CITIES.map((c) => {
+          const has = owned.has(c.id)
+          return (
+            <div key={c.id} className="absolute w-32 -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: `${c.x}%`, top: `${c.y}%` }}>
+              <div className={`rounded-md border-2 px-2 py-1 text-xs ${has ? 'border-[var(--eq-edge)] bg-[#2a2016]' : 'border-dashed border-[var(--eq-edge-dark)] bg-[#120e0b]/80'}`}>
+                {has ? <Ticket className="mx-auto size-3.5 text-[var(--eq-gold)]" aria-label="Passagem comprada" /> : <Lock className="mx-auto size-3.5" aria-label="Sem passagem" />}
+                <span className="block font-semibold">{c.name}</span>
+                <span className="block text-[10px] text-[var(--eq-muted)]">{here(c.id) ? 'você está aqui' : c.blurb}</span>
+                {state.quests[cityQuestId(c.id)]?.done && <span className="block text-[10px] text-[var(--eq-gold)]">🏅 concluída</span>}
+              </div>
+            </div>
+          )
+        })}
       </div>
+      <p className="mt-3 text-center text-xs text-[var(--eq-muted)]">
+        Quer só treinar, sem viajar?{' '}
+        <Link to="/evoquest/treino" className="text-[var(--eq-gold)] underline">
+          Arena de treino
+        </Link>
+      </p>
     </div>
   )
 }

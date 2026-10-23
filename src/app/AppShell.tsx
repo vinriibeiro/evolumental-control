@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronsLeft, ChevronsRight, CloudOff, LogOut, Menu, Pause, Play, Search, Settings, X } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, CloudOff, Gamepad2, Layers, LayoutDashboard, LogOut, Menu, Pause, Play, Search, Settings, Timer, X } from 'lucide-react'
 import { NAV, NAV_GROUPS, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
@@ -89,7 +89,7 @@ export function AppShell() {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-[var(--overlay)]" onClick={() => setMobileOpen(false)} aria-hidden />
-          <aside className="animate-fade-in absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface shadow-xl" aria-label="Navegação principal">
+          <aside className="animate-fade-in app-safe-top absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-xl" aria-label="Navegação principal">
             <div className="absolute top-3 right-3">
               <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>
                 <X className="size-5" />
@@ -102,10 +102,9 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div ref={topRef} className="sticky top-0 z-30">
-        <header className="flex h-16 items-center gap-2 border-b border-line bg-bg/95 px-4 backdrop-blur sm:px-6">
-          <IconButton label="Abrir menu" className="lg:hidden" onClick={() => setMobileOpen(true)}>
-            <Menu className="size-5" />
-          </IconButton>
+        <header className="app-safe-top border-b border-line bg-bg/95 backdrop-blur">
+        <div className="flex h-14 items-center gap-2 px-4 sm:px-6 lg:h-16">
+          {/* Celular: o menu completo fica na aba "Mais" da barra inferior. */}
           <Link to="/" className="lg:hidden" aria-label="Início">
             <LogoMark className="size-8" />
           </Link>
@@ -124,29 +123,77 @@ export function AppShell() {
           </IconButton>
           <Notifications />
           <ProfileMenu />
+        </div>
         </header>
 
         {auth.mode === 'local' && (
           <div className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-ink sm:px-6">
             <CloudOff className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <span>
-              <strong>Modo local:</strong> os dados ficam apenas neste navegador (IndexedDB), sem login real e sem sincronização com a nuvem. Configure o Supabase
-              para usar contas e sincronizar (veja o README).
+              <strong>Modo local:</strong>{' '}
+              <span className="hidden lg:inline">
+                os dados ficam apenas neste navegador (IndexedDB), sem login real e sem sincronização com a nuvem. Configure o Supabase para usar contas e
+                sincronizar (veja o README).
+              </span>
+              <span className="lg:hidden">dados só neste aparelho, sem sincronizar.</span>
             </span>
           </div>
         )}
         </div>
 
-        <main id="conteudo" className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main id="conteudo" className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-4 pt-4 pb-[calc(var(--app-bottom)+1.5rem)] sm:px-6 lg:px-8 lg:pt-6">
           <Suspense fallback={<Spinner />}>
             <Outlet />
           </Suspense>
         </main>
       </div>
 
+      <AppTabBar onMore={() => setMobileOpen(true)} moreOpen={mobileOpen} />
       <TimerAlerts />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
+  )
+}
+
+const TABS = [
+  { to: '/', label: 'Início', icon: LayoutDashboard },
+  { to: '/cronometro', label: 'Cronômetro', icon: Timer },
+  { to: '/flashcards', label: 'Flashcards', icon: Layers },
+  { to: '/evoquest', label: 'EvoQuest', icon: Gamepad2 },
+]
+
+/** Barra de abas do aplicativo (celular). No computador, a barra lateral faz esse papel. */
+function AppTabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean }) {
+  const location = useLocation()
+  const inTabs = TABS.some((t) => (t.to === '/' ? location.pathname === '/' : location.pathname.startsWith(t.to)))
+  const item = 'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium'
+  return (
+    <nav className="app-tabbar fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 backdrop-blur lg:hidden" aria-label="Atalhos do aplicativo">
+      <ul className="flex h-16">
+        {TABS.map((t) => (
+          <li key={t.to} className="flex flex-1">
+            <NavLink to={t.to} end={t.to === '/' || t.to === '/evoquest'} className={({ isActive }) => cn(item, isActive ? 'text-ink' : 'text-muted')}>
+              {({ isActive }) => (
+                <>
+                  <span className={cn('flex h-7 w-12 items-center justify-center rounded-full transition-colors', isActive && 'bg-accent/40')}>
+                    <t.icon className="size-5" aria-hidden />
+                  </span>
+                  <span className="truncate">{t.label}</span>
+                </>
+              )}
+            </NavLink>
+          </li>
+        ))}
+        <li className="flex flex-1">
+          <button type="button" onClick={onMore} aria-expanded={moreOpen} className={cn(item, !inTabs || moreOpen ? 'text-ink' : 'text-muted')}>
+            <span className={cn('flex h-7 w-12 items-center justify-center rounded-full', (!inTabs || moreOpen) && 'bg-accent/40')}>
+              <Menu className="size-5" aria-hidden />
+            </span>
+            Mais
+          </button>
+        </li>
+      </ul>
+    </nav>
   )
 }
 

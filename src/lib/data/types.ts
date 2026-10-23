@@ -106,6 +106,11 @@ export interface DataBackend {
   gameClaim(input: GameClaimInput): Promise<{ applied: boolean; xp: number; coins: number }>
   /** Compra um cosmético com moedas virtuais. false = já possuía. */
   gameBuy(itemId: string): Promise<boolean>
+  /**
+   * Compra a passagem de uma cidade na Rodoviária. A primeira é grátis (vale
+   * da Guilda); as demais custam moedas. bought = false: já possuía.
+   */
+  gameBuyTicket(city: string): Promise<{ bought: boolean; price: number }>
   gameTotals(): Promise<{ xp: number; coins: number }>
   /**
    * Conclui uma etapa de missão do RPG. O backend confere a ordem e o hash da

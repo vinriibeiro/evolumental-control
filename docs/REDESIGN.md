@@ -177,8 +177,15 @@ idempotente) e RPC `game_save_world` (salva só campos cosméticos/posição; pr
 - Atualizar `e2e/evoquest.mjs`: o modo clássico saiu de `/evoquest` para `/evoquest/treino`.
 - Polimento de arte e animação; sons de passos; revisar textos com jogadores reais.
 - Aplicar no Supabase as migrações `20261023000000_explorer.sql` e `20261023000100_evoquest_rpg.sql`.
-| 5 | Ferramentas de conteúdo para novas regiões | depois da validação da fatia |
-| 6 | Migração progressiva das demais disciplinas | depois da fase 5 |
+| 5 | Ferramentas de conteúdo para novas regiões | em parte: `buildCity` gera cidades a partir das unidades do modo clássico |
+| 6 | Migração progressiva das demais disciplinas | primeira versão em 22/10: uma cidade por disciplina, Rodoviária, passagens e Minha Cidade |
+
+### Rodoviária e cidades (22/10/2026)
+
+- O Portal das Disciplinas saiu da praça. Agora as viagens são de ônibus, a partir da Rodoviária (sul da Vila). A Dora vende as passagens no balcão e a Lina entrega a escritura da Minha Cidade.
+- Tutorial: a Iara entrega o vale; a nova etapa `tutorial:trip` termina na primeira viagem. A missão de cada cidade começa ao chegar nela (`RegionDef.onEnter`).
+- Servidor (`20261024000000_evoquest_rodoviaria.sql`): `game_buy_ticket` (a primeira passagem sai grátis, as outras custam moedas; não duplica), `game_quest_steps.require_answer` (a etapa exige um desafio acertado em `game_answers`) e `game_buy` limitado a cosméticos.
+- Pendências: escrever a história própria de cada cidade gerada; dar à Minha Cidade conteúdo jogável (desafios a partir dos flashcards da matéria); aplicar a migração no Supabase.
 
 Critério de aprovação da fatia vertical: sem XP, moedas e níveis, a missão ainda é interessante? O jogador está
 *fazendo* algo ou só *respondendo*?

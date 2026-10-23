@@ -233,6 +233,10 @@ export class SupabaseBackend implements DataBackend {
     return this.rpc('game_buy', { p_item: itemId })
   }
 
+  gameBuyTicket(city: string): Promise<{ bought: boolean; price: number }> {
+    return this.rpc('game_buy_ticket', { p_city: city })
+  }
+
   async gameTotals(): Promise<{ xp: number; coins: number }> {
     const rows = await this.rpc<Array<{ xp: number | string; coins: number | string }> | { xp: number | string; coins: number | string }>('game_totals', {})
     const r = Array.isArray(rows) ? rows[0] : rows

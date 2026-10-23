@@ -1,5 +1,6 @@
 // E2E do Mundo Evolumental (modo local): primeira experiência, tutorial
-// jogável, viagem pelo Portal e as primeiras etapas da Cidade dos Dados.
+// jogável, Rodoviária (vale → passagem → ônibus), as primeiras etapas da
+// Cidade dos Dados e a Minha Cidade.
 // Uso: npm run dev (em outro terminal) e `node e2e/world.mjs [url] [pasta]`.
 import { chromium } from 'playwright-core'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -70,7 +71,7 @@ await step('anda com o teclado e colide (não atravessa a Guilda)', async () => 
   if (s.y < 4.2) throw new Error(`atravessou a parede: y=${s.y}`)
 })
 
-await step('tutorial: Iara → Quadro de Missões (SQL real) → recompensa e Portal', async () => {
+await step('tutorial: Iara → Quadro de Missões (SQL real) → recompensa e Rodoviária', async () => {
   await useAt(13.5, 6.5, 'up', 'Mestra Iara')
   await talkThrough()
   await page.getByText('Faça o Quadro de Missões mostrar').first().waitFor()
@@ -84,15 +85,28 @@ await step('tutorial: Iara → Quadro de Missões (SQL real) → recompensa e Po
   await page.getByRole('button', { name: 'Continuar' }).click()
   await useAt(13.5, 6.5, 'up', 'Mestra Iara')
   await talkThrough()
-  await page.getByText('Portal das Disciplinas desbloqueado').waitFor()
+  await page.getByText('Rodoviária liberada').waitFor()
   const s = await st()
-  if (!s.inventory.includes('mapa_mundo')) throw new Error('sem o Mapa do Mundo')
+  if (!s.inventory.includes('mapa_mundo') || !s.inventory.includes('vale_bilhete')) throw new Error('sem o Mapa do Mundo ou o vale')
 })
 
-await step('Portal → Cidade dos Dados; Maya; porta de segurança com SQL', async () => {
-  await useAt(15.5, 10.5, 'up', 'Portal das Disciplinas')
+await step('Rodoviária: vale vira passagem grátis; a segunda cidade custa moedas; ônibus leva à cidade', async () => {
+  await useAt(9.5, 25.5, 'up', 'Dora, bilheteira')
+  await page.getByRole('dialog', { name: 'Bilheteria da Rodoviária' }).waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-bilheteria.png` })
+  await page.locator('li', { hasText: 'Cidade dos Dados' }).getByRole('button', { name: /Trocar o vale/ }).click()
+  await page.getByRole('dialog', { name: 'Embarque' }).waitFor()
+  await page.getByRole('button', { name: /Comprar outra passagem/ }).click()
+  await page.locator('li', { hasText: 'Babel' }).getByText(/Faltam \d+ moedas/).waitFor()
+  await page.getByRole('button', { name: /Ir para o embarque/ }).click()
   await page.getByRole('button', { name: /Cidade dos Dados/ }).click()
+  await page.getByText('Em viagem para').waitFor()
   await page.getByText('Fale com Maya no saguão').first().waitFor()
+  const s = await st()
+  if (s.region !== 'data_city' || s.inventory.includes('vale_bilhete')) throw new Error(`região ${s.region} / vale não usado`)
+})
+
+await step('Cidade dos Dados: Maya; porta de segurança com SQL', async () => {
   await useAt(8.5, 18.5, 'up', 'Maya Kort')
   await talkThrough()
   await page.getByText('Abra a sala de segurança').first().waitFor()
@@ -118,9 +132,10 @@ await step('progresso persiste após recarregar (servidor/local reconciliado)', 
   await page.getByText('Converse com Brás').first().waitFor()
   const s = await st()
   if (s.region !== 'data_city') throw new Error(`região ${s.region}`)
+  await page.waitForTimeout(300)
 })
 
-await step('painéis: diário, habilidades e inventário', async () => {
+await step('painéis: diário, habilidades, inventário e mapa com passagens', async () => {
   await page.keyboard.press('j')
   await page.getByText('O Servidor Fantasma').first().waitFor()
   await page.keyboard.press('k')
@@ -128,7 +143,30 @@ await step('painéis: diário, habilidades e inventário', async () => {
   await page.keyboard.press('i')
   await page.getByText('Mapa do Mundo').first().waitFor()
   await page.screenshot({ path: `${OUT}/mundo-paineis.png` })
+  await page.keyboard.press('m')
+  await page.getByLabel('Passagem comprada').first().waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-mapa.png` })
   await page.keyboard.press('Escape')
+})
+
+await step('volta de ônibus; Lina entrega a escritura; Minha Cidade', async () => {
+  await useAt(2.5, 20.5, 'down', 'Ponto de ônibus')
+  await page.waitForTimeout(500)
+  if ((await st()).region !== 'hub') throw new Error('não voltou à Vila')
+  await page.screenshot({ path: `${OUT}/mundo-rodoviaria.png` })
+  await useAt(23.5, 25.5, 'up', 'Arquiteta Lina')
+  await talkThrough()
+  await page.getByText('Linha "Minha Cidade" liberada').waitFor()
+  await useAt(15.5, 26.5, 'right', 'Ônibus')
+  await page.getByRole('button', { name: /Minha Cidade/ }).click()
+  await page.getByText('Minha Cidade').first().waitFor()
+  await page.waitForTimeout(2200)
+  if ((await st()).region !== 'my_city') throw new Error('não chegou à Minha Cidade')
+  await useAt(5.5, 6.5, 'up', 'Lote 1')
+  await page.getByRole('dialog', { name: 'Prefeitura da Minha Cidade' }).waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-minha-cidade-lote.png` })
+  await page.keyboard.press('Escape')
+  await page.screenshot({ path: `${OUT}/mundo-minha-cidade.png` })
 })
 
 await step('celular: joystick e botão de ação, sem rolagem', async () => {

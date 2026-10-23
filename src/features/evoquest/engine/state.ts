@@ -93,6 +93,7 @@ export type WorldEvent =
   | { type: 'item'; item: string }
   | { type: 'flag'; flag: string }
   | { type: 'solve'; challenge: string }
+  | { type: 'answered'; challenge: string }
 
 /** Etapas (de qualquer missão ativa) que este evento cumpre agora. */
 export function stepsCompletedBy(state: WorldState, quests: Record<string, QuestDef>, ev: WorldEvent): Array<{ quest: QuestDef; key: string }> {
@@ -106,7 +107,8 @@ export function stepsCompletedBy(state: WorldState, quests: Record<string, Quest
       (o.type === 'interact' && ev.type === 'interact' && o.target === ev.target) ||
       (o.type === 'item' && ev.type === 'item' && o.item === ev.item) ||
       (o.type === 'flag' && ev.type === 'flag' && o.flag === ev.flag) ||
-      (o.type === 'solve' && ev.type === 'solve' && o.challenge === ev.challenge)
+      (o.type === 'solve' && ev.type === 'solve' && o.challenge === ev.challenge) ||
+      (o.type === 'answered' && ev.type === 'answered' && o.challenge === ev.challenge)
     if (hit) out.push({ quest: q, key: stepKey(q.id, step.id) })
   }
   return out

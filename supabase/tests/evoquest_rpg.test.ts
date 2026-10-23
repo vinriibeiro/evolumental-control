@@ -97,6 +97,53 @@ describe('EvoQuest RPG — game_complete_step', () => {
     })
   })
 
+  it('Rodoviária: só depois do tutorial; primeira passagem grátis, depois moedas; sem duplicar', async () => {
+    const CAROL = '33333333-3333-4333-8333-333333333333'
+    await db.exec(`insert into auth.users (id, email) values ('${CAROL}', 'c@example.com');`)
+    const buy = (city: string) => as(CAROL, async () => (await db.query<{ r: { bought: boolean; price: number } }>(`select public.game_buy_ticket($1) as r`, [city])).rows[0].r)
+    const coins = () => as(CAROL, async () => (await db.query<{ c: number }>(`select coalesce(sum(coins), 0)::int as c from public.game_rewards`)).rows[0].c)
+
+    await expect(buy('archive')).rejects.toThrow(/Rodoviária/)
+    await complete(CAROL, 'tutorial:talk_iara')
+    await complete(CAROL, 'tutorial:board', `2|${JSON.stringify(['O Servidor Fantasma', 'Cidade dos Dados'])}`)
+    await complete(CAROL, 'tutorial:report')
+    await expect(buy('atlantida')).rejects.toThrow(/desconhecida/)
+    expect(await buy('archive')).toEqual({ bought: true, price: 0 })
+    expect(await buy('archive')).toEqual({ bought: false, price: 0 })
+    expect(await coins()).toBe(10)
+    await expect(buy('data_city')).rejects.toThrow(/insuficientes/)
+
+    // Passagem não se compra pela loja de cosméticos nem por insert direto.
+    await as(CAROL, async () => {
+      await expect(db.query(`select public.game_buy('ticket_data_city')`)).rejects.toThrow(/desconhecido/)
+      await expect(db.query(`insert into public.game_purchases (item_id, price) values ('ticket_data_city', 0)`)).rejects.toThrow()
+    })
+
+    await db.exec(`reset role; insert into public.game_rewards (user_id, source, kind, xp, coins) values ('${CAROL}', 'teste:bonus', 'mission', 0, 100);`)
+    expect(await buy('data_city')).toMatchObject({ bought: true, price: 80 })
+    expect(await coins()).toBe(30)
+  })
+
+  it('etapa de cidade gerada exige o chefe acertado em game_answers', async () => {
+    const steps = await db.query<{ key: string; require_answer: string }>(`select key, require_answer from public.game_quest_steps where key = 'city_archive:unit_1'`)
+    const boss = steps.rows[0].require_answer
+    expect(boss).toMatch(/^portugues\./)
+    await complete(ALICE, 'city_archive:arrive')
+    await complete(ALICE, 'city_archive:mentor')
+    await expect(complete(ALICE, 'city_archive:unit_1')).rejects.toThrow(/não vencido/)
+    const sid = '44444444-4444-4444-8444-444444444444'
+    await db.exec(`reset role;
+      insert into public.game_sessions (id, user_id, subject_id, mode) values ('${sid}', '${ALICE}', 'portugues', 'boss');
+      insert into public.game_answers (id, user_id, session_id, challenge_id, subject_id, correct) values (gen_random_uuid(), '${ALICE}', '${sid}', '${boss}', 'portugues', false);`)
+    await expect(complete(ALICE, 'city_archive:unit_1')).rejects.toThrow(/não vencido/)
+    await db.exec(`insert into public.game_answers (id, user_id, session_id, challenge_id, subject_id, correct) values (gen_random_uuid(), '${ALICE}', '${sid}', '${boss}', 'portugues', true);`)
+    expect(await complete(ALICE, 'city_archive:unit_1')).toMatchObject({ applied: true, coins: 25 })
+    // Acerto de outra pessoa não conta.
+    await complete(BOB, 'city_archive:arrive')
+    await complete(BOB, 'city_archive:mentor')
+    await expect(complete(BOB, 'city_archive:unit_1')).rejects.toThrow(/não vencido/)
+  })
+
   it('anon não chama a RPC', async () => {
     await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
     await expect(db.query(`select public.game_complete_step('tutorial:talk_iara', null)`)).rejects.toThrow()

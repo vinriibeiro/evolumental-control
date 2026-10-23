@@ -161,7 +161,90 @@ function openDoor(c: Ctx, color: string) {
   px(c, color, 13, 0, 1, TILE)
 }
 
+/** Clareia (amt > 0) ou escurece (amt < 0) uma cor #rrggbb. */
+function shade(hex: string, amt: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const f = (v: number) => Math.max(0, Math.min(255, Math.round(v + amt * 255)))
+  const [r, g, b] = [f(n >> 16), f((n >> 8) & 255), f(n & 255)]
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`
+}
+
+const HEX = /^#[0-9a-f]{6}$/i
+
+/** Tiles com cor no nome (`roof:#rrggbb`, `ground:#rrggbb`): cada cidade tem a sua. */
+function parametric(name: string): ((c: Ctx) => void) | null {
+  const [kind, color] = name.split(':')
+  if (!color || !HEX.test(color)) return null
+  if (kind === 'roof')
+    return (c) => {
+      px(c, color, 0, 0, TILE, TILE)
+      for (let y = 0; y < TILE; y += 4) {
+        px(c, shade(color, -0.12), 0, y + 3, TILE, 1)
+        for (let x = (y / 4) % 2 ? 0 : 4; x < TILE; x += 8) px(c, shade(color, -0.12), x, y, 1, 3)
+      }
+    }
+  if (kind === 'ground') return (c) => speckle(c, color, [shade(color, 0.06), shade(color, -0.06), shade(color, 0.1)], 0.2, 7)
+  return null
+}
+
+// Ônibus 64×32 (4 × 2 tiles), visto de cima; cada tile recorta um pedaço.
+let busImage: HTMLCanvasElement | null = null
+function bus(): HTMLCanvasElement {
+  if (busImage) return busImage
+  const cv = document.createElement('canvas')
+  cv.width = TILE * 4
+  cv.height = TILE * 2
+  const c = cv.getContext('2d')!
+  const floor = tileSprite('asphalt')
+  for (let y = 0; y < 2; y++) for (let x = 0; x < 4; x++) c.drawImage(floor, x * TILE, y * TILE)
+  px(c, 'rgba(0,0,0,0.3)', 3, 28, 60, 3)
+  px(c, '#eda100', 2, 3, 60, 25)
+  px(c, '#c47f12', 2, 22, 60, 6)
+  px(c, '#f5deb3', 4, 5, 56, 2)
+  for (let x = 8; x < 56; x += 10) px(c, '#2a4a6a', x, 9, 8, 8)
+  px(c, '#2a4a6a', 56, 8, 5, 12) // para-brisa
+  px(c, '#20262f', 12, 27, 7, 3)
+  px(c, '#20262f', 44, 27, 7, 3)
+  px(c, '#6b4a2b', 48, 18, 6, 9) // porta
+  px(c, '#fffbe6', 61, 6, 1, 3)
+  px(c, '#fffbe6', 61, 20, 1, 3)
+  busImage = cv
+  return cv
+}
+
+Object.assign(TILES, {
+  asphalt: (c: Ctx) => speckle(c, '#3b3f46', ['#45494f', '#33363c'], 0.2, 8),
+  ticket_window: (c: Ctx) => {
+    TILES.wall(c)
+    px(c, '#e6d7bd', 3, 4, 10, 5)
+    px(c, '#2a4a6a', 3, 3, 10, 7)
+    px(c, '#a9d4e8', 4, 4, 8, 3)
+    px(c, '#8a6239', 2, 10, 12, 2)
+    px(c, '#f5deb3', 5, 12, 6, 2)
+  },
+  dirt: (c: Ctx) => speckle(c, '#9a7650', ['#8a6844', '#a9845c', '#7d5c3a'], 0.25, 9),
+  foundation: (c: Ctx) => {
+    px(c, '#9a9488', 0, 0, TILE, TILE)
+    px(c, '#7e786d', 0, 7, TILE, 1)
+    px(c, '#7e786d', 7, 0, 1, 7)
+    px(c, '#7e786d', 3, 8, 1, 8)
+    px(c, '#7e786d', 11, 8, 1, 8)
+    px(c, '#b9b3a6', 0, 0, TILE, 1)
+  },
+  wall_tall: (c: Ctx) => {
+    px(c, '#d9cbb2', 0, 0, TILE, TILE)
+    for (const [x, y] of [[2, 2], [9, 2], [2, 9], [9, 9]]) {
+      px(c, '#6b5a44', x, y, 5, 5)
+      px(c, '#a9d4e8', x + 1, y + 1, 3, 3)
+    }
+  },
+})
+for (let i = 0; i < 8; i++)
+  TILES[`bus_${i}`] = (c) => c.drawImage(bus(), (i % 4) * TILE, Math.floor(i / 4) * TILE, TILE, TILE, 0, 0, TILE, TILE)
+
 export function tileSprite(name: string, open = false): HTMLCanvasElement {
+  const p = parametric(name)
+  if (p) return make(name, p)
   if (open) {
     const color = name === 'door_security' ? '#eda100' : name === 'door_core' ? '#7c8cff' : '#38ff9c'
     return make(`${name}:open`, (c) => openDoor(c, color))
@@ -247,6 +330,17 @@ export function drawObject(c: Ctx, sprite: string, x: number, y: number, t: numb
       px(c, '#8a6239', ox + 2, oy + 2, 12, 7)
       px(c, '#f5deb3', ox + 4, oy + 4, 8, 1)
       px(c, '#f5deb3', ox + 4, oy + 6, 5, 1)
+      break
+    }
+    case 'bus_stop': {
+      px(c, '#3b3f46', ox + 7, oy + 4, 2, 12)
+      px(c, '#2f5f8a', ox + 3, oy + 1, 10, 7)
+      px(c, '#f5deb3', ox + 4, oy + 2, 8, 5)
+      // ônibus estilizado na placa
+      px(c, '#eda100', ox + 5, oy + 3, 6, 3)
+      px(c, '#2a4a6a', ox + 6, oy + 3, 4, 1)
+      px(c, '#20262f', ox + 6, oy + 6, 1, 1)
+      px(c, '#20262f', ox + 9, oy + 6, 1, 1)
       break
     }
     case 'portal': {

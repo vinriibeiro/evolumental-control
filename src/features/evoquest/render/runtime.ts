@@ -26,10 +26,9 @@ const KEYS: Record<string, [number, number]> = {
   KeyD: [1, 0],
 }
 
-const NPC_SPRITES = new Set(['iara', 'tomo', 'maya', 'bras', 'ze'])
-
 export class GameRuntime {
-  private maps = new Map<string, GridMap>()
+  // Por objeto (não por id): Minha Cidade é regerada quando as matérias mudam.
+  private maps = new WeakMap<RegionDef, GridMap>()
   private keys = new Set<string>()
   private stick = { dx: 0, dy: 0 }
   private raf = 0
@@ -52,10 +51,10 @@ export class GameRuntime {
   }
 
   map(region = this.region): GridMap {
-    let m = this.maps.get(region.id)
+    let m = this.maps.get(region)
     if (!m) {
       m = parseMap(region.map)
-      this.maps.set(region.id, m)
+      this.maps.set(region, m)
     }
     return m
   }
@@ -205,7 +204,7 @@ export class GameRuntime {
         y: py + TILE,
         draw: () => {
           const sp = this.content.speakers[e.sprite]
-          if (sp && NPC_SPRITES.has(e.sprite)) drawCharacter(c, px + 8, py + 15, sp.look, 'down', 0, this.opts.reducedMotion ? 0 : Math.round(Math.sin(t * 2 + e.x) * 0.5))
+          if (sp && e.kind === 'npc') drawCharacter(c, px + 8, py + 15, sp.look, 'down', 0, this.opts.reducedMotion ? 0 : Math.round(Math.sin(t * 2 + e.x) * 0.5))
           else drawObject(c, e.sprite, px, py, anim, e.sprite === 'board' && s.steps.includes('tutorial:board') ? 'lit' : e.sprite === 'panel' && s.flags.power_on ? '#38ff9c' : undefined)
           if (e.marker && check(s, e.marker, this.content.quests)) drawMarker(c, px + 8, py + 8, anim)
         },

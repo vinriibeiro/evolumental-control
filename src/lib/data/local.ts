@@ -507,6 +507,29 @@ export class LocalBackend implements DataBackend {
     return bought
   }
 
+  async gameBuyTicket(city: string): Promise<{ bought: boolean; price: number }> {
+    // Mesmas regras da RPC game_buy_ticket.
+    const { cityById, ticketId, cityOfTicket } = await import('@/features/evoquest/content/cities')
+    const c = cityById(city)
+    if (!c) throw new DataError('validation', 'Cidade desconhecida')
+    if (!(await this.db.t('game_quest_progress').where('step_key').equals('tutorial:report').first())) throw new DataError('validation', 'A Rodoviária ainda não está liberada')
+    const id = ticketId(city)
+    let out = { bought: false, price: 0 }
+    await this.db.transaction('rw', [this.db.t('game_purchases'), this.db.t('game_rewards')], async () => {
+      const owned = (await this.db.t('game_purchases').toArray()) as unknown as Array<{ item_id: string }>
+      if (owned.some((p) => p.item_id === id)) return
+      const price = owned.some((p) => cityOfTicket(p.item_id)) ? c.price : 0
+      if (price > 0) {
+        const rewards = (await this.db.t('game_rewards').toArray()) as unknown as Array<{ coins: number }>
+        if (rewards.reduce((s, r) => s + r.coins, 0) < price) throw new DataError('validation', 'Moedas insuficientes')
+      }
+      await this.db.t('game_purchases').add({ ...this.stamp(), id: crypto.randomUUID(), item_id: id, price } as AnyRow)
+      if (price > 0) await this.db.t('game_rewards').add({ ...this.stamp(), id: crypto.randomUUID(), source: `buy:${id}`, kind: 'purchase', xp: 0, coins: -price } as AnyRow)
+      out = { bought: true, price }
+    })
+    return out
+  }
+
   async gameTotals(): Promise<{ xp: number; coins: number }> {
     const rows = (await this.db.t('game_rewards').toArray()) as unknown as Array<{ xp: number; coins: number }>
     return { xp: rows.reduce((s, r) => s + r.xp, 0), coins: rows.reduce((s, r) => s + r.coins, 0) }
@@ -522,6 +545,10 @@ export class LocalBackend implements DataBackend {
     if (await done(step)) return { applied: false, xp: 0, coins: 0 }
     if (c.requires && !(await done(c.requires))) throw new DataError('validation', 'Etapa anterior não concluída')
     if (c.hash && (answer == null || (await sha256(answer)) !== c.hash)) throw new DataError('validation', 'Resposta não confere')
+    if (c.answer) {
+      const hits = (await this.db.t('game_answers').where('challenge_id').equals(c.answer).toArray()) as unknown as Array<{ correct: boolean }>
+      if (!hits.some((a) => a.correct)) throw new DataError('validation', 'Desafio ainda não vencido')
+    }
     await this.db.transaction('rw', this.db.t('game_quest_progress'), this.db.t('game_rewards'), async () => {
       await this.db.t('game_quest_progress').add({ ...this.stamp(), id: crypto.randomUUID(), step_key: step, completed_at: this.now() } as AnyRow)
       if (c.xp > 0 || c.coins > 0) await this.db.t('game_rewards').add({ ...this.stamp(), id: crypto.randomUUID(), source: `quest:${step}`, kind: 'mission', xp: c.xp, coins: c.coins } as AnyRow)

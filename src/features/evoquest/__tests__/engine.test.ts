@@ -9,6 +9,11 @@ import type { Interaction, WorldState } from '../engine/types'
 import { canonSwitches, sha256 } from '../challenges'
 import { RAW_SOLUTIONS } from './solutions'
 import { POWER_PUZZLE } from '../content/dataCity'
+import { CITIES, STATION_SPOT, TICKET_PRICE } from '../content/cities'
+import { CLASSIC_CONTENT, cityQuestId } from '../content/generatedCity'
+import { buildMyCity, emptyLots, levelFor, LOT_COUNT } from '../content/myCity'
+import { questCatalogRows } from '../catalogSql'
+import { SUBJECTS } from '@/game/catalog'
 
 const Q = WORLD.quests
 
@@ -118,17 +123,38 @@ describe('motor: missões', () => {
     return s
   }
 
-  it('tutorial completo libera o portal e inicia a missão da cidade', () => {
+  it('tutorial libera a Rodoviária; a missão da cidade só começa ao chegar nela', () => {
     let s = newWorld(START)
     s = applyEffects(s, [{ type: 'startQuest', quest: 'tutorial' }]).state
     expect(stepsCompletedBy(s, Q, { type: 'talk', npc: 'iara', endedAt: 'i2' })).toHaveLength(0)
     s = play(s, { type: 'talk', npc: 'iara', endedAt: 'i4' })
     s = play(s, { type: 'solve', challenge: 'guild_board' })
     s = play(s, { type: 'talk', npc: 'iara', endedAt: 'r3' })
-    expect(s.quests.tutorial.done).toBe(true)
     expect(s.flags.map_unlocked).toBe(true)
-    expect(s.quests.sql_main).toEqual({ step: 0, done: false })
-    expect(check(s, { at: 'sql_main:travel' }, Q)).toBe(true)
+    expect(s.quests.sql_main).toBeUndefined()
+    expect(check(s, { at: 'tutorial:trip' }, Q)).toBe(true)
+    s = play(s, { type: 'flag', flag: 'first_trip' })
+    expect(s.quests.tutorial.done).toBe(true)
+
+    // Chegada de ônibus: efeitos de entrada da região + marca de visita.
+    for (const city of ['data_city', 'language_tower']) {
+      s = applyEffects(s, WORLD.regions[city].onEnter).state
+      s = play(s, { type: 'flag', flag: `visited_${city}` })
+    }
+    expect(s.flags.city_visited).toBe(true)
+    expect(s.quests.sql_main).toEqual({ step: 1, done: false })
+    expect(check(s, { at: 'city_language_tower:mentor' }, Q)).toBe(true)
+  })
+
+  it('cidade gerada: só o chefe da unidade atual cumpre a etapa', () => {
+    const q = Q.city_language_tower
+    let s = applyEffects(newWorld(START), [{ type: 'startQuest', quest: q.id }]).state
+    s = play(s, { type: 'flag', flag: 'visited_language_tower' })
+    s = play(s, { type: 'talk', npc: 'language_tower_mentor', endedAt: 'm3' })
+    const bosses = q.steps.flatMap((st) => (st.objective.type === 'answered' ? [st.objective.challenge] : []))
+    expect(play(s, { type: 'answered', challenge: bosses[1] })).toBe(s)
+    for (const b of bosses) s = play(s, { type: 'answered', challenge: b })
+    expect(check(s, { at: `${q.id}:finale` }, Q)).toBe(true)
   })
 
   it('completeStep é idempotente e só avança a etapa atual', () => {
@@ -144,6 +170,55 @@ describe('motor: missões', () => {
     expect(s.quests.sql_main.step).toBe(6)
     expect(s.flags.door_security).toBe(true)
     expect(s.inventory).toContain('log_impresso')
+  })
+})
+
+describe('cidades e Rodoviária', () => {
+  it('uma cidade por disciplina, todas jogáveis e com volta de ônibus', () => {
+    expect(new Set(CITIES.map((c) => c.subject)).size).toBe(SUBJECTS.length)
+    for (const c of CITIES) {
+      const r = WORLD.regions[c.id]
+      expect(r, c.id).toBeTruthy()
+      expect(r.subject).toBe(c.subject)
+      const m = parseMap(r.map)
+      expect(tileSolid(m, r.spawn.x, r.spawn.y, {}), `${c.id}: nasce dentro de algo sólido`).toBe(false)
+      const ponto = r.entities.find((e) => e.sprite === 'bus_stop')!
+      expect(ponto.on[0]).toMatchObject({ do: 'effects', effects: [{ type: 'teleport', ...STATION_SPOT }] })
+      expect(r.onEnter).toContainEqual({ type: 'flag', flag: 'city_visited' })
+    }
+    const hub = parseMap(WORLD.regions.hub.map)
+    expect(tileSolid(hub, Math.floor(STATION_SPOT.x), Math.floor(STATION_SPOT.y), {})).toBe(false)
+  })
+
+  it('etapas das cidades geradas exigem os chefes reais de cada unidade, com moedas', () => {
+    for (const c of CITIES.filter((x) => CLASSIC_CONTENT[x.subject])) {
+      const q = Q[cityQuestId(c.id)]
+      const units = CLASSIC_CONTENT[c.subject].units
+      const answered = q.steps.filter((s) => s.objective.type === 'answered')
+      expect(answered).toHaveLength(units.length)
+      answered.forEach((s, i) => {
+        const boss = units[i].challenges.find((ch) => ch.boss)
+        expect(s.objective).toEqual({ type: 'answered', challenge: boss?.id })
+        expect(WORLD.rewards[`${q.id}:${s.id}`].coins).toBeGreaterThan(0)
+      })
+    }
+    const rows = questCatalogRows()
+    expect(rows.filter((r) => r.answer).every((r) => r.hash === null && r.requires)).toBe(true)
+  })
+
+  it('Minha Cidade: prédio cresce com as horas estudadas', () => {
+    expect(levelFor(0).name).toBe('Terreno')
+    expect(levelFor(3600).name).toBe('Fundação')
+    expect(levelFor(5 * 3600 - 1).name).toBe('Fundação')
+    expect(levelFor(100 * 3600)).toMatchObject({ name: 'Torre', next: null, progress: 1 })
+    expect(levelFor(10 * 3600).progress).toBeCloseTo(0.5)
+    const lots = emptyLots().map((l, i) => ({ ...l, subjectId: `s${i}`, name: `M${i}`, color: '#2a78d6', level: i }))
+    const r = buildMyCity(lots)
+    const m = parseMap(r.map)
+    expect(tileSolid(m, r.spawn.x, r.spawn.y, {})).toBe(false)
+    expect(r.entities.filter((e) => e.id.startsWith('lote_'))).toHaveLength(LOT_COUNT)
+    expect(r.map.rows.join('')).toContain('Y') // a torre (nível 5) tem telhado dourado
+    expect(r.entities.find((e) => e.id === 'lote_4')?.name).toBe('M4 · Prédio')
   })
 })
 
@@ -198,5 +273,32 @@ describe('desafios: puzzle e backend local', () => {
     // door exige o hash: sem resposta, a cadeia para em talk_maya.
     await expect(b.gameCompleteStep('sql_main:sentinel', RAW_SOLUTIONS.enc_sentinel)).rejects.toThrow(/anterior/)
     expect((await b.gameTotals()).xp).toBe(0)
+  })
+
+  it('backend local: passagens (vale grátis, depois moedas) e chefe exigido', async () => {
+    const b = new LocalBackend(`rpg-ticket-${Date.now()}`)
+    await expect(b.gameBuyTicket('archive')).rejects.toThrow(/Rodoviária/)
+    await b.gameCompleteStep('tutorial:talk_iara', null)
+    await b.gameCompleteStep('tutorial:board', `2|${JSON.stringify(['O Servidor Fantasma', 'Cidade dos Dados'])}`)
+    await b.gameCompleteStep('tutorial:report', null)
+    await expect(b.gameBuyTicket('atlantida')).rejects.toThrow(/desconhecida/)
+    expect(await b.gameBuyTicket('archive')).toEqual({ bought: true, price: 0 })
+    expect(await b.gameBuyTicket('archive')).toEqual({ bought: false, price: 0 })
+    await expect(b.gameBuyTicket('data_city')).rejects.toThrow(/insuficientes/)
+
+    // Chefe da unidade 1 de Português: só vale depois de acertado.
+    const q = cityQuestId('archive')
+    await b.gameCompleteStep(`${q}:arrive`, null)
+    await b.gameCompleteStep(`${q}:mentor`, null)
+    await expect(b.gameCompleteStep(`${q}:unit_1`, null)).rejects.toThrow(/não vencido/)
+    const boss = (Q[q].steps[2].objective as { challenge: string }).challenge
+    const session = await b.gameStart({ id: crypto.randomUUID(), subjectId: 'portugues', unitId: null, mode: 'boss', queue: [boss], plannedSeconds: 300 })
+    await b.insert('game_answers', [{ id: crypto.randomUUID(), session_id: session.id, challenge_id: boss, subject_id: 'portugues', correct: true } as never])
+    expect(await b.gameCompleteStep(`${q}:unit_1`, null)).toMatchObject({ applied: true, coins: 25 })
+
+    await b.insert('game_rewards', [{ id: crypto.randomUUID(), source: 'test:bonus', kind: 'mission', xp: 0, coins: 100 } as never])
+    const before = (await b.gameTotals()).coins
+    expect(await b.gameBuyTicket('data_city')).toEqual({ bought: true, price: TICKET_PRICE })
+    expect((await b.gameTotals()).coins).toBe(before - TICKET_PRICE)
   })
 })
