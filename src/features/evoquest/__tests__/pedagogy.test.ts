@@ -4,10 +4,13 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { runQuery } from '@/game/lab/sqlCore'
 import { LocalBackend } from '@/lib/data/local'
 import { activityCatalogRows } from '../catalogSql'
-import { canonResult, sha256 } from '../challenges'
-import { LEARNING_PATHS, WORLD } from '../content'
+import { canonCases, canonResult, canonValue, pyFeedback, sha256, type PyChallenge } from '../challenges'
+import { fieldTemplateOf, LEARNING_PATHS, WORLD } from '../content'
+import { PLANT_ENTRY, PLANT_EXIT } from '../content/aurora'
 import { DATASETS } from '../content/datasets'
 import { FIELD_GROUPBY, fieldChallenge, generateField } from '../content/fieldReview'
+import { FIELD_DICT, generatePyField, pyFieldChallenge } from '../content/fieldReviewPy'
+import { collectLocal, PYTHON_AVAILABLE } from './pyLocal'
 import { controlOpportunities, sortOpportunities, worldOpportunities, type ControlRec, type EvidenceLike } from '../engine/opportunities'
 import { buildMyCity, emptyLots, lightFor } from '../content/myCity'
 import { canReveal, debrief, evidenceCredit, FULL_EXPLANATION, recordAttempt, reveal, startLadder, STAGE_WEIGHT } from '../engine/pedagogy'
@@ -126,7 +129,7 @@ describe('revisão de campo parametrizada', () => {
   it('no catálogo do servidor é parametrizada e tem limite diário', () => {
     expect(activityCatalogRows().find((r) => r.id === FIELD_GROUPBY.id)).toMatchObject({ parametric: true, hash: null, dailyLimit: 5 })
     const fixed = activityCatalogRows().filter((r) => !r.parametric)
-    expect(fixed.map((r) => r.id).sort()).toEqual(['sup_drone', 'sup_guided', 'sup_independent', 'sup_transfer'])
+    expect(fixed.map((r) => r.id).sort()).toEqual(['line_guided', 'line_independent', 'line_robot', 'line_transfer', 'sup_drone', 'sup_guided', 'sup_independent', 'sup_transfer'])
     expect(fixed.every((r) => /^[0-9a-f]{64}$/.test(r.hash!))).toBe(true)
   })
 })
@@ -239,5 +242,119 @@ describe('Minha Cidade: janelas acesas pelo domínio', () => {
     // Mesmo tamanho (tempo) com qualquer domínio.
     expect(rows(0).map((r) => r.replace(/[kmn]/g, 'H'))).toEqual(rows(undefined))
     expect(buildMyCity(lot(1)).map.legend.m.sprite).toBe('wall_tall_lit1')
+  })
+})
+
+describe('forma canônica dos valores de Python', () => {
+  it('ignora a ordem das chaves, normaliza números e preserva a ordem das listas', () => {
+    expect(canonValue({ b: 1, a: 2 })).toBe(canonValue({ a: 2, b: 1 }))
+    expect(canonValue({ a: 1.0 })).toBe(canonValue({ a: 1 }))
+    expect(canonValue(0.1 + 0.2)).toBe(canonValue(0.3))
+    expect(canonValue([1, 2])).not.toBe(canonValue([2, 1]))
+    expect(canonValue(null)).toBe('null')
+    expect(canonValue({ x: [true, 'a', { k: null }] })).toBe('{"x":[true,"a",{"k":null}]}')
+    expect(canonCases([{ value: {} }, { error: 'KeyError: x' }])).toBe('2|{}\n!KeyError: x')
+  })
+
+  it('retorno do terminal Python (sem Python): None, erro num caso, caso único que falhou, código recusado', () => {
+    const ch = WORLD.challenges.line_transfer as PyChallenge
+    const none = { results: ch.cases.map(() => ({ value: null })) }
+    expect(pyFeedback(ch, 'def abaixo_da_meta(m, p):\n    pass', none, [false, false, false])).toContain('devolveu None')
+    const boom = { results: [{ error: "KeyError: 'M9'" }, { value: {} }, { value: {} }] }
+    expect(pyFeedback(ch, 'x', boom, [false, true, true])).toContain('KeyError')
+    const only1 = { results: [{ value: { M2: 5, M3: 35 } }, { value: {} }, { value: {} }] }
+    expect(pyFeedback(ch, 'x', only1, [true, false, true])).toContain('sem NENHUMA produção')
+    expect(pyFeedback(ch, 'def (', { error: 'SyntaxError: invalid syntax' }, [false, false, false])).toContain('recusou o código')
+    const partial = { results: [{ value: { M2: 5 } }, { value: {} }, { value: {} }] }
+    expect(pyFeedback(ch, 'x', partial, [false, false, true])).toMatch(/1 de 3 casos conferem.*Dia 1/)
+  })
+})
+
+describe('missão da Usina de Aurora (Python)', () => {
+  it('tem a cadeia completa: conversa → guiada → independente → combate → transferência → debrief', () => {
+    const q = WORLD.quests.py_line
+    expect(q.kind).toBe('mastery')
+    expect(q.steps.map((s) => s.id)).toEqual(['talk', 'guided', 'independent', 'robot', 'transfer', 'debrief'])
+    expect(WORLD.dialogues.nadir_debrief.debrief).toBe('py_line')
+    expect(questActivities('py_line').map((c) => [c.kind, c.id, c.stage])).toEqual([
+      ['python', 'line_guided', 'guided'],
+      ['python', 'line_independent', 'independent'],
+      ['python', 'line_robot', 'independent'],
+      ['python', 'line_transfer', 'transfer'],
+    ])
+    expect(LEARNING_PATHS.map((p) => p.quest)).toEqual(['sql_supply', 'py_line'])
+    expect(fieldTemplateOf('py_line')).toBe('field_dict')
+    expect(fieldTemplateOf('sql_supply')).toBe('field_groupby')
+    expect(fieldTemplateOf('sql_main')).toBeNull()
+  })
+
+  it('o portão da Usina fica em Aurora (chão livre, saída livre) e a Prefeitura apresenta a Usina', () => {
+    const aurora = WORLD.regions.lab_aurora
+    const plant = WORLD.regions.aurora_plant
+    const gate = aurora.entities.find((e) => e.id === 'portao_usina')!
+    expect(gate.kind).toBe('portal')
+    expect(aurora.map.legend[aurora.map.rows[gate.y][gate.x]].solid).toBe(false)
+    expect(aurora.map.legend[aurora.map.rows[Math.floor(PLANT_EXIT.y)][Math.floor(PLANT_EXIT.x)]].solid).toBe(false)
+    expect(plant.map.legend[plant.map.rows[Math.floor(PLANT_ENTRY.y)][Math.floor(PLANT_ENTRY.x)]].solid).toBe(false)
+    const intro = WORLD.dialogues.lab_aurora_mentor_intro
+    expect(intro.nodes.some((n) => n.text.includes('Usina'))).toBe(true)
+    expect(intro.nodes[intro.nodes.length - 1].id).toBe('m3')
+    // Outras cidades geradas continuam sem a fala extra.
+    expect(WORLD.dialogues.language_tower_mentor_intro.nodes.some((n) => n.text.includes('Usina'))).toBe(false)
+  })
+
+  it('a lição tem exemplo Python executável e as atividades entram no catálogo como python', () => {
+    const l = WORLD.lessons.lesson_dict
+    expect(l.subject).toBe('python')
+    expect(l.workedExample?.lang).toBe('python')
+    expect(l.explanation.length).toBeLessThanOrEqual(3)
+    const rows = activityCatalogRows().filter((r) => r.subject === 'python')
+    expect(rows.map((r) => r.id).sort()).toEqual(['field_dict', 'line_guided', 'line_independent', 'line_robot', 'line_transfer'])
+    expect(rows.find((r) => r.id === 'field_dict')).toMatchObject({ parametric: true, hash: null, dailyLimit: 5, concept: 'colecoes' })
+    expect(rows.filter((r) => !r.parametric).every((r) => /^[0-9a-f]{64}$/.test(r.hash!))).toBe(true)
+  })
+
+  it('o robô exige a função certa antes da recalibração; o hash do combate é o código da máquina', async () => {
+    const enc = WORLD.encounters.enc_robot
+    expect(enc.actions.find((a) => a.id === 'recalibrar')?.requires).toEqual(['fails'])
+    expect(enc.actions.find((a) => a.id === 'consultar')?.challenge).toBe('line_robot')
+    expect(await sha256('M3')).toBe(WORLD.challenges.line_worst.expect.hash)
+  })
+})
+
+describe('revisão de campo em Python (parametrizada)', () => {
+  it('a mesma semente gera o mesmo exercício; sementes diferentes variam a pergunta e os dados', () => {
+    expect(generatePyField(42)).toEqual(generatePyField(42))
+    expect(new Set([1, 2, 3].map((s) => generatePyField(s).variant)).size).toBe(3)
+    expect(generatePyField(10).cases[0]).not.toEqual(generatePyField(13).cases[0])
+  })
+
+  it('hashes por caso e do conjunto saem dos valores calculados; sem leituras o resultado é {}', async () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const f = generatePyField(seed)
+      const ch = await pyFieldChallenge(seed)
+      expect(ch).toMatchObject({ id: FIELD_DICT.id, kind: 'python', stage: 'independent', seed, entry: 'resumo' })
+      expect(ch.expect.cases).toHaveLength(3)
+      expect(await sha256(canonCases(f.expected.map((value) => ({ value }))))).toBe(ch.expect.hash)
+      expect(Object.keys(f.expected[0]).length, `semente ${seed}: turno cheio vazio`).toBeGreaterThan(0)
+      expect(f.expected[2]).toEqual({})
+      expect(ch.ladder).toHaveLength(3)
+    }
+  })
+
+  it.skipIf(!PYTHON_AVAILABLE)('uma solução Python de verdade confere para várias sementes (CPython local)', async () => {
+    const reference = (f: ReturnType<typeof generatePyField>) => {
+      if (f.variant === 'sum') return "def resumo(leituras):\n    t = {}\n    for l in leituras:\n        t[l['maquina']] = t.get(l['maquina'], 0) + l['consumo']\n    return t\n"
+      const m = f.brief.match(/status '(\w+)'|MAIS de (-?\d+)/)!
+      if (f.variant === 'count_where') return `def resumo(leituras):\n    c = {}\n    for l in leituras:\n        if l['status'] == '${m[1]}':\n            c[l['maquina']] = c.get(l['maquina'], 0) + 1\n    return c\n`
+      return `def resumo(leituras):\n    t = {}\n    for l in leituras:\n        t[l['maquina']] = t.get(l['maquina'], 0) + l['consumo']\n    return {k: v for k, v in t.items() if v > ${m[2]}}\n`
+    }
+    for (let seed = 1; seed <= 24; seed++) {
+      const f = generatePyField(seed)
+      const ch = await pyFieldChallenge(seed)
+      const out = collectLocal(reference(f), ch.entry, ch.cases)
+      expect(out.error, `semente ${seed}: ${out.error}`).toBeUndefined()
+      expect(await sha256(canonCases(out.results!)), `semente ${seed}`).toBe(ch.expect.hash)
+    }
   })
 })

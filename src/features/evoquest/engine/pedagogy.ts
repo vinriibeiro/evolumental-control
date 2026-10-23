@@ -29,8 +29,11 @@ export interface LessonDef {
   whyItMatters: string
   /** No máximo 3 frases curtas. */
   explanation: string[]
-  /** Exemplo resolvido que o jogador executa de verdade. */
-  workedExample?: { caption: string; code: string; dataset: string }
+  /**
+   * Exemplo resolvido que o jogador executa de verdade: SQL sobre um banco
+   * (`dataset` em content/datasets) ou Python (`lang: 'python'`, saída impressa).
+   */
+  workedExample?: { caption: string; code: string; dataset?: string; lang?: 'sql' | 'python' }
   commonMistakes: string[]
 }
 

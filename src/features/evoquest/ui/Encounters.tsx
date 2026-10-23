@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Cpu, Power, ScanLine, ShieldAlert, Terminal as TermIcon, X, Zap } from 'lucide-react'
-import { canonInput, canonSwitches, sha256, type InputChallenge, type SqlChallenge, type SwitchPuzzle } from '../challenges'
+import { canonInput, canonSwitches, sha256, type InputChallenge, type PedagogicChallenge, type SwitchPuzzle } from '../challenges'
 import { WORLD } from '../content'
 import type { BossDef } from '../content/registry'
 import { act, available, startCombat, type CombatAction, type EncounterDef } from '../engine/combat'
+import { ChallengeTerminal } from './ChallengeTerminal'
 import { Portrait } from './Portrait'
-import { Terminal } from './Terminal'
 import { play } from './audio'
 
 function Bar({ label, value, max, color, segments }: { label: string; value: number; max: number; color: string; segments?: number }) {
@@ -56,9 +56,9 @@ export function CombatView({ encounter: def, sound, onWin, onClose }: { encounte
   }
 
   if (terminal) {
-    const ch = WORLD.challenges[terminal.challenge!] as SqlChallenge
+    const ch = WORLD.challenges[terminal.challenge!] as PedagogicChallenge
     return (
-      <Terminal
+      <ChallengeTerminal
         challenge={ch}
         sound={sound}
         onSolved={() => {
@@ -285,9 +285,9 @@ export function BossView({ boss, phase, sound, onSolvePhase, onClose }: { boss: 
 
   if (inTerminal && !done) {
     return (
-      <Terminal
+      <ChallengeTerminal
         key={cur.challenge}
-        challenge={WORLD.challenges[cur.challenge] as SqlChallenge}
+        challenge={WORLD.challenges[cur.challenge] as PedagogicChallenge}
         sound={sound}
         onSolved={(answer) => onSolvePhase(cur.challenge, answer)}
         onClose={() => setInTerminal(false)}

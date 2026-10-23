@@ -3,23 +3,25 @@ import { ClipboardList, X } from 'lucide-react'
 import { useBackend } from '@/app/data'
 import { fetchAll, useAll, useInsert } from '@/hooks/data'
 import { useSettings } from '@/hooks/useSettings'
+import { subjectMeta } from '@/game/catalog'
 import { gameSettings } from '@/game/useGame'
 import { inList } from '@/lib/data/types'
 import { gameTopicTargets } from '@/lib/insight/game'
 import { addDays, formatDayKey, todayKey } from '@/lib/time'
 import type { GameEvidence, Topic } from '@/types/db'
-import type { SqlChallenge } from '../challenges'
+import { isPedagogic, type PedagogicChallenge } from '../challenges'
 import { WORLD } from '../content'
 import { fieldChallenge } from '../content/fieldReview'
+import { pyFieldChallenge } from '../content/fieldReviewPy'
 import { debrief, STAGE_LABELS, STAGE_WEIGHT, type ActivityResult, type Debrief, type HelpLevel } from '../engine/pedagogy'
-import { Terminal } from './Terminal'
+import { ChallengeTerminal } from './ChallengeTerminal'
 
 /** Atividades pedagógicas de uma missão (terminais das etapas e dos combates), na ordem. */
-export function questActivities(questId: string): SqlChallenge[] {
-  const out: SqlChallenge[] = []
+export function questActivities(questId: string): PedagogicChallenge[] {
+  const out: PedagogicChallenge[] = []
   const add = (id: string | undefined) => {
     const ch = id ? WORLD.challenges[id] : undefined
-    if (ch?.kind === 'sql' && ch.stage && !out.includes(ch)) out.push(ch)
+    if (isPedagogic(ch) && ch.stage && !out.includes(ch)) out.push(ch)
   }
   for (const s of WORLD.quests[questId]?.steps ?? []) {
     if (s.objective.type !== 'solve') continue
@@ -31,7 +33,7 @@ export function questActivities(questId: string): SqlChallenge[] {
 }
 
 /** A tentativa mais recente de cada atividade, preferindo a que foi resolvida. */
-export function latestResults(activities: SqlChallenge[], rows: GameEvidence[]): ActivityResult[] {
+export function latestResults(activities: PedagogicChallenge[], rows: GameEvidence[]): ActivityResult[] {
   const out: ActivityResult[] = []
   for (const ch of activities) {
     const mine = rows.filter((r) => r.activity_id === ch.id).sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -188,7 +190,7 @@ function ScheduleReview({ concepts, suggested }: { concepts: string[]; suggested
         </>
       ) : (
         <p className="text-[var(--eq-muted)]">
-          Nenhum tópico do Control corresponde a {lessons.map((l) => l.conceptName).join(', ') || 'este conceito'}. Crie um tópico com esse nome numa matéria de SQL (ou vincule a matéria em Perfil do EvoQuest) para agendar revisões e somar o domínio.
+          Nenhum tópico do Control corresponde a {lessons.map((l) => l.conceptName).join(', ') || 'este conceito'}. Crie um tópico com esse nome numa matéria de {subjectMeta(lessons[0]?.subject ?? 'sql')?.name ?? 'SQL'} (ou vincule a matéria em Perfil do EvoQuest) para agendar revisões e somar o domínio.
         </p>
       )}
       {error && <p className="mt-1 text-[var(--eq-bad)]">{error}</p>}
@@ -209,17 +211,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * Revisão de campo: um exercício novo (semente aleatória) a cada abertura.
  * Gera evidência de domínio; não dá XP nem avança a história.
  */
+/** Geradores de revisão de campo por modelo (SQL e Python). */
+const FIELD_GENERATORS: Record<string, (seed: number) => Promise<PedagogicChallenge>> = { field_groupby: fieldChallenge, field_dict: pyFieldChallenge }
+
 export function FieldReview({ template, sound, onClose }: { template: string; sound: boolean; onClose: () => void }) {
-  const [ch, setCh] = useState<SqlChallenge | null>(null)
+  const [ch, setCh] = useState<PedagogicChallenge | null>(null)
   useEffect(() => {
-    if (template !== 'field_groupby') return
+    const gen = FIELD_GENERATORS[template]
+    if (!gen) return
     let alive = true
     const seed = 1 + Math.floor(Math.random() * 2_000_000_000)
-    void fieldChallenge(seed).then((c) => alive && setCh(c))
+    void gen(seed).then((c) => alive && setCh(c))
     return () => {
       alive = false
     }
   }, [template])
-  if (!ch) return <p className="eq-panel px-4 py-3 text-sm">Preparando a planilha…</p>
-  return <Terminal challenge={ch} sound={sound} onSolved={() => true} onClose={onClose} />
+  if (!ch) return <p className="eq-panel px-4 py-3 text-sm">Preparando o exercício…</p>
+  return <ChallengeTerminal challenge={ch} sound={sound} onSolved={() => true} onClose={onClose} />
 }

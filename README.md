@@ -103,7 +103,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) `20261026000000_caderno_de_erros.sql` (tabela `question_errors`) e `20261027000000_evoquest_evidencias.sql` (evidências de aprendizagem do EvoQuest: `game_activities`, `game_evidence`, RPC `game_record_evidence`). Em um projeto já existente, aplique **só as que ainda não rodou**.
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) `20261026000000_caderno_de_erros.sql` (tabela `question_errors`), `20261027000000_evoquest_evidencias.sql` (evidências de aprendizagem do EvoQuest: `game_activities`, `game_evidence`, RPC `game_record_evidence`) e `20261028000000_evoquest_aurora.sql` (só catálogo: etapas e atividades da missão em Python da Usina de Aurora). Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -245,8 +245,9 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 
 | Cidade | Disciplina | Como joga |
 |---|---|---|
-| Cidade dos Dados | SQL | história escrita à mão (terminal SQL real, Sentinela, chefe ROOT) |
-| Aurora, Babel, Silogia, Gaussópolis, Vernácula, Medida Certa, Pipeline | Python, Inglês, Lógica, Estatística, Português, DAX, M | geradas das unidades do modo clássico (`content/generatedCity.ts`): cada unidade é um prédio; o guardião abre o **painel da unidade** (lição → prática guiada → prática sozinho → desafio integrado), com o próximo passo e o motivo e um relatório da unidade; vencer o chefe, conferido no servidor em `game_answers`, cumpre a etapa e rende 25 moedas |
+| Cidade dos Dados | SQL | história escrita à mão (terminal SQL real, Sentinela, chefe ROOT) e a missão de aprendizagem do Almoxarifado (GROUP BY) |
+| Aurora | Python | cidade gerada **mais** a Usina de Aurora, história própria com terminal Python real (missão "A Linha de Montagem Muda", dicionários como acumuladores) |
+| Babel, Silogia, Gaussópolis, Vernácula, Medida Certa, Pipeline | Inglês, Lógica, Estatística, Português, DAX, M | geradas das unidades do modo clássico (`content/generatedCity.ts`): cada unidade é um prédio; o guardião abre o **painel da unidade** (lição → prática guiada → prática sozinho → desafio integrado), com o próximo passo e o motivo e um relatório da unidade; vencer o chefe, conferido no servidor em `game_answers`, cumpre a etapa e rende 25 moedas |
 
 **Minha Cidade:** depois da primeira viagem, a Arquiteta Lina (na Rodoviária) entrega a escritura de um terreno com 6 lotes. Cada lote recebe uma matéria do Control, e o prédio cresce com o tempo líquido estudado nela: Fundação com 1 h, Casa com 5 h, Sobrado com 15 h, Prédio com 40 h e Torre com 100 h. Pelo prédio dá para abrir o cronômetro, os flashcards e a página daquela matéria. Cada prédio construído tem um **morador** que revisa com você, dentro do jogo, os flashcards vencidos da matéria — os mesmos cartões, o mesmo SM-2 e o mesmo registro de revisão do módulo Flashcards (sem XP, nada duplicado).
 
@@ -269,8 +270,24 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 - **Revisão de campo** (`content/fieldReview.ts`): exercícios de GROUP BY **parametrizados** — cada semente gera outro depósito, outros números e outra pergunta (soma, contagem com filtro ou HAVING), então não dá para decorar. A resposta é calculada dos dados gerados (não há consulta-gabarito no pacote); só vale evidência (sem XP), com limite de 5 por dia.
 - **Oportunidades** (Diário, tecla J): regras determinísticas com o motivo escrito — dificuldade recorrente vira *recuperação*, o **motor de próxima ação do Control** (`recommend`) aponta onde praticar no mundo quando o tópico recomendado corresponde ao conceito de uma missão liberada (com os motivos de maior peso do próprio Control), último acerto há 7+ dias vira *revisão*, missão liberada vira *convite*.
 - **Revisão no Control só por clique:** o relatório de campo oferece "Revisar em 3/7 dias" para o tópico do Control ligado ao conceito (mesma ligação por nome/vínculo usada no domínio). Sem tópico ligado, explica como ligar. Nada é agendado automaticamente.
+
+**Segunda missão de aprendizagem — A Linha de Montagem Muda (Python, dicionários como acumuladores)**, na **Usina de Aurora** (`content/aurora.ts`). O Portão da Usina fica a leste da praça de Aurora e abre depois da conversa com a Prefeitura, que apresenta a engenheira Nadir. Mesmo formato do Almoxarifado, com o **terminal Python** como adaptador da disciplina:
+
+| Etapa | O que acontece |
+|---|---|
+| Problema | o controlador da linha recebe as leituras dos sensores uma a uma e só entende resumos por máquina |
+| Lição | ficha de campo com exemplo **Python** executável (contar chamados por setor com `.get(chave, 0)`) e erros comuns (`KeyError`, esquecer o `return`, criar o dicionário dentro do laço) |
+| Guiada | completar o `.get()` de uma função pronta que conta leituras por máquina → o controlador acende |
+| Independente | escrever do zero a soma de consumo por máquina → o portão do galpão abre |
+| Combate | o robô de manutenção R-9: a função certa (um `if` antes de acumular) revela qual máquina tem mais falhas; código errado custa sinal |
+| Transferência | duas listas (metas × produção por turno): quais máquinas ficaram abaixo da meta e quanto faltou — vale qualquer caminho (`dict` acumulador, `Counter`, `defaultdict`, compreensão), porque o quadro confere o resultado |
+| Debrief | relatório de campo e **revisão de campo em Python** (`content/fieldReviewPy.ts`): cada semente gera outra linha de máquinas e outra pergunta (soma, contagem com filtro ou limiar sobre o total) |
+
+- **Terminal Python do mundo** (`ui/PyTerminal.tsx`): o código roda no Pyodide, num worker isolado, no modo `collect` do harness (`game/lab/pyHarness.ts`): a função do jogador é chamada em cada **caso visível** (as entradas ficam na lateral) e o navegador compara o hash do conjunto de resultados (`canonCases`: chaves de dicionário ordenadas, números com 6 decimais, listas na ordem). O gabarito não vai para o navegador; o servidor confere o mesmo hash em `game_complete_step` e `game_record_evidence`. Há também um hash por caso, só para o retorno ("o caso 2 falhou: uma máquina sem produção também fica abaixo da meta").
+- **Retorno contextual em Python** (`pyFeedback`): por erro (`KeyError`, `NameError`…), por trecho que falta no código (palavra inteira; aspas duplas valem como simples), pelo tipo do valor devolvido (`None`, número, lista…) e pelo único caso que falhou.
+- **Vínculo com o Control:** o conceito é `colecoes` ("Listas e dicionários" no catálogo de Python). Um tópico do Control chamado "Dicionários" numa matéria ligada a Python para Dados recebe a evidência e as sugestões.
+- **Para outra cidade com história própria:** escrever uma `LessonDef`, desafios com `stage`/`concept`/`ladder`/`explanation`, uma missão `kind: 'mastery'`, um item em `LEARNING_PATHS` (com o modelo de revisão de campo) e, se a cidade for gerada, os acréscimos em `CITY_EXTRAS` (portal e fala da Prefeitura). O catálogo do servidor (`activityCatalogRows`) e o relatório saem do conteúdo. Adaptadores existentes: terminal SQL e terminal Python (`ChallengeTerminal` escolhe pelo `kind`).
 - **Cidades geradas (as outras 7 disciplinas):** o mesmo modelo, sem tabela nova. O estágio de cada desafio clássico sai do tipo (`game/engine/stages.ts`): escolher/associar/ordenar = guiada; escrever/calcular/completar código = independente; chefe e multietapas = desafio integrado. O guardião abre `ui/UnitHub.tsx`: as quatro etapas, o **próximo passo com motivo** (sem respostas → lição; guiada < 70% → guiada; produção < 4 respostas ou < 70% → sozinho; chefe não vencido → chefe; depois, revisão do tópico mais fraco) e o relatório da unidade. A prática por etapa usa `/evoquest/jogar?...&etapa=guiada|sozinho` (unidade sem desafios daquela etapa usa a unidade inteira). O Diário mostra **recuperações** dos prédios (2+ erros em 14 dias, acerto < 60%, sem acerto limpo depois) e sugestões do Control para tópicos dessas cidades.
-- **Para outra cidade com história própria:** escrever uma `LessonDef`, desafios com `stage`/`concept`/`ladder`/`explanation`, uma missão `kind: 'mastery'` e um item em `LEARNING_PATHS`; o catálogo do servidor (`activityCatalogRows`) e o relatório saem do conteúdo. O terminal SQL é o adaptador de hoje; outras disciplinas precisam do próprio adaptador (mesma escada, mesma evidência).
 
 **Modos:**
 - partida rápida (3/5/10/15 min ou personalizada);
@@ -324,6 +341,7 @@ O motor não muda. Nunca reutilize um id; ao corrigir um gabarito, incremente `v
   - as soluções SQL executadas no SQLite;
   - que o catálogo SQL está sincronizado.
 - `src/game/__tests__/python.test.ts` valida as saídas e as soluções de Python com CPython local + pandas. É pulado se não houver Python; use as variáveis `PYTHON` e `PYTHONPATH`.
+- `src/features/evoquest/__tests__/catalog.test.ts`, `pedagogy.test.ts` e `pyterminal.test.tsx` conferem a missão da Usina de Aurora: os hashes saem dos valores esperados em `solutions.ts`; com CPython local (sem pandas), as soluções, os caminhos alternativos, os erros típicos, a revisão de campo em Python (24 sementes) e o terminal Python rodam no mesmo harness do Pyodide (`pyLocal.ts`). Sem Python, esses blocos são pulados.
 - `supabase/tests/evoquest.test.ts` verifica em PostgreSQL real:
   - fórmula de XP idêntica entre SQL e TS (> 1.000 combinações);
   - recorreção pelo gabarito e idempotência;

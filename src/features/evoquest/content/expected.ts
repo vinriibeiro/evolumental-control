@@ -1,6 +1,6 @@
 // ARQUIVO GERADO — não edite à mão.
 // Regere com: UPDATE_QUEST_CATALOG=1 npx vitest run src/features/evoquest/__tests__/catalog.test.ts
-export const EXPECTED: Record<string, { hash: string; columns: number; rows: number }> = {
+export const EXPECTED: Record<string, { hash: string; columns: number; rows: number; cases?: string[] }> = {
   "guild_board": {
     "hash": "be3b9f5ae488754dce58547dc501d2fe43abb1343985e493932720b6920feab7",
     "columns": 2,
@@ -101,6 +101,51 @@ export const EXPECTED: Record<string, { hash: string; columns: number; rows: num
     "columns": 0,
     "rows": 0
   },
+  "line_guided": {
+    "hash": "88958d75dae650b79d69ed6ba09b3e88a92bc8c09ca26d6d7621308f71c2c7dd",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "bd1a6ea9c5fb3ae215f748e8f6bf2829520bc135fe74a748662acc962ca54b63",
+      "61deb8283b5a6e15b197ad640f544772faa860aa1c750cf7289e9592f30e4f0f",
+      "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    ]
+  },
+  "line_independent": {
+    "hash": "44dd3c5b3a3d5c91ee5b85be0e7ae4c1be049113c9694a4578a2967261de38b4",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "ff7b1134d715c8e26928309b9a0bad7fb942395f059de5f08ebf474b7a7935a8",
+      "1f1674c732c60abb89b2cb7060bae50534ce7021bb54f84dd7a6ed9fad998eee",
+      "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    ]
+  },
+  "line_robot": {
+    "hash": "fa6ba93312a31b13415eb8dc82b0a21f25dd26fb7f740c05d368059dc7f67651",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "f37a08e7bb2511fdba7d1d16c06e69a0f5568ff11729c6d7be40467a1215d33a",
+      "05be4745b9f1248082d8ee8dac49c0180c8e3c74e441f9e76b581025ae7a0579",
+      "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    ]
+  },
+  "line_transfer": {
+    "hash": "88c2c193941e502e0746ff76f1afc553d46c91fa1f65315c11790ed8bd21beb7",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "a6267985ff9655eb2134e9845a7d024f02242f5589eb877923bb3dc79de88f65",
+      "4370b769f0c7265349b30e896c7487d9b7c87ceaac500ba03f6bbef7be6b0e07",
+      "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    ]
+  },
+  "line_worst": {
+    "hash": "67629a19d082ed3a6a50d4e4ff97d02f6208b8706aeef961e0d6a438604211df",
+    "columns": 0,
+    "rows": 0
+  },
   "enc_sentinel": {
     "hash": "b61eb51eb7cfabb4e182bed833f9a8e633068e91fcb75bf63c9214659e2f9adf",
     "columns": 0,
@@ -108,6 +153,11 @@ export const EXPECTED: Record<string, { hash: string; columns: number; rows: num
   },
   "enc_drone": {
     "hash": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+    "columns": 0,
+    "rows": 0
+  },
+  "enc_robot": {
+    "hash": "67629a19d082ed3a6a50d4e4ff97d02f6208b8706aeef961e0d6a438604211df",
     "columns": 0,
     "rows": 0
   }

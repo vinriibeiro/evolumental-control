@@ -2,6 +2,7 @@
 // (game_quest_steps), passagens da Rodoviária (game_shop_items, kind
 // 'ticket') e atividades pedagógicas (game_activities, evidência de domínio).
 // O teste de catálogo garante que a migração está sincronizada.
+import { isPedagogic } from './challenges'
 import { WORLD } from './content'
 import { CITIES, ticketId } from './content/cities'
 import { EXPECTED } from './content/expected'
@@ -52,9 +53,9 @@ export function ticketCatalogSql(): string {
 export function activityCatalogRows() {
   const rows: Array<{ id: string; subject: string; concept: string; stage: string; hash: string | null; parametric: boolean; dailyLimit: number }> = []
   for (const ch of Object.values(WORLD.challenges)) {
-    if (ch.kind !== 'sql' || !ch.stage || !ch.concept) continue
+    if (!isPedagogic(ch) || !ch.stage || !ch.concept) continue
     const lesson = ch.lesson ? WORLD.lessons[ch.lesson] : null
-    rows.push({ id: ch.id, subject: lesson?.subject ?? 'sql', concept: ch.concept, stage: ch.stage, hash: EXPECTED[ch.id]?.hash ?? null, parametric: false, dailyLimit: 20 })
+    rows.push({ id: ch.id, subject: lesson?.subject ?? (ch.kind === 'python' ? 'python' : 'sql'), concept: ch.concept, stage: ch.stage, hash: EXPECTED[ch.id]?.hash ?? null, parametric: false, dailyLimit: 20 })
   }
   for (const t of FIELD_TEMPLATES) rows.push({ id: t.id, subject: t.subject, concept: t.concept, stage: t.stage, hash: null, parametric: true, dailyLimit: t.dailyLimit })
   return rows
@@ -71,4 +72,4 @@ export function activityCatalogSql(): string {
 export const worldCatalogSql = () => `${questCatalogSql()}\n\n${ticketCatalogSql()}\n\n${activityCatalogSql()}`
 
 /** Migração que guarda o catálogo atual (as anteriores ficam como histórico). */
-export const WORLD_CATALOG_MIGRATION = '20261027000000_evoquest_evidencias.sql'
+export const WORLD_CATALOG_MIGRATION = '20261028000000_evoquest_aurora.sql'

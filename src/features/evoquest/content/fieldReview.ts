@@ -8,33 +8,15 @@
 // atividade como parametrizada e limita os registros por dia.
 import type { SqlChallenge } from '../challenges'
 import { canonResult, sha256 } from '../challenges'
-import type { Stage } from '../engine/pedagogy'
+import { rng, type FieldTemplate } from './fieldCommon'
+import { FIELD_DICT } from './fieldReviewPy'
 
-export interface FieldTemplate {
-  /** Id da atividade no catálogo do servidor (game_activities). */
-  id: string
-  subject: string
-  concept: string
-  stage: Stage
-  title: string
-  /** Registros de evidência aceitos por dia. */
-  dailyLimit: number
-}
+export type { FieldTemplate } from './fieldCommon'
+export { rng } from './fieldCommon'
 
 export const FIELD_GROUPBY: FieldTemplate = { id: 'field_groupby', subject: 'sql', concept: 'groupby', stage: 'independent', title: 'Revisão de campo — GROUP BY', dailyLimit: 5 }
-export const FIELD_TEMPLATES = [FIELD_GROUPBY]
-
-/** PRNG pequeno e determinístico (mulberry32). */
-export function rng(seed: number) {
-  let a = seed >>> 0
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0
-    let t = a
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+/** Todos os modelos parametrizados (SQL e Python): vão para o catálogo do servidor. */
+export const FIELD_TEMPLATES: FieldTemplate[] = [FIELD_GROUPBY, FIELD_DICT]
 
 const DEPOTS = ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro', 'Porto', 'Serra']
 const PRODUCTS = ['cabo', 'placa', 'sensor', 'bateria', 'filtro']

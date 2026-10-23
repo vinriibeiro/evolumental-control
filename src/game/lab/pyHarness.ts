@@ -1,5 +1,7 @@
 // Executa o código do aluno em um namespace novo e compara cada caso de teste.
 // Também usado pelo teste que valida os gabaritos com o Python local.
+// _run: laboratório clássico (compara com os casos esperados). _collect e _exec:
+// mundo do EvoQuest (só devolvem valores/saída; o gabarito fica num hash).
 export const HARNESS = String.raw`
 import json, math, traceback
 
@@ -46,4 +48,48 @@ def _run(source, entry, tests_json):
         except Exception as e:
             out.append({'ok': False, 'got': type(e).__name__ + ': ' + str(e)})
     return json.dumps({'results': out})
+
+def _jsonable(v):
+    # Forma serializavel e estavel: tuplas/conjuntos viram listas, NaN vira None,
+    # chaves de dicionario viram texto (como no JSON).
+    v = _plain(v)
+    if isinstance(v, float) and v != v:
+        return None
+    if isinstance(v, (set, frozenset)):
+        return sorted((_jsonable(x) for x in v), key=repr)
+    if isinstance(v, (list, tuple)):
+        return [_jsonable(x) for x in v]
+    if isinstance(v, dict):
+        return {str(k): _jsonable(x) for k, x in v.items()}
+    return v
+
+def _collect(source, entry, args_json):
+    # Mundo (EvoQuest RPG): executa a funcao em cada caso e devolve os VALORES.
+    # O gabarito nao vem junto: o navegador compara o hash do resultado.
+    ns = {}
+    try:
+        exec(compile(source, '<seu codigo>', 'exec'), ns)
+    except Exception:
+        return json.dumps({'error': traceback.format_exc(limit=1)})
+    fn = ns.get(entry)
+    if not callable(fn):
+        return json.dumps({'error': 'Defina a funcao ' + entry + '(...).'})
+    out = []
+    for args in json.loads(args_json):
+        try:
+            out.append({'value': _jsonable(fn(*args))})
+        except Exception as e:
+            out.append({'error': type(e).__name__ + ': ' + str(e)})
+    return json.dumps({'results': out}, default=str)
+
+def _exec(source):
+    # Exemplo resolvido da ficha de campo: roda e devolve o que foi impresso.
+    import io, contextlib
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            exec(compile(source, '<exemplo>', 'exec'), {})
+    except Exception:
+        return json.dumps({'error': traceback.format_exc(limit=1), 'stdout': buf.getvalue()})
+    return json.dumps({'stdout': buf.getvalue()})
 `

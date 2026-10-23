@@ -211,6 +211,7 @@ export const SUPPLY_PATH = {
   unlockedBy: 'sql_main:who',
   where: 'Cidade dos Dados → elevador de carga (Almoxarifado)',
   practice: 'Almoxarifado → mesa de revisão de campo',
+  fieldTemplate: 'field_groupby',
 }
 
 export const SUPPLY_QUEST: QuestDef = {

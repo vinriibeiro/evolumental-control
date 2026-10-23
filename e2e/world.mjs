@@ -319,6 +319,138 @@ await step('volta de ônibus; Lina entrega a escritura; Minha Cidade', async () 
   await page.screenshot({ path: `${OUT}/mundo-minha-cidade.png` })
 })
 
+await step('Aurora (Python): Prefeitura apresenta a Usina; Nadir; guiada com pista; independente; robô; transferência; relatório; revisão de campo', async () => {
+  // Novo contexto (novo IndexedDB): o vale da Guilda leva direto a Aurora, sem precisar de moedas.
+  const a = await browser.newContext({ viewport: { width: 1366, height: 820 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
+  const p = await a.newPage()
+  p.on('pageerror', (e) => errors.push(`aurora pageerror: ${e.message}`))
+  const stP = () => p.evaluate(() => window.__eq.state())
+  const useP = async (x, y, facing, name) => {
+    await p.evaluate(([x, y, f]) => window.__eq.place(x, y, f), [x, y, facing])
+    await p.locator('p.eq-panel', { hasText: name }).filter({ has: p.locator('strong') }).first().waitFor({ timeout: 5000 })
+    await p.keyboard.press('e')
+  }
+  const talkP = async () => {
+    for (let i = 0; i < 20; i++) {
+      const dlg = p.getByRole('dialog')
+      if (!(await dlg.count())) return
+      await dlg.getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo|OK/ }).click()
+      await p.waitForTimeout(120)
+    }
+  }
+  const runPy = async (code) => {
+    await p.getByLabel('Código Python').fill(code)
+    await p.getByRole('button', { name: /^Executar Ctrl/ }).click()
+  }
+  const PY = 120000 // o Pyodide é baixado do CDN na primeira execução
+
+  await p.goto(`${BASE}/evoquest`)
+  await p.getByRole('button', { name: 'Pular' }).click()
+  await p.getByLabel('Nome do personagem').fill('Py')
+  await p.getByRole('button', { name: 'Entrar na Vila' }).click()
+  await p.getByText('Vila Evolumental').first().waitFor()
+  await runGuide(p, 'Aurora')
+  await p.getByText('Agora é com você').first().waitFor()
+  await p.waitForFunction(() => window.__eq.state().region === 'lab_aurora', null, { timeout: 20000 })
+  // Portão trancado até falar com a Prefeitura; a Prefeitura apresenta a Usina.
+  await useP(24.5, 11.5, 'up', 'Portão da Usina')
+  await p.getByText('está trancado').waitFor()
+  await p.keyboard.press('Escape')
+  await useP(14.5, 11.5, 'up', 'Prefeitura de Aurora')
+  // A fala extra sobre a Usina é o 3º nó: avança conferindo que ela apareceu.
+  let sawHint = false
+  for (let i = 0; i < 20; i++) {
+    const dlg = p.getByRole('dialog')
+    if (!(await dlg.count())) break
+    if (await dlg.getByText(/engenheira Nadir/).count()) sawHint = true
+    await dlg.getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo|OK/ }).click()
+    await p.waitForTimeout(120)
+  }
+  if (!sawHint) throw new Error('a Prefeitura não apresentou a Usina')
+  await p.waitForFunction(() => window.__eq.state().steps.includes('city_lab_aurora:mentor'), null, { timeout: 15000 })
+  await useP(24.5, 11.5, 'up', 'Portão da Usina')
+  await p.waitForTimeout(500)
+  if ((await stP()).region !== 'aurora_plant') throw new Error('portão não levou à Usina')
+  await p.screenshot({ path: `${OUT}/mundo-usina.png` })
+  await useP(6.5, 11.5, 'up', 'Nadir')
+  await talkP()
+  if (!(await stP()).inventory.includes('ficha_dicionarios')) throw new Error('ficha de campo não foi entregue')
+  // Guiada: ficha aberta com exemplo Python; tentar com "____" libera a 1ª pista.
+  await useP(11.5, 10.5, 'up', 'Controlador da linha')
+  await p.getByText('Objetivo:').first().waitFor()
+  await p.getByText('Caso 1 · Turno da manhã').waitFor()
+  await p.getByRole('button', { name: 'Executar o exemplo' }).click()
+  await p.getByLabel('Saída do exemplo').waitFor({ timeout: PY })
+  if (!(await p.getByLabel('Saída do exemplo').textContent()).includes("'TI': 3")) throw new Error('exemplo Python não imprimiu o esperado')
+  if (!(await p.getByRole('button', { name: /Pedir pista 1/ }).isDisabled())) throw new Error('pista liberada antes de tentar')
+  await p.getByRole('button', { name: /^Executar Ctrl/ }).click()
+  await p.getByText(/não entende "____"/).waitFor({ timeout: PY })
+  await p.getByText(/✗ Caso 1/).waitFor()
+  await p.getByRole('button', { name: /Pedir pista 1/ }).click()
+  await p.getByText('Pista 1:').waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-usina-guiada.png` })
+  await runPy("def leituras_por_maquina(leituras):\n    contagem = {}\n    for leitura in leituras:\n        maquina = leitura['maquina']\n        contagem[maquina] = contagem.get(maquina, 0) + 1\n    return contagem\n")
+  await p.getByText(/prática guiada resolvida com 1 pista/).waitFor({ timeout: PY })
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(400)
+  // Independente: contar em vez de somar dá retorno contextual; a soma abre o portão.
+  await useP(11.5, 10.5, 'up', 'Controlador da linha')
+  await runPy("def consumo_por_maquina(leituras):\n    total = {}\n    for l in leituras:\n        total[l['maquina']] = total.get(l['maquina'], 0) + 1\n    return total\n")
+  await p.getByText(/SOMA do campo consumo/).waitFor({ timeout: PY })
+  await runPy("def consumo_por_maquina(leituras):\n    total = {}\n    for l in leituras:\n        total[l['maquina']] = total.get(l['maquina'], 0) + l['consumo']\n    return total\n")
+  await p.getByText(/prática independente resolvida/).waitFor({ timeout: PY })
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(500)
+  if (!(await stP()).flags.line_gate) throw new Error('portão do galpão não abriu')
+  // Combate: a função certa revela a máquina com mais falhas.
+  await useP(12.5, 4.5, 'right', 'Robô')
+  const combat = p.getByRole('dialog', { name: /Confronto/ })
+  await combat.waitFor()
+  await combat.getByRole('button', { name: /^Examinar/ }).click()
+  await combat.getByRole('button', { name: /^Consultar leituras/ }).click()
+  await runPy("def falhas_por_maquina(leituras):\n    falhas = {}\n    for l in leituras:\n        if l['status'] == 'falha':\n            falhas[l['maquina']] = falhas.get(l['maquina'], 0) + 1\n    return falhas\n")
+  await p.getByText(/Falhas por máquina/).waitFor({ timeout: PY })
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await combat.getByRole('button', { name: /^Recalibrar/ }).click()
+  await p.getByLabel('Recalibrar robô').fill('m3')
+  await p.getByRole('button', { name: 'Executar', exact: true }).click()
+  await combat.getByText('Vitória.').waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-usina-robo.png` })
+  await combat.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(600)
+  if (!(await stP()).flags.robot_down) throw new Error('robô não saiu da porta')
+  // Transferência: outro caminho (Counter + dict comprehension) — o quadro confere o resultado.
+  await useP(17.5, 3.5, 'up', 'Quadro de metas')
+  await runPy(
+    "from collections import Counter\n\ndef abaixo_da_meta(metas, producao):\n    feito = Counter()\n    for x in producao:\n        feito[x['maquina']] += x['pecas']\n    return {m['maquina']: m['pecas'] - feito[m['maquina']] for m in metas if m['pecas'] > feito[m['maquina']]}\n",
+  )
+  await p.getByText(/transferência resolvida sem pistas/).waitFor({ timeout: PY })
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(500)
+  // Debrief: a conversa termina no relatório de campo; revisão de campo em Python.
+  await useP(6.5, 11.5, 'up', 'Nadir')
+  const report = p.getByRole('dialog', { name: /Relatório de campo/ })
+  for (let i = 0; i < 10 && !(await report.count()); i++) {
+    await p.getByRole('dialog').getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo/ }).click()
+    await p.waitForTimeout(200)
+  }
+  await report.getByText('Aplicou com pouca ou nenhuma ajuda').waitFor()
+  await report.getByText(/Controlador — consumo por máquina/).first().waitFor()
+  await report.getByText(/Nenhum tópico do Control corresponde a Dicionários/).waitFor()
+  await report.getByText(/matéria de Python para Dados/).waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-usina-relatorio.png` })
+  if (!(await stP()).quests.py_line?.done) throw new Error('missão da Usina não concluída')
+  await report.getByRole('button', { name: 'Fazer uma revisão de campo' }).click()
+  await p.getByRole('dialog', { name: 'Revisão de campo — Dicionários' }).waitFor()
+  await p.getByText('Entradas de cada caso').waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-usina-revisao.png` })
+  await p.getByRole('button', { name: 'Fechar terminal' }).click()
+  await useP(1.5, 11.5, 'left', 'Portão da Usina')
+  await p.waitForTimeout(500)
+  if ((await stP()).region !== 'lab_aurora') throw new Error('não voltou a Aurora')
+  await a.close()
+})
+
 await step('celular: apresentação guiada por toque, depois joystick e botão de ação, sem rolagem', async () => {
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR', storageState: await ctx.storageState() })
   const p = await m.newPage()

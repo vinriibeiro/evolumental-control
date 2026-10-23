@@ -142,6 +142,18 @@ const TILES: Record<string, (c: Ctx) => void> = {
   door_security: (c) => door(c, '#eda100'),
   door_core: (c) => door(c, '#7c8cff'),
   door_power: (c) => door(c, '#38ff9c'),
+  // ── Usina de Aurora ──
+  machine: (c) => {
+    px(c, '#11151c', 0, 0, TILE, TILE)
+    px(c, '#2f7f73', 1, 2, 14, 12)
+    px(c, '#1f5a52', 1, 12, 14, 2)
+    px(c, '#c9d1d9', 3, 4, 10, 3)
+    px(c, '#11151c', 4, 5, 8, 1)
+    px(c, hash(3, 7) > 0.5 ? '#38ff9c' : '#eda100', 3, 9, 2, 2)
+    px(c, '#eda100', 7, 9, 2, 2)
+    px(c, '#4a5568', 11, 9, 2, 2)
+    px(c, '#4a5568', 6, 0, 4, 2)
+  },
 }
 
 function door(c: Ctx, color: string) {
@@ -415,6 +427,26 @@ export function drawObject(c: Ctx, sprite: string, x: number, y: number, t: numb
       const count = Math.floor(t * 3) % 4
       px(c, '#38ff9c', ox + 6 + count, oy + 7 + hover, 1, 1)
       px(c, '#3b4048', ox + 7, oy + 11 + hover, 2, 2)
+      break
+    }
+    case 'robot': {
+      // Robô de manutenção: corpo sobre esteiras, braço que sobe e desce e visor que pisca.
+      const arm = Math.round(Math.sin(t * 2.5) * 1.5)
+      px(c, '#2a313d', ox + 2, oy + 13, 12, 3)
+      px(c, '#11151c', ox + 3, oy + 14, 2, 1)
+      px(c, '#11151c', ox + 7, oy + 14, 2, 1)
+      px(c, '#11151c', ox + 11, oy + 14, 2, 1)
+      px(c, '#2f7f73', ox + 4, oy + 5, 8, 8)
+      px(c, '#1f5a52', ox + 4, oy + 12, 8, 1)
+      px(c, '#11151c', ox + 5, oy + 6, 6, 3)
+      const eye = Math.floor(t * 2) % 2 === 0
+      px(c, eye ? '#eda100' : '#ff3d3d', ox + 6, oy + 7, 1, 1)
+      px(c, eye ? '#eda100' : '#ff3d3d', ox + 9, oy + 7, 1, 1)
+      px(c, '#c9d1d9', ox + 12, oy + 6 + arm, 1, 5)
+      px(c, '#c9d1d9', ox + 12, oy + 5 + arm, 3, 1)
+      px(c, '#eda100', ox + 14, oy + 6 + arm, 1, 2)
+      px(c, '#4a5568', ox + 7, oy + 2, 2, 3)
+      px(c, '#38ff9c', ox + 7, oy + 1, 2, 1)
       break
     }
     case 'root': {

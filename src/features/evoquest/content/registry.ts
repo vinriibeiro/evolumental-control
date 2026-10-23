@@ -41,6 +41,12 @@ export function exp(id: string): { hash: string; columns: number; rows: number }
   return EXPECTED[id] ?? { hash: 'pendente', columns: 0, rows: 0 }
 }
 
+/** Terminal Python: hash do conjunto de casos e de cada caso (só para o retorno). */
+export function expPy(id: string): { hash: string; cases: string[] } {
+  const e = EXPECTED[id]
+  return { hash: e?.hash ?? 'pendente', cases: e?.cases ?? [] }
+}
+
 export function byId<T extends { id: string }>(list: T[]): Record<string, T> {
   return Object.fromEntries(list.map((x) => [x.id, x]))
 }

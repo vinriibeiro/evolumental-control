@@ -46,7 +46,15 @@ export function unitBoss(unit: SubjectContent['units'][number]): string {
   return (unit.challenges.find((c) => c.boss) ?? unit.challenges[unit.challenges.length - 1]).id
 }
 
-export function buildCity(city: CityDef, content: SubjectContent, subjectName: string): GeneratedCity {
+/** Acréscimos de uma história escrita à mão a uma cidade gerada (ex.: a Usina de Aurora). */
+export interface CityExtras {
+  /** Entidades extras na cidade (portais para regiões próprias). */
+  entities?: EntityDef[]
+  /** Fala a mais da Prefeitura, antes da última (apresenta o lugar novo). */
+  mentorHint?: string
+}
+
+export function buildCity(city: CityDef, content: SubjectContent, subjectName: string, extras: CityExtras = {}): GeneratedCity {
   const units = content.units
   const quest = cityQuestId(city.id)
   const rows = Math.ceil(units.length / 3)
@@ -117,7 +125,8 @@ export function buildCity(city: CityDef, content: SubjectContent, subjectName: s
       nodes: [
         { id: 'm1', speaker: mentor, text: `Bem-vindo(a) a ${city.name}, {name}! Aqui se vive de ${subjectName}.`, next: 'm2' },
         { id: 'm2', speaker: mentor, text: `Cada prédio da cidade guarda uma unidade. São ${units.length}, e cada uma tem um guardião e um chefe.`, next: 'm2b' },
-        { id: 'm2b', speaker: mentor, text: 'Em cada prédio, o guardião mostra o caminho: lição, prática guiada, prática sozinho e o chefe. Ele também diz qual é o seu próximo passo e por quê.', next: 'm3' },
+        { id: 'm2b', speaker: mentor, text: 'Em cada prédio, o guardião mostra o caminho: lição, prática guiada, prática sozinho e o chefe. Ele também diz qual é o seu próximo passo e por quê.', next: extras.mentorHint ? 'm2c' : 'm3' },
+        ...(extras.mentorHint ? [{ id: 'm2c', speaker: mentor, text: extras.mentorHint, next: 'm3' }] : []),
         // m3 continua sendo o último nó: a etapa "mentor" termina nele.
         { id: 'm3', speaker: mentor, text: 'Vença os chefes, um prédio de cada vez. Cada vitória rende moedas, e com elas você compra passagens para outras cidades na Rodoviária.' },
       ],
@@ -158,6 +167,7 @@ export function buildCity(city: CityDef, content: SubjectContent, subjectName: s
       { do: 'dialogue', dialogue: `${mentor}_idle` },
     ],
   })
+  entities.push(...(extras.entities ?? []))
 
   const region: RegionDef = {
     id: city.id,

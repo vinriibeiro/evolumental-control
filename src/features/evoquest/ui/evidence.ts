@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useBackend } from '@/app/data'
 import { invalidateTables } from '@/hooks/data'
-import type { SqlChallenge } from '../challenges'
+import type { PedagogicChallenge } from '../challenges'
 import { STAGE_LABELS, type HelpLevel } from '../engine/pedagogy'
 
 export interface EvidenceOutcome {
@@ -20,7 +20,7 @@ const HELP_TEXT: Record<HelpLevel, string> = {
 }
 
 /** Explica, sem jargão, o que a atividade acrescenta ao domínio do Control. */
-export function evidenceText(ch: SqlChallenge, help: HelpLevel, solved: boolean): string {
+export function evidenceText(ch: Pick<PedagogicChallenge, 'stage'>, help: HelpLevel, solved: boolean): string {
   const stage = ch.stage ? STAGE_LABELS[ch.stage].toLowerCase() : 'atividade'
   if (!solved) return `Registrado no Control: ${stage} não concluída — conta como ponto de atenção, não como acerto.`
   if (help === 4) return `Registrado no Control: ${stage} resolvida ${HELP_TEXT[help]} — conta como contato com o conceito, não como domínio.`
@@ -35,7 +35,7 @@ export function useRecordEvidence() {
   const backend = useBackend()
   const qc = useQueryClient()
   return useCallback(
-    async (ch: SqlChallenge, r: { help: HelpLevel; attempts: number; solved: boolean; answer: string | null }): Promise<EvidenceOutcome | null> => {
+    async (ch: Pick<PedagogicChallenge, 'id' | 'stage' | 'seed'>, r: { help: HelpLevel; attempts: number; solved: boolean; answer: string | null }): Promise<EvidenceOutcome | null> => {
       if (!ch.stage) return null
       try {
         await backend.gameRecordEvidence({ id: crypto.randomUUID(), activity: ch.id, help: r.help, attempts: r.attempts, solved: r.solved, seed: ch.seed ?? null, answer: r.answer })

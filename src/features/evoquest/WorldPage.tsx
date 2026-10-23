@@ -8,8 +8,8 @@ import { eq, inList } from '@/lib/data/types'
 import { netSeconds } from '@/lib/timer/engine'
 import { levelFromXp } from '@/game/engine/rules'
 import { useGameSettings } from '@/game/useGame'
-import type { SqlChallenge, SwitchPuzzle } from './challenges'
-import { WORLD } from './content'
+import type { PedagogicChallenge, SwitchPuzzle } from './challenges'
+import { fieldTemplateOf, WORLD } from './content'
 import { cityById, cityOfTicket, destFlag, destinationOf, type CityDef } from './content/cities'
 import { buildMyCity, levelFor, lightFor, LOT_COUNT, MY_CITY, type LotView } from './content/myCity'
 import { check, currentStep, stepKey } from './engine/state'
@@ -26,7 +26,7 @@ import { MyCityPanel } from './ui/MyCityPanel'
 import { Onboarding } from './ui/Onboarding'
 import { Panels, type PanelTab } from './ui/Panels'
 import { BusBoarding, BusRide, CityChoice, TicketCounter } from './ui/Station'
-import { Terminal } from './ui/Terminal'
+import { ChallengeTerminal } from './ui/ChallengeTerminal'
 import { FieldReport, FieldReview } from './ui/FieldReport'
 import { UnitHub } from './ui/UnitHub'
 import { CLASSIC_CONTENT } from './content/generatedCity'
@@ -521,7 +521,10 @@ export default function WorldPage() {
           {overlay.kind === 'debrief' && (
             <FieldReport
               quest={overlay.quest}
-              onField={state.quests[overlay.quest]?.done ? () => setOverlay({ kind: 'field', template: 'field_groupby' }) : null}
+              onField={(() => {
+                const template = fieldTemplateOf(overlay.quest)
+                return template && state.quests[overlay.quest]?.done ? () => setOverlay({ kind: 'field', template }) : null
+              })()}
               onNavigate={(to) => {
                 close()
                 void w.save().then(() => flushTime()).then(() => navigate(to))
@@ -549,7 +552,7 @@ export default function WorldPage() {
             )
           })()}
           {overlay.kind === 'terminal' && (
-            <Terminal challenge={WORLD.challenges[overlay.id] as SqlChallenge} sound={sound} onSolved={(answer) => w.fire({ type: 'solve', challenge: overlay.id }, answer)} onClose={close} />
+            <ChallengeTerminal challenge={WORLD.challenges[overlay.id] as PedagogicChallenge} sound={sound} onSolved={(answer) => w.fire({ type: 'solve', challenge: overlay.id }, answer)} onClose={close} />
           )}
           {overlay.kind === 'combat' && (
             <CombatView encounter={WORLD.encounters[overlay.id]} sound={sound} onWin={(answer) => w.fire({ type: 'solve', challenge: overlay.id }, answer)} onClose={close} />

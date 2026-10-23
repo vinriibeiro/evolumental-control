@@ -3,14 +3,20 @@ import { stepKey } from '../engine/state'
 import { CITIES } from './cities'
 import { ITEMS, SPEAKERS } from './common'
 import { DATA_CITY, DATA_CITY_CHALLENGES, DATA_CITY_DIALOGUES, DATA_CITY_INPUTS, DATA_CITY_QUESTS, POWER_PUZZLE, ROOT_BOSS, SENTINEL } from './dataCity'
-import { buildCity, CLASSIC_CONTENT, GENERATED_REWARDS } from './generatedCity'
+import { buildCity, CLASSIC_CONTENT, GENERATED_REWARDS, type CityExtras } from './generatedCity'
 import { GUILD_BOARD, HUB, HUB_DIALOGUES, SIDE_BOARD, TUTORIAL } from './hub'
 import { buildMyCity, emptyLots } from './myCity'
 import { byId, type WorldContent } from './registry'
 import { DRONE, LESSON_GROUPBY, SUPPLY_PATH, SUPPLY_QUEST, WAREHOUSE, WAREHOUSE_CHALLENGES, WAREHOUSE_DIALOGUES, WAREHOUSE_INPUTS, WAREHOUSE_ITEMS, WAREHOUSE_SPEAKERS } from './warehouse'
+import { LESSON_DICT, LINE_PATH, LINE_QUEST, PLANT, PLANT_CHALLENGES, PLANT_DIALOGUES, PLANT_GATE, PLANT_INPUTS, PLANT_ITEMS, PLANT_MENTOR_HINT, PLANT_SPEAKERS, ROBOT } from './aurora'
 
-/** Cidades sem história escrita à mão: geradas das unidades do modo clássico. */
-const GENERATED = CITIES.filter((c) => CLASSIC_CONTENT[c.subject]).map((c) => buildCity(c, CLASSIC_CONTENT[c.subject], subjectMeta(c.subject)?.name ?? c.blurb))
+/** Histórias próprias acrescentadas às cidades geradas (portais e falas da Prefeitura). */
+const CITY_EXTRAS: Record<string, CityExtras> = {
+  lab_aurora: { entities: [PLANT_GATE], mentorHint: PLANT_MENTOR_HINT },
+}
+
+/** Cidades geradas das unidades do modo clássico (com os acréscimos escritos à mão). */
+const GENERATED = CITIES.filter((c) => CLASSIC_CONTENT[c.subject]).map((c) => buildCity(c, CLASSIC_CONTENT[c.subject], subjectMeta(c.subject)?.name ?? c.blurb, CITY_EXTRAS[c.id]))
 
 /**
  * Recompensas por etapa. Só etapas que exigem conhecimento validado rendem
@@ -36,6 +42,11 @@ const REWARDS: Record<string, { xp: number; coins: number }> = {
   'sql_supply:independent': { xp: 40, coins: 10 },
   'sql_supply:drone': { xp: 60, coins: 10 },
   'sql_supply:transfer': { xp: 100, coins: 25 },
+  // Usina de Aurora (dicionários): mesma régua do Almoxarifado.
+  'py_line:guided': { xp: 20, coins: 5 },
+  'py_line:independent': { xp: 40, coins: 10 },
+  'py_line:robot': { xp: 60, coins: 10 },
+  'py_line:transfer': { xp: 100, coins: 25 },
 }
 for (const g of GENERATED)
   for (const s of g.quest.steps) {
@@ -43,21 +54,21 @@ for (const g of GENERATED)
     if (s.id === 'finale') REWARDS[stepKey(g.quest.id, s.id)] = GENERATED_REWARDS.finale
   }
 
-const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, SUPPLY_QUEST, ...GENERATED.map((g) => g.quest)])
+const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, SUPPLY_QUEST, LINE_QUEST, ...GENERATED.map((g) => g.quest)])
 const rewards: WorldContent['rewards'] = {}
 for (const q of Object.values(quests)) for (const s of q.steps) rewards[stepKey(q.id, s.id)] = REWARDS[stepKey(q.id, s.id)] ?? { xp: 0, coins: 0 }
 
 export const WORLD: WorldContent = {
   // my_city é trocada em tempo de execução pela versão com as matérias do jogador.
-  regions: byId([HUB, DATA_CITY, WAREHOUSE, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
-  speakers: byId([...SPEAKERS, ...WAREHOUSE_SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
-  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...WAREHOUSE_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
-  items: byId([...ITEMS, ...WAREHOUSE_ITEMS, ...GENERATED.flatMap((g) => g.items)]),
+  regions: byId([HUB, DATA_CITY, WAREHOUSE, PLANT, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
+  speakers: byId([...SPEAKERS, ...WAREHOUSE_SPEAKERS, ...PLANT_SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
+  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...WAREHOUSE_DIALOGUES, ...PLANT_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
+  items: byId([...ITEMS, ...WAREHOUSE_ITEMS, ...PLANT_ITEMS, ...GENERATED.flatMap((g) => g.items)]),
   quests,
-  challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE, ...WAREHOUSE_CHALLENGES, ...WAREHOUSE_INPUTS]),
-  encounters: byId([SENTINEL, DRONE]),
+  challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE, ...WAREHOUSE_CHALLENGES, ...WAREHOUSE_INPUTS, ...PLANT_CHALLENGES, ...PLANT_INPUTS]),
+  encounters: byId([SENTINEL, DRONE, ROBOT]),
   bosses: byId([ROOT_BOSS]),
-  lessons: byId([LESSON_GROUPBY]),
+  lessons: byId([LESSON_GROUPBY, LESSON_DICT]),
   rewards,
 }
 
@@ -73,6 +84,9 @@ export const SQL_SKILLS: Array<{ id: string; name: string; requires: string[]; c
 ]
 
 /** Caminhos de aprendizagem (uma missão por conceito; outras cidades entram aqui). */
-export const LEARNING_PATHS = [SUPPLY_PATH]
+export const LEARNING_PATHS: Array<{ quest: string; concept: string; unlockedBy: string; where: string; practice: string; fieldTemplate: string }> = [SUPPLY_PATH, LINE_PATH]
+
+/** Modelo de revisão de campo da missão (ou null, se ela não tiver um). */
+export const fieldTemplateOf = (quest: string) => LEARNING_PATHS.find((p) => p.quest === quest)?.fieldTemplate ?? null
 
 export const START = { region: 'hub', x: HUB.spawn.x + 0.5, y: HUB.spawn.y + 0.5 }
