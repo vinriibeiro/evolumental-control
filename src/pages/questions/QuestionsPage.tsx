@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ClipboardCheck, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { AlertTriangle, ClipboardCheck, NotebookPen, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Card, CardHeader, ColorDot, LoadMore, PageHeader, StatCard } from '@/components/ui/layout'
@@ -9,13 +9,15 @@ import { EmptyState, QueryState, useConfirm, useToast } from '@/components/ui/fe
 import { ChartCard, RankBars, TrendLine } from '@/components/charts/Charts'
 import { PeriodPicker, usePeriod } from '@/components/PeriodPicker'
 import { SubjectTopicSelect } from '@/components/SubjectTopicSelect'
-import { useAll, useInsert, useList, useRemove, useUpdate } from '@/hooks/data'
+import { ErrorFollowUp, type FollowUpTarget } from '@/components/insight/ErrorFollowUp'
+import { useAll, useList, useRemove, useTransaction } from '@/hooks/data'
 import { useLookups, useSubjects } from '@/hooks/domain'
 import { useSettings } from '@/hooks/useSettings'
 import { eq, gte, lte, type Filter } from '@/lib/data/types'
 import { eachDay, formatDayKey, startOfWeek, todayKey } from '@/lib/time'
 import { questionSchema, validate } from '@/lib/validation'
-import type { QuestionRecord } from '@/types/db'
+import type { ErrorReason, Insert, QuestionRecord } from '@/types/db'
+import { ERROR_REASONS, ERROR_REASON_LABELS } from '@/lib/insight/errors'
 
 const pct = (n: number) => `${Math.round(n)}%`
 
@@ -39,8 +41,10 @@ export default function QuestionsPage() {
   const [params] = useSearchParams()
   const { state, setState, range } = usePeriod(today, 'month')
   const [subjectId, setSubjectId] = useState(params.get('materia') ?? '')
-  const [form, setForm] = useState<{ record: QuestionRecord | null } | null>(params.get('materia') ? { record: null } : null)
+  // ?materia=… ou ?registrar=1 (paleta de comandos) abrem o formulário.
+  const [form, setForm] = useState<{ record: QuestionRecord | null } | null>(params.get('materia') || params.get('registrar') ? { record: null } : null)
   const [limit, setLimit] = useState(20)
+  const [followUp, setFollowUp] = useState<FollowUpTarget | null>(null)
   const subjects = useSubjects()
   const lookups = useLookups()
   const remove = useRemove('question_records')
@@ -96,9 +100,14 @@ export default function QuestionsPage() {
         title="Questões e desempenho"
         description="Registre baterias de questões e acompanhe a taxa de acertos. Os números vêm só dos seus registros."
         actions={
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ record: null })}>
-            Registrar questões
-          </Button>
+          <>
+            <Link to="/questoes/caderno" className="inline-flex h-10 items-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface">
+              <NotebookPen className="size-4" /> Caderno de erros
+            </Link>
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ record: null })}>
+              Registrar questões
+            </Button>
+          </>
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -223,7 +232,16 @@ export default function QuestionsPage() {
           </Card>
         )}
       </QueryState>
-      <QuestionForm open={Boolean(form)} record={form?.record ?? null} onClose={() => setForm(null)} defaultSubject={params.get('materia')} today={today} />
+      <QuestionForm
+        open={Boolean(form)}
+        record={form?.record ?? null}
+        onClose={() => setForm(null)}
+        defaultSubject={params.get('materia')}
+        defaultTopic={params.get('topico')}
+        today={today}
+        onSaved={form?.record ? undefined : (r) => r.wrong > 0 && (r.subjectId || r.topicId) && setFollowUp(r)}
+      />
+      <ErrorFollowUp target={followUp} onClose={() => setFollowUp(null)} />
     </div>
   )
 }
@@ -235,6 +253,7 @@ export function QuestionForm({
   defaultSubject,
   defaultTopic = null,
   today,
+  onSaved,
 }: {
   open: boolean
   record: QuestionRecord | null
@@ -242,13 +261,28 @@ export function QuestionForm({
   defaultSubject: string | null
   defaultTopic?: string | null
   today: string
+  /** Chamado depois de salvar (usado para oferecer revisão após erros). */
+  onSaved?: (r: { id: string; wrong: number; subjectId: string | null; topicId: string | null; reasons: ErrorReason[] }) => void
 }) {
   const [link, setLink] = useState<{ subjectId: string | null; topicId: string | null }>({ subjectId: null, topicId: null })
   const [values, setValues] = useState({ date: today, total: '', correct: '', wrong: '', board: '', exam: '', source: '', notes: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const insert = useInsert('question_records')
-  const update = useUpdate('question_records')
+  // Caderno de erros: quantas questões erradas têm cada motivo (opcional).
+  const [reasons, setReasons] = useState<Partial<Record<ErrorReason, string>>>({})
+  const [errorNote, setErrorNote] = useState('')
+  const existing = useAll('question_errors', { filters: [eq('record_id', record?.id ?? '')] }, { enabled: Boolean(open && record) })
   const toast = useToast()
+  const persist = useTransaction(['question_records', 'question_errors'], async (b, input: { id: string | null; data: Insert<'question_records'>; classified: Array<{ reason: ErrorReason; count: number }>; note: string | null }) => {
+    let id = input.id
+    // Ordem que respeita "classificados ≤ erros": tira a classificação antiga, grava o registro, recoloca.
+    const resolved = new Set((existing.data ?? []).filter((e) => e.resolved).map((e) => e.reason))
+    if (id) {
+      await b.remove('question_errors', [eq('record_id', id)])
+      await b.update('question_records', [eq('id', id)], input.data)
+    } else id = (await b.insert('question_records', [input.data]))[0].id
+    if (input.classified.length) await b.insert('question_errors', input.classified.map((c) => ({ record_id: id!, reason: c.reason, count: c.count, note: input.note, resolved: resolved.has(c.reason) })))
+    return id!
+  })
   useEffect(() => {
     if (!open) return
     setLink({ subjectId: record?.subject_id ?? defaultSubject ?? null, topicId: record?.topic_id ?? defaultTopic ?? null })
@@ -263,7 +297,15 @@ export function QuestionForm({
       notes: record?.notes ?? '',
     })
     setErrors({})
+    setReasons({})
+    setErrorNote('')
   }, [open, record, defaultSubject, defaultTopic, today])
+  // Ao editar, mostra a classificação já gravada.
+  useEffect(() => {
+    if (!open || !record || !existing.data) return
+    setReasons(Object.fromEntries(existing.data.map((e) => [e.reason, String(e.count)])))
+    setErrorNote(existing.data.find((e) => e.note)?.note ?? '')
+  }, [open, record, existing.data])
   const set = (k: keyof typeof values, v: string) => setValues((s) => ({ ...s, [k]: v }))
   // Preenche "erros" automaticamente quando ainda vazio.
   const autoWrong = values.wrong === '' && values.total !== '' && values.correct !== '' ? String(Math.max(0, Number(values.total) - Number(values.correct))) : values.wrong
@@ -271,15 +313,20 @@ export function QuestionForm({
     const r = validate(questionSchema, { ...values, wrong: autoWrong, subject_id: link.subjectId, topic_id: link.topicId })
     if (!r.data) return setErrors(r.errors)
     if (r.data.date > today) return setErrors({ date: 'A data não pode estar no futuro.' })
+    const classified = ERROR_REASONS.map((reason) => ({ reason, count: Math.floor(Number(reasons[reason] ?? 0)) })).filter((c) => c.count > 0)
+    const sum = classified.reduce((a, c) => a + c.count, 0)
+    if (sum > r.data.wrong) return setErrors({ reasons: `Você classificou ${sum} erro(s), mas o registro tem ${r.data.wrong}.` })
     try {
-      if (record) await update.mutateAsync({ id: record.id, patch: r.data })
-      else await insert.mutateAsync(r.data)
+      const id = await persist.mutateAsync({ id: record?.id ?? null, data: r.data, classified, note: errorNote.trim() ? errorNote.trim().slice(0, 2000) : null })
       toast.success('Registro salvo.')
       onClose()
+      onSaved?.({ id, wrong: r.data.wrong, subjectId: r.data.subject_id ?? null, topicId: r.data.topic_id ?? null, reasons: classified.map((c) => c.reason) })
     } catch (e) {
       toast.error(e)
     }
   }
+  const wrongNow = Number(autoWrong) || 0
+  const classifiedSum = ERROR_REASONS.reduce((a, k) => a + (Math.floor(Number(reasons[k] ?? 0)) || 0), 0)
   const total = Number(values.total) || 0
   const rate = total ? (Number(values.correct) / total) * 100 : null
   return (
@@ -291,7 +338,7 @@ export function QuestionForm({
       footer={
         <>
           <Button onClick={onClose}>Cancelar</Button>
-          <Button variant="primary" onClick={save} loading={insert.isPending || update.isPending}>
+          <Button variant="primary" onClick={save} loading={persist.isPending}>
             Salvar
           </Button>
         </>
@@ -320,6 +367,37 @@ export function QuestionForm({
           <Field label="Fonte / material">{(id) => <Input id={id} value={values.source} onChange={(e) => set('source', e.target.value)} />}</Field>
         </div>
         <Field label="Observações">{(id) => <Textarea id={id} rows={2} value={values.notes} onChange={(e) => set('notes', e.target.value)} />}</Field>
+        {wrongNow > 0 && (
+          <fieldset className="rounded-lg border border-line p-3">
+            <legend className="px-1 text-sm font-medium text-ink">Por que errou? (opcional)</legend>
+            <p className="mb-2 text-xs text-muted">
+              Distribua os {wrongNow} erro(s) pelos motivos. Isso alimenta o Caderno de erros e as recomendações. Classificados: {classifiedSum} de {wrongNow}.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {ERROR_REASONS.map((k) => (
+                <label key={k} className="flex items-center justify-between gap-2 rounded-md bg-surface px-2 py-1.5 text-sm text-ink">
+                  <span className="truncate">{ERROR_REASON_LABELS[k]}</span>
+                  <input
+                    className="h-8 w-14 rounded-md border border-line bg-bg px-1.5 text-right tabular-nums"
+                    inputMode="numeric"
+                    aria-label={`Erros por ${ERROR_REASON_LABELS[k]}`}
+                    value={reasons[k] ?? ''}
+                    onChange={(e) => setReasons((cur) => ({ ...cur, [k]: e.target.value.replace(/\D+/g, '').slice(0, 5) }))}
+                    placeholder="0"
+                  />
+                </label>
+              ))}
+            </div>
+            {errors.reasons && (
+              <p role="alert" className="mt-2 text-xs text-danger">
+                {errors.reasons}
+              </p>
+            )}
+            <Field label="Observação sobre os erros" className="mt-2">
+              {(id) => <Input id={id} value={errorNote} maxLength={2000} onChange={(e) => setErrorNote(e.target.value)} placeholder="Ex.: confundi crase facultativa com proibida" />}
+            </Field>
+          </fieldset>
+        )}
       </div>
     </Modal>
   )

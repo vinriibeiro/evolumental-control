@@ -47,4 +47,4 @@ export function ticketCatalogSql(): string {
 export const worldCatalogSql = () => `${questCatalogSql()}\n\n${ticketCatalogSql()}`
 
 /** Migração que guarda o catálogo atual (as anteriores ficam como histórico). */
-export const WORLD_CATALOG_MIGRATION = '20261024000000_evoquest_rodoviaria.sql'
+export const WORLD_CATALOG_MIGRATION = '20261025000000_evoquest_apresentacao_guiada.sql'

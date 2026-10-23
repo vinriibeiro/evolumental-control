@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronsLeft, ChevronsRight, CloudOff, Gamepad2, Layers, LayoutDashboard, LogOut, Menu, Pause, Play, Search, Settings, Timer, X } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, CloudOff, Gamepad2, Layers, LogOut, Menu, Pause, Play, Search, Settings, Sun, Timer, X } from 'lucide-react'
 import { NAV, NAV_GROUPS, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
@@ -156,7 +156,7 @@ export function AppShell() {
 }
 
 const TABS = [
-  { to: '/', label: 'Início', icon: LayoutDashboard },
+  { to: '/espaco', label: 'Hoje', icon: Sun },
   { to: '/cronometro', label: 'Cronômetro', icon: Timer },
   { to: '/flashcards', label: 'Flashcards', icon: Layers },
   { to: '/evoquest', label: 'EvoQuest', icon: Gamepad2 },
@@ -197,6 +197,9 @@ function AppTabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean
   )
 }
 
+/** Item com subpáginas próprias no menu (ex.: /questoes e /questoes/caderno) só fica ativo na rota exata. */
+const exactMatch = (to: string) => to === '/' || NAV.some((o) => o.to.startsWith(`${to}/`))
+
 function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: boolean }) {
   return (
     <>
@@ -215,7 +218,7 @@ function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: bool
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    end={item.to === '/' || item.to === '/evoquest'}
+                    end={exactMatch(item.to)}
                     title={collapsed ? item.label : undefined}
                     className={({ isActive }) =>
                       cn(

@@ -21,7 +21,8 @@ export default function MindMapsPage() {
   // os mapas são carregados por completo apenas no editor.
   const maps = useAll('mind_maps', { order: [{ column: 'updated_at', ascending: false }] })
   const [term, setTerm] = useState('')
-  const [form, setForm] = useState<{ map: MindMap | null } | null>(null)
+  // ?novo=mapa (paleta de comandos) abre o formulário de novo mapa.
+  const [form, setForm] = useState<{ map: MindMap | null } | null>(() => (new URLSearchParams(window.location.search).get('novo') === 'mapa' ? { map: null } : null))
   const lookups = useLookups()
   const settings = useSettings()
   const navigate = useNavigate()

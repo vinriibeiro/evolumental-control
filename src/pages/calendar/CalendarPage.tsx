@@ -96,7 +96,8 @@ export default function CalendarPage() {
   const [hours, setHours] = useState(() => readPref('evl:cal-hours', { start: 6, end: 24 }))
   const [itemForm, setItemForm] = useState<{ item: StudyPlanItem | null; date: string; time?: string } | null>(null)
   const [details, setDetails] = useState<StudyPlanItem | null>(null)
-  const [taskForm, setTaskForm] = useState<{ task: CalendarTask | null; date: string; time?: string } | null>(null)
+  // ?novo=tarefa (atalho da paleta de comandos) abre o formulário de tarefa.
+  const [taskForm, setTaskForm] = useState<{ task: CalendarTask | null; date: string; time?: string } | null>(() => (new URLSearchParams(window.location.search).get('novo') === 'tarefa' ? { task: null, date: todayKey(settings.timezone) } : null))
   const [proposalPlan, setProposalPlan] = useState<StudyPlan | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [busy, setBusy] = useState(false)

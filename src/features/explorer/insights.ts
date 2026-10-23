@@ -1,17 +1,5 @@
-// Indicadores derivados de um tópico. Puro e testável.
-
-/**
- * Domínio estimado (0–100). Combina a autoavaliação (0–5) com o desempenho
- * real em questões, que pesa mais conforme há mais questões respondidas
- * (até metade do peso com 20 ou mais). Sem questões, vale a autoavaliação.
- */
-export function estimateMastery(selfRated: number, questions: { total: number; correct: number }): number {
-  const self = Math.max(0, Math.min(5, selfRated)) / 5
-  if (questions.total <= 0) return Math.round(self * 100)
-  const accuracy = Math.max(0, Math.min(1, questions.correct / questions.total))
-  const w = Math.min(0.5, questions.total / 40)
-  return Math.round(((1 - w) * self + w * accuracy) * 100)
-}
+// Indicadores derivados de um tópico. Puro e testável. O domínio fica em
+// src/lib/insight/mastery.ts.
 
 const fold = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 

@@ -38,5 +38,9 @@ export const cityById = (id: string) => CITIES.find((c) => c.id === id)
 export const ticketId = (city: string) => `ticket_${city}`
 export const cityOfTicket = (itemId: string) => (itemId.startsWith('ticket_') ? itemId.slice('ticket_'.length) : null)
 
+/** Flag que guarda a cidade escolhida no Quadro de Missões durante a apresentação. */
+export const destFlag = (city: string) => `dest_${city}`
+export const destinationOf = (flags: Record<string, boolean>) => CITIES.find((c) => flags[destFlag(c.id)]) ?? null
+
 /** Onde o ônibus deixa o jogador na Vila (plataforma da Rodoviária). */
 export const STATION_SPOT = { region: 'hub', x: 15.5, y: 25.5 }

@@ -14,11 +14,12 @@ import { NodeIcon, typeLabel } from './NodeIcon'
 
 interface Props {
   activeKey: NodeKey | null
-  progress: Map<string, number>
+  /** Texto do indicador escolhido (mapa do edital) para cada nó. */
+  display: (n: ExplorerNode) => { text: string; aria: string } | null
   className?: string
 }
 
-export function ExplorerTree({ activeKey, progress, className }: Props) {
+export function ExplorerTree({ activeKey, display, className }: Props) {
   const { index, selected, setSelected, openMenu, renaming, setRenaming, rename, remove, move, favorite, archive } = useExplorerActions()
   const { expanded, toggle, expandAll } = useExpanded()
   const [term, setTerm] = useState('')
@@ -271,7 +272,7 @@ export function ExplorerTree({ activeKey, progress, className }: Props) {
                 focused={n.key === (focused ?? visible[0]?.key)}
                 selected={selected.has(n.key)}
                 expanded={filtering || expanded.has(n.key)}
-                progress={n.type === 'subject' ? progress.get(n.id) : undefined}
+                metric={n.type === 'folder' ? null : display(n)}
                 renaming={renaming === n.key}
                 drop={drop?.key === n.key ? drop : null}
                 dragging={drag === n.key}
@@ -346,7 +347,7 @@ interface RowProps {
   focused: boolean
   selected: boolean
   expanded: boolean
-  progress?: number
+  metric?: { text: string; aria: string } | null
   renaming: boolean
   drop: { pos: DropPosition; ok: boolean } | null
   dragging: boolean
@@ -360,7 +361,7 @@ interface RowProps {
   onDrop: (e: React.DragEvent) => void
 }
 
-function TreeRow({ node: n, active, focused, selected, expanded, progress, renaming, drop, dragging, onToggle, onClick, onMenu, onRename, onDragStart, onDragEnd, onDragOver, onDrop }: RowProps) {
+function TreeRow({ node: n, active, focused, selected, expanded, metric, renaming, drop, dragging, onToggle, onClick, onMenu, onRename, onDragStart, onDragEnd, onDragOver, onDrop }: RowProps) {
   const longPress = useLongPress(onMenu)
   const hasChildren = n.children.length > 0
   return (
@@ -422,7 +423,11 @@ function TreeRow({ node: n, active, focused, selected, expanded, progress, renam
         <span className={cn('min-w-0 flex-1 truncate py-0.5', n.type !== 'topic' && 'font-medium', n.topic?.status === 'completed' && 'text-muted')}>{n.name}</span>
       )}
       {n.favorite && !renaming && <Star className="size-3 shrink-0 fill-current text-accent-strong" aria-label="Favorito" />}
-      {progress != null && !renaming && <span className="tabular shrink-0 text-[11px] text-muted">{Math.round(progress)}%</span>}
+      {metric && !renaming && (
+        <span className="tabular shrink-0 text-[11px] text-muted" aria-label={metric.aria} title={metric.aria}>
+          {metric.text}
+        </span>
+      )}
     </li>
   )
 }

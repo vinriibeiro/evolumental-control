@@ -20,6 +20,7 @@ const MindMapsPage = lazy(() => import('@/pages/mindmaps/MindMapsPage'))
 const MindMapEditorPage = lazy(() => import('@/pages/mindmaps/MindMapEditorPage'))
 const ReviewsPage = lazy(() => import('@/pages/reviews/ReviewsPage'))
 const QuestionsPage = lazy(() => import('@/pages/questions/QuestionsPage'))
+const ErrorNotebookPage = lazy(() => import('@/pages/questions/ErrorNotebookPage'))
 const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
 const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
@@ -96,6 +97,7 @@ export function App() {
                   <Route path="mapas/:id" element={<MindMapEditorPage />} />
                   <Route path="revisoes" element={<ReviewsPage />} />
                   <Route path="questoes" element={<QuestionsPage />} />
+                  <Route path="questoes/caderno" element={<ErrorNotebookPage />} />
                   <Route path="metas" element={<GoalsPage />} />
                   <Route path="relatorios" element={<ReportsPage />} />
                   <Route path="configuracoes" element={<SettingsPage />} />

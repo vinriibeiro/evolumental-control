@@ -82,7 +82,7 @@ export const HUB: RegionDef = {
       marker: { notStep: 'tutorial:report' },
       on: [
         { when: { notStep: 'tutorial:talk_iara' }, do: 'dialogue', dialogue: 'iara_intro' },
-        { when: { at: 'tutorial:board' }, do: 'dialogue', dialogue: 'iara_board' },
+        { when: { at: 'tutorial:board' }, do: 'citychoice' },
         { when: { at: 'tutorial:report' }, do: 'dialogue', dialogue: 'iara_report' },
         { do: 'dialogue', dialogue: 'iara_idle' },
       ],
@@ -98,9 +98,16 @@ export const HUB: RegionDef = {
       verb: 'Consultar',
       marker: { at: 'tutorial:board' },
       on: [
-        { when: { notStep: 'tutorial:talk_iara' }, do: 'say', text: 'O quadro está apagado. Talvez a Mestra Iara saiba o que houve.' },
-        { when: { at: 'tutorial:board' }, do: 'terminal', challenge: 'guild_board' },
-        { do: 'effects', effects: [{ type: 'navigate', to: '#journal' }], text: 'O quadro brilha com as missões em aberto.' },
+        { when: { notStep: 'tutorial:talk_iara' }, do: 'say', text: 'O quadro mostra pedidos de ajuda de todas as cidades. A Mestra Iara explica como funciona.' },
+        { when: { at: 'tutorial:board' }, do: 'citychoice' },
+        // Depois da apresentação, o quadro vira um desafio opcional de SQL.
+        { when: { at: 'side_board:query' }, do: 'terminal', challenge: 'guild_board' },
+        { when: { questDone: 'side_board' }, do: 'effects', effects: [{ type: 'navigate', to: '#journal' }], text: 'O quadro brilha com as missões em aberto.' },
+        {
+          do: 'effects',
+          effects: [{ type: 'startQuest', quest: 'side_board' }],
+          text: 'O quadro também responde a consultas SQL. Use-o de novo para tentar o desafio.',
+        },
       ],
     },
     {
@@ -234,37 +241,31 @@ export const HUB_DIALOGUES: DialogueDef[] = [
     start: 'i1',
     nodes: [
       { id: 'i1', speaker: 'iara', text: 'Que bom que você chegou, {name}. Aqui na Vila Evolumental, conhecimento não é prova: é ferramenta.', next: 'i2', effects: [{ type: 'startQuest', quest: 'tutorial' }] },
-      {
-        id: 'i2',
-        speaker: 'iara',
-        text: 'Nosso Quadro de Missões apagou ontem à noite. Ele só responde a quem sabe perguntar do jeito certo.',
-        choices: [
-          { text: 'Perguntar como?', next: 'i3' },
-          { text: 'Deixa comigo.', next: 'i4' },
-        ],
-      },
-      { id: 'i3', speaker: 'iara', text: 'Com SQL. O quadro guarda as missões numa tabela chamada missoes. Peça a ele só as que estão abertas.', next: 'i4' },
-      { id: 'i4', speaker: 'iara', text: 'Ele fica logo ali, à direita da porta da Guilda. Fique de frente para ele e aperte E — ou toque em "Consultar".' },
+      { id: 'i2', speaker: 'iara', text: 'Cada cidade do mundo cuida de uma disciplina, e todas estão pedindo ajuda. Os pedidos chegam aqui, no Quadro de Missões da Guilda.', next: 'i3' },
+      { id: 'i3', speaker: 'iara', text: 'Venha comigo até o quadro. Escolha a cidade que você quer ajudar primeiro: é para lá que você vai.' },
     ],
-  },
-  {
-    id: 'iara_board',
-    start: 'b1',
-    nodes: [{ id: 'b1', speaker: 'iara', text: 'Ficou em dúvida? Você pode perguntar qualquer coisa ao quadro. Comece por SELECT * FROM missoes e veja como cada status está escrito.' }],
   },
   {
     id: 'iara_report',
     start: 'r1',
     nodes: [
-      { id: 'r1', speaker: 'iara', text: '"O Servidor Fantasma"... A Cidade dos Dados está pedindo ajuda há dois dias. E não é a única: cada cidade do mundo cuida de uma disciplina, e todas precisam de alguém.', next: 'r2' },
+      { id: 'r1', speaker: 'iara', text: '{destino}, então. Boa escolha: eles vão gostar de ver você chegar.', next: 'r2' },
       {
         id: 'r2',
         speaker: 'iara',
-        text: 'Leve o Mapa do Mundo e este vale da Guilda. Na Rodoviária, ao sul da praça, a Dora troca o vale pela sua primeira passagem.',
+        text: 'Leve o Mapa do Mundo e este vale da Guilda. A Rodoviária fica ao sul da praça: vou com você até lá, e a Dora troca o vale pela sua passagem.',
         next: 'r3',
         effects: [{ type: 'give', item: 'mapa_mundo' }, { type: 'give', item: 'vale_bilhete' }],
       },
-      { id: 'r3', speaker: 'iara', text: 'Escolha a cidade que quiser. As próximas passagens você paga com as moedas que ganhar resolvendo problemas por aí.' },
+      { id: 'r3', speaker: 'iara', text: 'As próximas passagens você paga com as moedas que ganhar ajudando as cidades. Vamos?' },
+    ],
+  },
+  {
+    id: 'dora_guide',
+    start: 'd1',
+    nodes: [
+      { id: 'd1', speaker: 'dora', text: 'Bem-vindo(a) à Rodoviária, {name}! Ah, um vale da Guilda.', next: 'd2' },
+      { id: 'd2', speaker: 'dora', text: 'Uma passagem para {destino}, saindo agora. Comprada uma vez, a linha é sua para sempre. Boa viagem!' },
     ],
   },
   {
@@ -320,14 +321,14 @@ export const TUTORIAL: QuestDef = {
   kind: 'main',
   title: 'A Guilda dos Estudos',
   region: 'hub',
-  summary: 'O Quadro de Missões apagou. Faça-o responder.',
+  summary: 'Escolha a cidade que você vai ajudar e pegue o ônibus até ela.',
   rewardText: 'Mapa do Mundo e o vale da primeira passagem',
   steps: [
-    { id: 'talk_iara', text: 'Fale com a Mestra Iara, em frente à Guilda.', objective: { type: 'talk', npc: 'iara', dialogueEnds: 'i4' } },
-    { id: 'board', text: 'Faça o Quadro de Missões mostrar as missões abertas.', objective: { type: 'solve', challenge: 'guild_board' }, skills: ['select', 'where'] },
+    { id: 'talk_iara', text: 'Fale com a Mestra Iara, em frente à Guilda.', objective: { type: 'talk', npc: 'iara', dialogueEnds: 'i3' } },
+    { id: 'board', text: 'Escolha no Quadro de Missões a cidade que você vai ajudar.', objective: { type: 'flag', flag: 'city_chosen' } },
     {
       id: 'report',
-      text: 'Conte à Mestra Iara o que o quadro revelou.',
+      text: 'Conte à Mestra Iara qual cidade você escolheu.',
       objective: { type: 'talk', npc: 'iara', dialogueEnds: 'r3' },
       onComplete: [{ type: 'flag', flag: 'map_unlocked' }, { type: 'toast', text: 'Rodoviária liberada: escolha sua primeira cidade.' }],
     },
@@ -337,6 +338,17 @@ export const TUTORIAL: QuestDef = {
       objective: { type: 'flag', flag: 'first_trip' },
     },
   ],
+}
+
+/** O antigo desafio do quadro (SQL) virou missão opcional depois da apresentação. */
+export const SIDE_BOARD: QuestDef = {
+  id: 'side_board',
+  kind: 'side',
+  title: 'O quadro que responde',
+  region: 'hub',
+  summary: 'O Quadro de Missões guarda os pedidos numa tabela. Faça-o mostrar só os abertos.',
+  rewardText: 'XP e moedas',
+  steps: [{ id: 'query', text: 'Faça o Quadro de Missões mostrar o título e a região das missões abertas.', objective: { type: 'solve', challenge: 'guild_board' }, skills: ['select', 'where'] }],
 }
 
 export const GUILD_BOARD: SqlChallenge = {

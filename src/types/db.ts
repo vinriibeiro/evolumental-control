@@ -77,11 +77,13 @@ export interface UserSettings {
   autoReviews: boolean
   reviewIntervals: number[]
   srs: SrsParams
-  /** Bloco de notas rápido do "Meu espaço de estudos". */
+  /** Bloco de notas rápido da tela "Hoje". */
   scratchpad?: string
   evoquest?: EvoQuestSettings
   /** Visualização preferida do Explorador de Estudos. */
   explorerView?: 'tree' | 'list' | 'cards'
+  /** Indicador mostrado na árvore e nas listas do Explorador. */
+  explorerMetric?: 'progress' | 'mastery' | 'time' | 'questions' | 'accuracy' | 'priority'
 }
 
 export interface EvoQuestSettings {
@@ -377,6 +379,19 @@ export interface QuestionRecord extends Owned {
   notes: string | null
 }
 
+export type ErrorReason = 'nao_sabia' | 'esqueci' | 'interpretacao' | 'distracao' | 'calculo' | 'confundiu' | 'chute' | 'outro'
+
+/** Caderno de erros: erros de um registro de questões classificados por motivo. */
+export interface QuestionError extends Owned {
+  record_id: UUID
+  reason: ErrorReason
+  /** Quantas questões erradas do registro têm este motivo. */
+  count: number
+  note: string | null
+  resolved: boolean
+  resolved_at: ISODateTime | null
+}
+
 // ── EvoQuest ──────────────────────────────────────────────────────────────
 export type GameMode = 'quick' | 'trail' | 'review' | 'time_attack' | 'boss' | 'lab' | 'cards'
 export type GameSessionStatus = 'active' | 'finished' | 'abandoned'
@@ -463,6 +478,7 @@ export interface Tables {
   mind_maps: MindMap
   study_goals: StudyGoal
   question_records: QuestionRecord
+  question_errors: QuestionError
   game_sessions: GameSession
   game_answers: GameAnswer
   game_rewards: GameReward

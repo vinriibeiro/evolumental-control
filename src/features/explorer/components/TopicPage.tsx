@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Brain, CalendarPlus, ClipboardCheck, ExternalLink, Gamepad2, Layers, Network, NotebookPen, Pencil, Play, Plus, Search, Target } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Field'
-import { Badge, Card, Progress, Tabs } from '@/components/ui/layout'
+import { Badge, Card, Tabs } from '@/components/ui/layout'
 import { ActionMenu, MenuItem } from '@/components/ui/Menu'
 import { useToast } from '@/components/ui/feedback'
 import { useDebounced } from '@/hooks/useDebounced'
@@ -20,9 +20,11 @@ import { CardForm } from '@/pages/flashcards/CardForm'
 import { QuestionForm } from '@/pages/questions/QuestionsPage'
 import type { Subject, Topic } from '@/types/db'
 import { descendants, type ExplorerNode } from '../model'
-import { estimateMastery, relatedGameSubject } from '../insights'
-import { useExplorerView } from '../useExplorer'
-import { ChildrenView, ViewSwitch, type NodeMetrics } from './ChildrenView'
+import { relatedGameSubject } from '../insights'
+import { MasteryCard } from '@/components/Mastery'
+import { ErrorFollowUp, type FollowUpTarget } from '@/components/insight/ErrorFollowUp'
+import { useExplorerMetric, useExplorerView } from '../useExplorer'
+import { ChildrenView, MetricSwitch, ViewSwitch, type NodeMetrics } from './ChildrenView'
 import { useExplorerActions } from './ExplorerActions'
 import { Materials } from './Materials'
 import { NodeIcon } from './NodeIcon'
@@ -34,7 +36,9 @@ export function TopicPage({ node, subject, metrics }: { node: ExplorerNode; subj
   const [tab, setTab] = useState<Tab>('overview')
   const [cardOpen, setCardOpen] = useState(false)
   const [questionOpen, setQuestionOpen] = useState(false)
+  const [followUp, setFollowUp] = useState<FollowUpTarget | null>(null)
   const [view, setView] = useExplorerView()
+  const [metric, setMetric] = useExplorerMetric()
   const actions = useExplorerActions()
   const navigate = useNavigate()
   const settings = useSettings()
@@ -58,7 +62,6 @@ export function TopicPage({ node, subject, metrics }: { node: ExplorerNode; subj
   const last = sessions.data?.[0]?.started_at ?? null
   const q = (questions.data ?? []).reduce((a, r) => ({ total: a.total + r.total, correct: a.correct + r.correct }), { total: 0, correct: 0 })
   const nextReview = (reviews.data ?? []).filter((r) => r.status === 'planned' || r.status === 'postponed').map((r) => r.scheduled_for).sort()[0]
-  const mastery = estimateMastery(topic.mastery, q)
   const game = relatedGameSubject(topic.name, subject.name, subject.exam)
   const relatedGoals = (goals.data ?? []).filter((g) => g.subject_id === subject.id || g.subject_id == null)
   const study = `/cronometro?materia=${subject.id}&topico=${topic.id}`
@@ -129,15 +132,14 @@ export function TopicPage({ node, subject, metrics }: { node: ExplorerNode; subj
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Domínio estimado" value={`${mastery}%`} hint={`autoavaliação: ${MASTERY_TOPIC_LABELS[topic.mastery]}`}>
-          <Progress value={mastery} className="mt-2" label="Domínio estimado" />
-        </Stat>
+        <MasteryCard m={metrics.mastery?.(node)} now={Date.now()} className="col-span-2 row-span-2" />
         <Stat label="Tempo estudado" value={sessions.isPending ? '…' : formatDuration(seconds)} hint={topic.estimated_minutes ? `estimativa ${formatDuration(topic.estimated_minutes * 60)}` : undefined} />
         <Stat label="Última sessão" value={last ? formatDateTime(new Date(last).getTime(), settings.timezone, settings.hourFormat) : '—'} />
         <Stat label="Próxima revisão" value={nextReview ? formatDayKey(nextReview, 'long') : '—'} />
         <Stat label="Questões respondidas" value={String(q.total)} />
         <Stat label="Acerto" value={q.total ? `${Math.round((q.correct / q.total) * 100)}%` : '—'} hint={q.total ? `${q.correct} de ${q.total}` : undefined} />
         <Stat label="Flashcards" value={String(cardCount.data ?? 0)} hint={dueCount.data ? `${dueCount.data} para revisar agora` : undefined} />
+        <Stat label="Autoavaliação" value={MASTERY_TOPIC_LABELS[topic.mastery]} hint="nota 0–5 no tópico" />
         <Stat label="Concluído em" value={topic.completed_at ? formatDateTime(new Date(topic.completed_at).getTime(), settings.timezone) : '—'} />
       </div>
 
@@ -159,7 +161,10 @@ export function TopicPage({ node, subject, metrics }: { node: ExplorerNode; subj
               <section>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h2 className="text-sm font-semibold text-ink">Subtópicos</h2>
-                  <ViewSwitch value={view} onChange={setView} />
+                  <div className="flex flex-wrap items-center gap-3">
+                    <MetricSwitch value={metric} onChange={setMetric} />
+                    <ViewSwitch value={view} onChange={setView} />
+                  </div>
                 </div>
                 <ChildrenView nodes={node.children} view={view} metrics={childMetrics} empty={null} />
               </section>
@@ -259,7 +264,16 @@ export function TopicPage({ node, subject, metrics }: { node: ExplorerNode; subj
       )}
 
       <CardForm open={cardOpen} onClose={() => setCardOpen(false)} defaults={{ subjectId: subject.id, topicId: topic.id }} />
-      <QuestionForm open={questionOpen} record={null} onClose={() => setQuestionOpen(false)} defaultSubject={subject.id} defaultTopic={topic.id} today={today} />
+      <QuestionForm
+        open={questionOpen}
+        record={null}
+        onClose={() => setQuestionOpen(false)}
+        defaultSubject={subject.id}
+        defaultTopic={topic.id}
+        today={today}
+        onSaved={(r) => r.wrong > 0 && setFollowUp(r)}
+      />
+      <ErrorFollowUp target={followUp} onClose={() => setFollowUp(null)} />
     </div>
   )
 }

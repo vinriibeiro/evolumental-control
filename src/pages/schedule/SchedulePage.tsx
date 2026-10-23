@@ -6,6 +6,7 @@ import { useBackend } from '@/app/data'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { Badge, Card, ColorDot, LoadMore, PageHeader, Segmented } from '@/components/ui/layout'
+import { PlanVsDoneCard } from '@/components/insight/PlanVsDoneCard'
 import { ActionMenu, MenuItem } from '@/components/ui/Menu'
 import { Modal } from '@/components/ui/Modal'
 import { EmptyState, QueryState, Spinner, useToast } from '@/components/ui/feedback'
@@ -82,6 +83,7 @@ export default function SchedulePage() {
           </Button>
         }
       />
+      <PlanVsDoneCard />
       <QueryState query={plans}>
         {!plan ? (
           <EmptyState

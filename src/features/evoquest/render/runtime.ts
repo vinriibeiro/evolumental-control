@@ -1,7 +1,7 @@
 // Laço do jogo: entrada → simulação → desenho, num único <canvas>.
 // O React não re-renderiza a cada quadro: o runtime só avisa quando algo que a
 // interface mostra muda (o que está à frente do personagem, troca de região).
-import { facingEntity, parseMap, safeSpawn, step, tileAt, type GridMap } from '../engine/map'
+import { approach, facingEntity, findPath, parseMap, safeSpawn, SPEED, step, tileAt, type Body, type GridMap } from '../engine/map'
 import { check } from '../engine/state'
 import type { Dir, EntityDef, Interaction, RegionDef, WorldState } from '../engine/types'
 import type { WorldContent } from '../content/registry'
@@ -37,6 +37,12 @@ export class GameRuntime {
   private focus: EntityDef | null = null
   private lastActivity = 0
   paused = false
+  /**
+   * Apresentação guiada: teclado, joystick e "interagir" ficam desligados e o
+   * personagem só anda pelo piloto automático (walkTo).
+   */
+  locked = false
+  private route: { points: Body[]; facing: Dir | null; done: () => void } | null = null
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -107,8 +113,25 @@ export class GameRuntime {
     return this.region.entities.filter((e) => check(this.world.current, e.visible, this.content.quests))
   }
 
+  /**
+   * Piloto automático: anda pelo caminho mais curto até ficar de frente para a
+   * entidade (na região atual). Resolve false se não houver caminho.
+   */
+  walkToEntity(id: string): Promise<boolean> {
+    const e = this.entities().find((x) => x.id === id)
+    const solids = this.entities().filter((x) => x.solid)
+    const map = this.map()
+    const flags = this.world.current.flags
+    const spot = e && approach(map, e, flags, solids)
+    const points = spot && findPath(map, this.world.current, spot, flags, solids)
+    if (!spot || !points) return Promise.resolve(false)
+    return new Promise((resolve) => {
+      this.route = { points, facing: spot.facing, done: () => resolve(true) }
+    })
+  }
+
   interact() {
-    if (this.paused || !this.focus) return
+    if (this.paused || this.locked || !this.focus) return
     const e = this.focus
     const i = e.on.find((x) => check(this.world.current, x.when, this.content.quests))
     if (i) this.cb.onInteract(e, i)
@@ -130,7 +153,8 @@ export class GameRuntime {
       dx += KEYS[k][0]
       dy += KEYS[k][1]
     }
-    if (this.paused) dx = dy = 0
+    if (this.paused || this.locked) dx = dy = 0
+    if (this.route && !this.paused) return this.follow(dt)
     const solids = this.entities().filter((e) => e.solid)
     const r = step(this.map(), s, { dx, dy }, dt, s.flags, solids)
     if (r.facing) s.facing = r.facing
@@ -148,6 +172,37 @@ export class GameRuntime {
     if (f !== this.focus) {
       this.focus = f
       this.cb.onFocus(f)
+    }
+  }
+
+  /** Avança no caminho do piloto automático (sem colisão: o caminho já evita obstáculos). */
+  private follow(dt: number) {
+    const s = this.world.current
+    const r = this.route!
+    let budget = SPEED * 0.85 * Math.min(dt, 0.05)
+    while (budget > 0 && r.points.length) {
+      const p = r.points[0]
+      const dx = p.x - s.x
+      const dy = p.y - s.y
+      const dist = Math.hypot(dx, dy)
+      if (dist > 1e-3) s.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up'
+      if (dist <= budget) {
+        s.x = p.x
+        s.y = p.y
+        budget -= dist
+        r.points.shift()
+      } else {
+        s.x += (dx / dist) * budget
+        s.y += (dy / dist) * budget
+        budget = 0
+      }
+    }
+    this.walk += dt * 8
+    if (!r.points.length) {
+      if (r.facing) s.facing = r.facing
+      this.route = null
+      this.walk = 0
+      r.done()
     }
   }
 

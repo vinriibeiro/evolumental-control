@@ -1,21 +1,24 @@
 import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BookCheck, Brain, CalendarClock, Flame, Layers, Play, Timer, TrendingUp } from 'lucide-react'
+import { Brain, CalendarClock, Flame, Play, Timer, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, ColorDot, PageHeader, Progress, StatCard } from '@/components/ui/layout'
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback'
 import { ChartCard, ColumnChart, ConsistencyGrid, RankBars } from '@/components/charts/Charts'
 import { PeriodPicker, usePeriod } from '@/components/PeriodPicker'
-import { useAll, useCount, useList, useSessions } from '@/hooks/data'
+import { useAll, useList, useSessions } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
 import { useSettings } from '@/hooks/useSettings'
 import { eq, gte, inList, lte } from '@/lib/data/types'
 import { ACTIVITY_COLORS, ACTIVITY_LABELS } from '@/lib/labels'
 import { breakdown, isNoSubject, series, streak } from '@/lib/stats'
 import { netSeconds } from '@/lib/timer/engine'
-import { addDays, dayKey, eachDay, formatDayKey, formatDuration, formatHours, formatTime, periodRange, startOfWeek, todayKey, type DayRange, minuteIso } from '@/lib/time'
+import { addDays, dayKey, eachDay, formatDayKey, formatDuration, formatHours, formatTime, periodRange, startOfWeek, todayKey, type DayRange } from '@/lib/time'
 import type { ActivityType } from '@/types/db'
 import { EvoQuestCard } from '@/pages/evoquest/DashboardCard'
+import { ActivityCalendar, FeedCard, WeekCard } from '@/components/insight/EvolutionCards'
+import { ForecastCard } from '@/components/insight/ForecastCard'
+import { useToday } from '@/hooks/useToday'
 
 const fmtH = (s: number) => formatHours(s)
 
@@ -33,7 +36,6 @@ export default function DashboardPage() {
   const allTime = useMemo(() => breakdown(all ?? [], tz, { from: '1970-01-01', to: '9999-12-31' }), [all, tz])
   const day = useMemo(() => breakdown(all ?? [], tz, periodRange('day', today)), [all, tz, today])
   const week = useMemo(() => breakdown(all ?? [], tz, periodRange('week', today)), [all, tz, today])
-  const month = useMemo(() => breakdown(all ?? [], tz, periodRange('month', today)), [all, tz, today])
   const period = useMemo(() => breakdown(all ?? [], tz, range), [all, tz, range])
 
   const chartRange: DayRange = state.kind === 'day' ? { from: addDays(range.from, -6), to: range.to } : range
@@ -44,10 +46,6 @@ export default function DashboardPage() {
   }, [allTime.byDay, today])
 
   const plan = useAll('study_plan_items', { filters: [gte('date', chartRange.from), lte('date', chartRange.to)] })
-  const reviewsDue = useCount('reviews', [inList('status', ['planned', 'postponed']), lte('scheduled_for', today)])
-  const cardsDue = useCount('flashcards', [inList('status', ['new', 'learning', 'review']), lte('due_at', minuteIso())])
-  const topicsDone = useCount('topics', [eq('status', 'completed')])
-  const topicsTotal = useCount('topics', [])
   const upcoming = useAll('study_plan_items', { filters: [gte('date', today), lte('date', addDays(today, 2)), eq('status', 'pending')], order: [{ column: 'date' }, { column: 'start_time' }] })
   const upcomingReviews = useList('reviews', { filters: [inList('status', ['planned', 'postponed']), lte('scheduled_for', addDays(today, 2))], order: [{ column: 'scheduled_for' }], limit: 5 })
   const tasks = useAll('calendar_tasks', { filters: [gte('date', today), lte('date', addDays(today, 7)), eq('done', false)], order: [{ column: 'date' }] })
@@ -89,32 +87,55 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Hoje" value={v(day.total)} icon={<Timer className="size-4" />} hint={`${day.sessions} sessão(ões)`}>
-          <Progress value={dailyGoal ? (day.total / dailyGoal) * 100 : 0} className="mt-2" label="Meta diária" />
-          <p className="mt-1 text-[11px] text-muted">Meta diária {formatDuration(dailyGoal)}</p>
-        </StatCard>
-        <StatCard label="Esta semana" value={v(week.total)} icon={<TrendingUp className="size-4" />} hint={`${week.sessions} sessão(ões)`}>
-          <Progress value={weeklyGoal ? (week.total / weeklyGoal) * 100 : 0} className="mt-2" label="Meta semanal" />
-          <p className="mt-1 text-[11px] text-muted">Meta semanal {formatDuration(weeklyGoal)}</p>
-        </StatCard>
-        <StatCard label="Este mês" value={v(month.total)} hint={`${month.subjectsStudied} matéria(s) estudada(s)`} />
-        <StatCard label="Total acumulado" value={loading ? '…' : formatHours(allTime.total)} hint={`${allTime.sessions} sessão(ões) no total`} />
-        <StatCard label="Dias consecutivos" value={loading ? '…' : `${currentStreak} dia${currentStreak === 1 ? '' : 's'}`} icon={<Flame className="size-4" />} />
-        <StatCard label="Revisões pendentes" value={reviewsDue.data ?? '…'} icon={<Brain className="size-4" />} hint={<Link to="/revisoes" className="underline">Ver revisões</Link>} />
-        <StatCard label="Flashcards para revisar" value={cardsDue.data ?? '…'} icon={<Layers className="size-4" />} hint={<Link to="/flashcards/revisar?modo=vencidos" className="underline">Revisar agora</Link>} />
-        <StatCard
-          label="Conteúdos concluídos"
-          value={topicsTotal.data != null ? `${topicsDone.data ?? 0}/${topicsTotal.data}` : '…'}
-          icon={<BookCheck className="size-4" />}
-          hint={topicsTotal.data ? `${(topicsTotal.data ?? 0) - (topicsDone.data ?? 0)} pendente(s)` : 'Cadastre tópicos'}
-        />
-      </div>
+      {/* 1. Como estou hoje? */}
+      <section aria-labelledby="vg-hoje">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 id="vg-hoje" className="text-base font-semibold text-ink">
+            Como estou hoje?
+          </h2>
+          <Link to="/espaco" className="text-xs text-muted underline">
+            Abrir a tela Hoje
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <StatCard label="Hoje" value={v(day.total)} icon={<Timer className="size-4" />} hint={`${day.sessions} sessão(ões)`}>
+            <Progress value={dailyGoal ? (day.total / dailyGoal) * 100 : 0} className="mt-2" label="Meta diária" />
+            <p className="mt-1 text-[11px] text-muted">Meta diária {formatDuration(dailyGoal)}</p>
+          </StatCard>
+          <StatCard label="Esta semana" value={v(week.total)} icon={<TrendingUp className="size-4" />} hint={`${week.sessions} sessão(ões)`}>
+            <Progress value={weeklyGoal ? (week.total / weeklyGoal) * 100 : 0} className="mt-2" label="Meta semanal" />
+            <p className="mt-1 text-[11px] text-muted">Meta semanal {formatDuration(weeklyGoal)}</p>
+          </StatCard>
+          <StatCard label="Dias consecutivos" value={loading ? '…' : `${currentStreak} dia${currentStreak === 1 ? '' : 's'}`} icon={<Flame className="size-4" />} hint={loading ? undefined : `${formatHours(allTime.total)} no total`} />
+        </div>
+      </section>
 
-      <EvoQuestCard />
+      {/* 2. O que preciso fazer? */}
+      <section aria-labelledby="vg-fazer" className="mt-6">
+        <h2 id="vg-fazer" className="mb-2 text-base font-semibold text-ink">
+          O que preciso fazer?
+        </h2>
+        <TodoCard />
+      </section>
 
-      <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-ink">Análise do período</h2>
+      {/* 3. Estou evoluindo? */}
+      <section aria-labelledby="vg-evolucao" className="mt-6">
+        <h2 id="vg-evolucao" className="mb-2 text-base font-semibold text-ink">
+          Estou evoluindo?
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <FeedCard />
+          <WeekCard />
+          <div className="lg:col-span-2">
+            <ActivityCalendar />
+          </div>
+          <ForecastCard title="Previsão de conclusão (matérias ativas)" />
+          <EvoQuestCard />
+        </div>
+      </section>
+
+      <div className="mt-10 mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-ink">Gráficos e análise do período</h2>
         <PeriodPicker state={state} setState={setState} range={range} today={today} />
       </div>
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -240,5 +261,46 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+/** O que fazer agora: a próxima ação recomendada e as pendências (resumo da tela Hoje). */
+function TodoCard() {
+  const navigate = useNavigate()
+  const day = useToday()
+  const d = day.derived
+  if (day.pending || !d) return <Skeleton className="h-28" />
+  const top = d.recommendations[0]
+  return (
+    <Card className="p-4">
+      {top ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <ColorDot color={d.subjectsById.get(top.subjectId)?.color ?? null} />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-muted">Próxima ação recomendada</p>
+            <p className="truncate font-semibold text-ink">{d.name(top.subjectId, top.topicId)}</p>
+            <p className="truncate text-xs text-muted">
+              {top.suggestedMinutes} min · {top.reasons.slice(0, 3).map((r) => r.label).join(' · ')}
+            </p>
+          </div>
+          <Button size="sm" variant="primary" icon={<Play className="size-3.5" />} onClick={() => navigate('/espaco')}>
+            Ver na tela Hoje
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">Nada urgente agora.</p>
+      )}
+      {d.pendencies.length > 0 && (
+        <ul className="mt-3 divide-y divide-line border-t border-line">
+          {d.pendencies.slice(0, 4).map((p) => (
+            <li key={p.id}>
+              <Link to={p.to} className="block py-2 text-sm text-ink hover:underline">
+                {p.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   )
 }

@@ -1,6 +1,6 @@
-// E2E do Mundo Evolumental (modo local): primeira experiência, tutorial
-// jogável, Rodoviária (vale → passagem → ônibus), as primeiras etapas da
-// Cidade dos Dados e a Minha Cidade.
+// E2E do Mundo Evolumental (modo local): primeira experiência, apresentação
+// guiada (piloto automático da Vila até a cidade escolhida), as primeiras
+// etapas da Cidade dos Dados, a bilheteria e a Minha Cidade.
 // Uso: npm run dev (em outro terminal) e `node e2e/world.mjs [url] [pasta]`.
 import { chromium } from 'playwright-core'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -39,6 +39,25 @@ async function talkThrough() {
     await page.waitForTimeout(120)
   }
 }
+/** Apresentação guiada: só avança falas e escolhe a cidade; o personagem anda sozinho. */
+async function runGuide(p, city) {
+  const next = async () => {
+    const dlg = p.getByRole('dialog')
+    await dlg.waitFor({ timeout: 20000 })
+    for (let i = 0; i < 10 && (await dlg.count()); i++) {
+      await dlg.getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo/ }).click()
+      await p.waitForTimeout(120)
+    }
+  }
+  await next() // Iara: apresentação
+  await p.getByRole('dialog', { name: 'Quadro de Missões' }).waitFor({ timeout: 20000 })
+  await p.screenshot({ path: `${OUT}/mundo-quadro.png` })
+  await p.getByRole('button', { name: new RegExp(city) }).click()
+  await next() // Iara: vale e mapa
+  await next() // Dora: passagem
+  await p.getByText('Em viagem para').waitFor({ timeout: 20000 })
+}
+
 async function useAt(x, y, facing, name) {
   await place(x, y, facing)
   // Espera a dica de interação ("E · Verbo · Nome"), não qualquer texto com o nome.
@@ -62,48 +81,28 @@ await step('primeira experiência: cena, criação de personagem e chegada à Vi
   await page.screenshot({ path: `${OUT}/mundo-vila.png` })
 })
 
-await step('anda com o teclado e colide (não atravessa a Guilda)', async () => {
-  await place(15.5, 5.5, 'up')
-  await page.keyboard.down('KeyW')
-  await page.waitForTimeout(700)
-  await page.keyboard.up('KeyW')
-  const s = await st()
-  if (s.y < 4.2) throw new Error(`atravessou a parede: y=${s.y}`)
-})
-
-await step('tutorial: Iara → Quadro de Missões (SQL real) → recompensa e Rodoviária', async () => {
-  await useAt(13.5, 6.5, 'up', 'Mestra Iara')
-  await talkThrough()
-  await page.getByText('Faça o Quadro de Missões mostrar').first().waitFor()
-  await useAt(17.5, 5.5, 'up', 'Quadro de Missões')
-  await runSql("SELECT titulo, regiao FROM missoes WHERE status = 'aberto';")
-  await page.getByText('nenhuma missão tem esse status').waitFor()
-  await runSql("SELECT titulo, regiao FROM missoes WHERE status = 'aberta';")
-  await page.getByText('O SERVIDOR FANTASMA').first().waitFor()
-  await page.getByText('+30 XP').first().waitFor()
-  await page.screenshot({ path: `${OUT}/mundo-terminal.png` })
-  await page.getByRole('button', { name: 'Continuar' }).click()
-  await useAt(13.5, 6.5, 'up', 'Mestra Iara')
-  await talkThrough()
-  await page.getByText('Rodoviária liberada').waitFor()
-  const s = await st()
-  if (!s.inventory.includes('mapa_mundo') || !s.inventory.includes('vale_bilhete')) throw new Error('sem o Mapa do Mundo ou o vale')
-})
-
-await step('Rodoviária: vale vira passagem grátis; a segunda cidade custa moedas; ônibus leva à cidade', async () => {
-  await useAt(9.5, 25.5, 'up', 'Dora, bilheteira')
-  await page.getByRole('dialog', { name: 'Bilheteria da Rodoviária' }).waitFor()
-  await page.screenshot({ path: `${OUT}/mundo-bilheteria.png` })
-  await page.locator('li', { hasText: 'Cidade dos Dados' }).getByRole('button', { name: /Trocar o vale/ }).click()
-  await page.getByRole('dialog', { name: 'Embarque' }).waitFor()
-  await page.getByRole('button', { name: /Comprar outra passagem/ }).click()
-  await page.locator('li', { hasText: 'Babel' }).getByText(/Faltam \d+ moedas/).waitFor()
-  await page.getByRole('button', { name: /Ir para o embarque/ }).click()
-  await page.getByRole('button', { name: /Cidade dos Dados/ }).click()
-  await page.getByText('Em viagem para').waitFor()
+await step('apresentação guiada: teclado não move; Iara → Quadro (escolha) → Dora → ônibus → cidade', async () => {
+  const before = await st()
+  await page.keyboard.down('KeyS')
+  await page.waitForTimeout(400)
+  await page.keyboard.up('KeyS')
+  const during = await st()
+  if (during.region !== 'hub' || (during.y > before.y + 0.2 && !during.quests.tutorial)) throw new Error('o teclado moveu o personagem durante a apresentação')
+  await runGuide(page, 'Cidade dos Dados')
   await page.getByText('Fale com Maya no saguão').first().waitFor()
+  await page.getByText('Agora é com você').first().waitFor()
   const s = await st()
-  if (s.region !== 'data_city' || s.inventory.includes('vale_bilhete')) throw new Error(`região ${s.region} / vale não usado`)
+  if (s.region !== 'data_city' || !s.flags.intro_done || !s.quests.tutorial.done) throw new Error(`região ${s.region} / apresentação não concluída`)
+  if (s.inventory.includes('vale_bilhete')) throw new Error('vale não foi usado')
+})
+
+await step('na cidade o controle é do jogador (anda com o teclado)', async () => {
+  const a = await st()
+  await page.keyboard.down('KeyW')
+  await page.waitForTimeout(500)
+  await page.keyboard.up('KeyW')
+  const b = await st()
+  if (!(b.y < a.y - 0.5)) throw new Error(`não andou: ${a.y} → ${b.y}`)
 })
 
 await step('Cidade dos Dados: Maya; porta de segurança com SQL', async () => {
@@ -154,6 +153,20 @@ await step('volta de ônibus; Lina entrega a escritura; Minha Cidade', async () 
   await page.waitForTimeout(500)
   if ((await st()).region !== 'hub') throw new Error('não voltou à Vila')
   await page.screenshot({ path: `${OUT}/mundo-rodoviaria.png` })
+  // Colisão: não atravessa a Guilda.
+  await place(15.5, 5.5, 'up')
+  await page.keyboard.down('KeyW')
+  await page.waitForTimeout(700)
+  await page.keyboard.up('KeyW')
+  if ((await st()).y < 4.2) throw new Error('atravessou a parede da Guilda')
+  // Bilheteria: Cidade dos Dados já comprada; a segunda cidade custa moedas.
+  await useAt(9.5, 25.5, 'up', 'Dora, bilheteira')
+  await page.getByRole('dialog', { name: 'Bilheteria da Rodoviária' }).waitFor()
+  await page.locator('li', { hasText: 'Cidade dos Dados' }).getByText('Passagem comprada').waitFor()
+  await page.locator('li', { hasText: 'Babel' }).getByText(/Faltam \d+ moedas/).waitFor()
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: `${OUT}/mundo-bilheteria.png` })
+  await page.keyboard.press('Escape')
   await useAt(23.5, 25.5, 'up', 'Arquiteta Lina')
   await talkThrough()
   await page.getByText('Linha "Minha Cidade" liberada').waitFor()
@@ -169,7 +182,7 @@ await step('volta de ônibus; Lina entrega a escritura; Minha Cidade', async () 
   await page.screenshot({ path: `${OUT}/mundo-minha-cidade.png` })
 })
 
-await step('celular: joystick e botão de ação, sem rolagem', async () => {
+await step('celular: apresentação guiada por toque, depois joystick e botão de ação, sem rolagem', async () => {
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'pt-BR', storageState: await ctx.storageState() })
   const p = await m.newPage()
   p.on('pageerror', (e) => errors.push(`mobile pageerror: ${e.message}`))
@@ -179,7 +192,10 @@ await step('celular: joystick e botão de ação, sem rolagem', async () => {
   await p.getByRole('button', { name: 'Entrar na Vila' }).isDisabled()
   await p.getByLabel('Nome do personagem').fill('Teste')
   await p.getByRole('button', { name: 'Entrar na Vila' }).click()
-  await p.getByRole('button', { name: /Ação|Nada por perto/ }).waitFor()
+  await runGuide(p, 'Vernácula')
+  await p.getByRole('button', { name: /Ação|Nada por perto/ }).waitFor({ timeout: 20000 })
+  const s = await p.evaluate(() => window.__eq.state())
+  if (s.region !== 'archive') throw new Error(`celular chegou em ${s.region}`)
   const over = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   if (over) throw new Error('rolagem horizontal')
   await p.screenshot({ path: `${OUT}/mundo-celular.png` })

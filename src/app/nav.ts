@@ -7,13 +7,14 @@ import {
   Gamepad2,
   ClipboardCheck,
   Dumbbell,
-  Home,
   Layers,
   LayoutDashboard,
   Network,
+  NotebookPen,
   Route,
   RefreshCcw,
   Settings,
+  Sun,
   Target,
   Timer,
   type LucideIcon,
@@ -38,8 +39,8 @@ export const NAV_GROUPS: Array<{ id: NavGroup; label: string | null }> = [
 ]
 
 export const NAV: NavItem[] = [
+  { to: '/espaco', label: 'Hoje', icon: Sun, group: 'estudar' },
   { to: '/', label: 'Visão geral', icon: LayoutDashboard, group: 'estudar' },
-  { to: '/espaco', label: 'Meu espaço de estudos', icon: Home, group: 'estudar' },
   { to: '/materias', label: 'Explorador de estudos', icon: BookOpen, group: 'estudar' },
   { to: '/trilhas', label: 'Trilhas', icon: Route, group: 'estudar' },
   { to: '/cronometro', label: 'Cronômetro', icon: Timer, group: 'planejar' },
@@ -50,6 +51,7 @@ export const NAV: NavItem[] = [
   { to: '/flashcards', label: 'Flashcards', icon: Layers, group: 'fixar' },
   { to: '/mapas', label: 'Mapas mentais', icon: Network, group: 'fixar' },
   { to: '/questoes', label: 'Questões e desempenho', icon: ClipboardCheck, group: 'fixar' },
+  { to: '/questoes/caderno', label: 'Caderno de erros', icon: NotebookPen, group: 'fixar' },
   { to: '/metas', label: 'Metas', icon: Target, group: 'medir' },
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3, group: 'medir' },
   { to: '/evoquest', label: 'EvoQuest — Mundo', icon: Gamepad2, group: 'jogar' },

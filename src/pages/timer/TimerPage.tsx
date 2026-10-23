@@ -16,7 +16,8 @@ import { ManualEntry } from './ManualEntry'
 export default function TimerPage() {
   const live = useLiveSession()
   const settings = useSettings()
-  const [manual, setManual] = useState(false)
+  // ?manual=1 (paleta de comandos) abre o lançamento manual.
+  const [manual, setManual] = useState(() => new URLSearchParams(window.location.search).get('manual') === '1')
   const today = useMemo(() => periodRange('day', todayKey(settings.timezone)), [settings.timezone])
   const stats = useStudyStats(today)
   const goal = settings.dailyGoalMinutes * 60

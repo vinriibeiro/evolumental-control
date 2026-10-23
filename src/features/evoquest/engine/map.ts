@@ -99,6 +99,45 @@ export function facingEntity(pos: Body & { facing: Dir }, entities: EntityDef[])
   return best
 }
 
+const walkable = (map: GridMap, x: number, y: number, flags: Record<string, boolean>, solids: Body[]) =>
+  !tileSolid(map, x, y, flags) && !solids.some((e) => e.x === x && e.y === y)
+
+/**
+ * Caminho mais curto (BFS em 4 direções) do tile de `from` até o tile `to`,
+ * como centros de tile. null = inalcançável. Usado pelo piloto automático.
+ */
+export function findPath(map: GridMap, from: Body, to: { x: number; y: number }, flags: Record<string, boolean>, solids: Body[]): Body[] | null {
+  const sx = Math.floor(from.x)
+  const sy = Math.floor(from.y)
+  if (!walkable(map, to.x, to.y, flags, solids)) return null
+  const key = (x: number, y: number) => y * map.width + x
+  const prev = new Map<number, number>([[key(sx, sy), -1]])
+  const queue: Array<[number, number]> = [[sx, sy]]
+  while (queue.length) {
+    const [x, y] = queue.shift()!
+    if (x === to.x && y === to.y) {
+      const path: Body[] = []
+      for (let k = key(x, y); k !== -1; k = prev.get(k)!) path.unshift({ x: (k % map.width) + 0.5, y: Math.floor(k / map.width) + 0.5 })
+      return path.slice(1)
+    }
+    for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+      const nx = x + dx
+      const ny = y + dy
+      if (prev.has(key(nx, ny)) || !walkable(map, nx, ny, flags, solids)) continue
+      prev.set(key(nx, ny), key(x, y))
+      queue.push([nx, ny])
+    }
+  }
+  return null
+}
+
+/** Tile livre ao lado da entidade e para onde olhar para falar com ela (prefere ficar abaixo, olhando para cima). */
+export function approach(map: GridMap, e: { x: number; y: number }, flags: Record<string, boolean>, solids: Body[]): { x: number; y: number; facing: Dir } | null {
+  const options: Array<[number, number, Dir]> = [[0, 1, 'up'], [-1, 0, 'right'], [1, 0, 'left'], [0, -1, 'down']]
+  for (const [dx, dy, facing] of options) if (walkable(map, e.x + dx, e.y + dy, flags, solids)) return { x: e.x + dx, y: e.y + dy, facing }
+  return null
+}
+
 /** Garante uma posição válida (ex.: salvamento antigo dentro de uma parede). */
 export function safeSpawn(map: GridMap, region: RegionDef, state: Pick<WorldState, 'x' | 'y' | 'flags'>): Body {
   if (!overlaps(map, state.x, state.y, state.flags, [])) return { x: state.x, y: state.y }

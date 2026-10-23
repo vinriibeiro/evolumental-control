@@ -48,6 +48,7 @@ const INDEXES: Record<TableName, string> = {
   mind_maps: 'id',
   study_goals: 'id',
   question_records: 'id, date, subject_id',
+  question_errors: 'id, record_id, reason',
   game_sessions: 'id, status, subject_id, started_at',
   game_answers: 'id, session_id, challenge_id, answered_at',
   game_rewards: 'id, &source',
@@ -58,8 +59,9 @@ const INDEXES: Record<TableName, string> = {
 
 const V1_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !t.startsWith('game_') && t !== 'study_folders').map(([t, i]) => [t, t === 'subjects' ? 'id, status' : i]))
 const RPG_TABLES = ['game_quest_progress', 'game_saves']
+const V4_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => t !== 'question_errors'))
 const V2_INDEXES = { ...V1_INDEXES, ...Object.fromEntries(Object.entries(INDEXES).filter(([t]) => t.startsWith('game_') && !RPG_TABLES.includes(t))) }
-const V3_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !RPG_TABLES.includes(t)))
+const V3_INDEXES = Object.fromEntries(Object.entries(V4_INDEXES).filter(([t]) => !RPG_TABLES.includes(t)))
 
 class LocalDb extends Dexie {
   constructor(name: string) {
@@ -81,7 +83,9 @@ class LocalDb extends Dexie {
         })
       })
     // v4: EvoQuest RPG — progresso de missões e salvamento do mundo.
-    this.version(4).stores(INDEXES)
+    this.version(4).stores(V4_INDEXES)
+    // v5: caderno de erros.
+    this.version(5).stores(INDEXES)
   }
   t(table: TableName): Table<AnyRow, string> {
     return this.table(table)
@@ -173,6 +177,31 @@ export class LocalBackend implements DataBackend {
     }
   }
 
+  /** Tabelas lidas pelas regras de integridade de `table` (entram na transação). */
+  private related(table: TableName): TableName[] {
+    return table === 'question_errors' ? ['question_records'] : table === 'question_records' ? ['question_errors'] : []
+  }
+
+  /** Mesmas regras dos gatilhos question_errors_total / question_records_errors. */
+  private async checkErrorTotals(table: TableName, row: AnyRow) {
+    if (table === 'question_errors') {
+      const rec = await this.db.t('question_records').get(row.record_id as string)
+      if (!rec) throw new DataError('validation', 'Registro de questões não encontrado.')
+      const others = await this.db
+        .t('question_errors')
+        .where('record_id')
+        .equals(row.record_id as string)
+        .filter((e) => e.id !== row.id)
+        .toArray()
+      const sum = others.reduce((a, e) => a + Number(e.count), 0) + Number(row.count)
+      if (sum > Number(rec.wrong)) throw new DataError('validation', `Os erros classificados (${sum}) passam do total de erros do registro (${rec.wrong}).`)
+      row.resolved_at = row.resolved ? (row.resolved_at ?? this.now()) : null
+    } else if (table === 'question_records') {
+      const sum = (await this.db.t('question_errors').where('record_id').equals(row.id as string).toArray()).reduce((a, e) => a + Number(e.count), 0)
+      if (Number(row.wrong) < sum) throw new DataError('validation', `Este registro tem ${sum} erro(s) classificados; reduza a classificação antes de diminuir os erros.`)
+    }
+  }
+
   private async checkNoCycle(table: 'topics' | 'study_folders', id: string, parentId: string) {
     let cur: string | null = parentId
     for (let guard = 0; cur && guard < 1000; guard++) {
@@ -200,7 +229,7 @@ export class LocalBackend implements DataBackend {
 
   async insert<T extends TableName>(table: T, rows: Insert<T>[]): Promise<Row<T>[]> {
     const out: AnyRow[] = []
-    await this.db.transaction('rw', this.db.t(table), async () => {
+    await this.db.transaction('rw', [table, ...this.related(table)].map((t) => this.db.t(t)), async () => {
       for (const r of rows) {
         const now = this.now()
         const row = {
@@ -213,6 +242,7 @@ export class LocalBackend implements DataBackend {
         } as AnyRow
         if (await this.db.t(table).get(row.id)) throw new DataError('duplicate', 'Registro já existe.')
         await this.checkUnique(table, row)
+        await this.checkErrorTotals(table, row)
         out.push(row)
       }
       await this.db.t(table).bulkAdd(out)
@@ -222,7 +252,7 @@ export class LocalBackend implements DataBackend {
 
   async update<T extends TableName>(table: T, filters: Filter[], patch: Patch<T>): Promise<Row<T>[]> {
     const updated: AnyRow[] = []
-    await this.db.transaction('rw', this.db.t(table), async () => {
+    await this.db.transaction('rw', [table, ...this.related(table)].map((t) => this.db.t(t)), async () => {
       const targets = await this.db
         .t(table)
         .filter((r) => filters.every((f) => matchFilter(r, f)))
@@ -239,6 +269,7 @@ export class LocalBackend implements DataBackend {
           await this.checkNoCycle(table, next.id, next.parent_id as string)
         }
         await this.checkUnique(table, next)
+        await this.checkErrorTotals(table, next)
         await this.db.t(table).put(next)
         updated.push(next)
       }

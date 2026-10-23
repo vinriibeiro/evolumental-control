@@ -54,15 +54,17 @@ describe('EvoQuest RPG — game_complete_step', () => {
   })
 
   it('confere a resposta pelo hash e credita uma única vez', async () => {
+    // Na apresentação guiada, o quadro é só a escolha da cidade: sem resposta e sem recompensa.
     expect(await complete(ALICE, 'tutorial:talk_iara')).toMatchObject({ applied: true, xp: 0 })
-    await expect(complete(ALICE, 'tutorial:board', 'resposta inventada')).rejects.toThrow(/não confere/)
-    await expect(complete(ALICE, 'tutorial:board', null)).rejects.toThrow(/não confere/)
-    expect(await totals(ALICE)).toBe(0)
+    expect(await complete(ALICE, 'tutorial:board')).toMatchObject({ applied: true, xp: 0, coins: 0 })
 
-    // Resposta canônica do quadro (mesma forma que o cliente envia).
+    // O desafio SQL do quadro continua validado pelo hash, como missão opcional.
+    await expect(complete(ALICE, 'side_board:query', 'resposta inventada')).rejects.toThrow(/não confere/)
+    await expect(complete(ALICE, 'side_board:query', null)).rejects.toThrow(/não confere/)
+    expect(await totals(ALICE)).toBe(0)
     const canon = `2|${JSON.stringify(['O Servidor Fantasma', 'Cidade dos Dados'])}`
-    expect(await complete(ALICE, 'tutorial:board', canon)).toMatchObject({ applied: true, xp: 30, coins: 10 })
-    expect(await complete(ALICE, 'tutorial:board', canon)).toMatchObject({ applied: false, xp: 0 })
+    expect(await complete(ALICE, 'side_board:query', canon)).toMatchObject({ applied: true, xp: 30, coins: 10 })
+    expect(await complete(ALICE, 'side_board:query', canon)).toMatchObject({ applied: false, xp: 0 })
     expect(await totals(ALICE)).toBe(30)
   })
 
@@ -105,12 +107,12 @@ describe('EvoQuest RPG — game_complete_step', () => {
 
     await expect(buy('archive')).rejects.toThrow(/Rodoviária/)
     await complete(CAROL, 'tutorial:talk_iara')
-    await complete(CAROL, 'tutorial:board', `2|${JSON.stringify(['O Servidor Fantasma', 'Cidade dos Dados'])}`)
+    await complete(CAROL, 'tutorial:board')
     await complete(CAROL, 'tutorial:report')
     await expect(buy('atlantida')).rejects.toThrow(/desconhecida/)
     expect(await buy('archive')).toEqual({ bought: true, price: 0 })
     expect(await buy('archive')).toEqual({ bought: false, price: 0 })
-    expect(await coins()).toBe(10)
+    expect(await coins()).toBe(0)
     await expect(buy('data_city')).rejects.toThrow(/insuficientes/)
 
     // Passagem não se compra pela loja de cosméticos nem por insert direto.
@@ -121,7 +123,7 @@ describe('EvoQuest RPG — game_complete_step', () => {
 
     await db.exec(`reset role; insert into public.game_rewards (user_id, source, kind, xp, coins) values ('${CAROL}', 'teste:bonus', 'mission', 0, 100);`)
     expect(await buy('data_city')).toMatchObject({ bought: true, price: 80 })
-    expect(await coins()).toBe(30)
+    expect(await coins()).toBe(20)
   })
 
   it('etapa de cidade gerada exige o chefe acertado em game_answers', async () => {

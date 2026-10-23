@@ -69,6 +69,8 @@ export type Interaction = { when?: Cond } & (
   | { do: 'tickets' }
   /** Ônibus: embarque para uma cidade com passagem. */
   | { do: 'bus' }
+  /** Quadro de Missões na apresentação: escolher a primeira cidade. */
+  | { do: 'citychoice' }
   /** Minha Cidade: prefeitura (todos os lotes) ou um lote específico. */
   | { do: 'lot'; lot: number | null }
   | { do: 'effects'; effects: Effect[]; text?: string }

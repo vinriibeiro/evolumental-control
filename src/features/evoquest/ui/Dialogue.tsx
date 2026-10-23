@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { WORLD } from '../content'
+import { destinationOf } from '../content/cities'
 import { check } from '../engine/state'
 import type { DialogueDef, DialogueNode, Effect, WorldState } from '../engine/types'
 import { Portrait } from './Portrait'
@@ -15,7 +16,7 @@ interface Props {
   onEnd: (lastNode: string) => void
 }
 
-const fill = (text: string, s: WorldState) => text.replace('{name}', s.character?.name ?? 'viajante')
+const fill = (text: string, s: WorldState) => text.replace('{name}', s.character?.name ?? 'viajante').replace('{destino}', destinationOf(s.flags)?.name ?? 'Sua cidade')
 
 export function Dialogue({ dialogue, state, reducedMotion, sound, onEffects, onEnd }: Props) {
   const nodes = useMemo(() => new Map(dialogue.nodes.map((n) => [n.id, n])), [dialogue])

@@ -10,9 +10,9 @@ import { levelFromXp } from '@/game/engine/rules'
 import { useGameSettings } from '@/game/useGame'
 import type { SqlChallenge, SwitchPuzzle } from './challenges'
 import { WORLD } from './content'
-import { cityById, cityOfTicket, type CityDef } from './content/cities'
+import { cityById, cityOfTicket, destFlag, destinationOf, type CityDef } from './content/cities'
 import { buildMyCity, levelFor, LOT_COUNT, MY_CITY, type LotView } from './content/myCity'
-import { currentStep, stepKey } from './engine/state'
+import { check, currentStep, stepKey } from './engine/state'
 import type { EntityDef, Interaction } from './engine/types'
 import { GameRuntime } from './render/runtime'
 import { recordPlayTime } from './services/world'
@@ -23,7 +23,7 @@ import { BossView, CombatView, PuzzleView } from './ui/Encounters'
 import { MyCityPanel } from './ui/MyCityPanel'
 import { Onboarding } from './ui/Onboarding'
 import { Panels, type PanelTab } from './ui/Panels'
-import { BusBoarding, BusRide, TicketCounter } from './ui/Station'
+import { BusBoarding, BusRide, CityChoice, TicketCounter } from './ui/Station'
 import { Terminal } from './ui/Terminal'
 import { useWorld } from './ui/useWorld'
 
@@ -39,6 +39,7 @@ type Overlay =
   | { kind: 'bus' }
   | { kind: 'ride'; to: string }
   | { kind: 'lot'; lot: number | null }
+  | { kind: 'citychoice' }
 
 const TEXT_KEY = 'evl-world-text'
 const IDLE_MS = 120_000
@@ -68,6 +69,8 @@ export default function WorldPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const runtime = useRef<GameRuntime | null>(null)
   const [overlay, setOverlay] = useState<Overlay | null>(null)
+  const overlayRef = useRef<Overlay | null>(null)
+  overlayRef.current = overlay
   const [focus, setFocus] = useState<EntityDef | null>(null)
   const [textLarge, setTextLarge] = useState(readText)
   const [touch] = useState(() => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches)
@@ -132,6 +135,8 @@ export default function WorldPage() {
           return setOverlay({ kind: 'bus' })
         case 'lot':
           return setOverlay({ kind: 'lot', lot: i.lot })
+        case 'citychoice':
+          return setOverlay({ kind: 'citychoice' })
         case 'effects':
           w.apply(i.effects)
           if (i.text) w.toast(i.text)
@@ -178,9 +183,10 @@ export default function WorldPage() {
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return
       if (e.key === 'Escape') {
         // O ônibus não para no meio da estrada.
-        if (overlay && overlay.kind !== 'dialogue' && overlay.kind !== 'ride') setOverlay(null)
+        if (overlay && overlay.kind !== 'dialogue' && overlay.kind !== 'ride' && !guidedRef.current) setOverlay(null)
         return
       }
+      if (guidedRef.current) return
       const map: Record<string, PanelTab> = { KeyI: 'inventory', KeyJ: 'journal', KeyK: 'skills', KeyM: 'map', KeyO: 'settings' }
       const tab = map[e.code]
       if (!tab || (overlay && overlay.kind !== 'panel')) return
@@ -213,13 +219,16 @@ export default function WorldPage() {
   // ── Rodoviária ──────────────────────────────────────────────────────────
   const owned = useMemo(() => new Set((purchases.data ?? []).map((p) => cityOfTicket(p.item_id)).filter((c): c is string => Boolean(c))), [purchases.data])
 
-  const buyTicket = async (c: CityDef) => {
+  const purchase = async (c: CityDef) => {
     const r = await backend.gameBuyTicket(c.id)
     await invalidateTables(qc, ['game_purchases', 'game_rewards'])
     if (!r.bought) return
     play('success', sound)
     if (r.price === 0 && w.world.current?.inventory.includes('vale_bilhete')) w.apply([{ type: 'take', item: 'vale_bilhete' }])
     w.toast(r.price ? `Passagem para ${c.name}: −${r.price} moedas.` : `Vale trocado: passagem para ${c.name}.`, 'reward')
+  }
+  const buyTicket = async (c: CityDef) => {
+    await purchase(c)
     setOverlay({ kind: 'bus' })
   }
 
@@ -227,12 +236,93 @@ export default function WorldPage() {
   const arrive = useCallback(
     (region: string) => {
       const r = WORLD.regions[region]
+      const firstArrival = guidedRef.current
       setOverlay(null)
-      w.apply([...(cityById(region) ? [{ type: 'flag' as const, flag: 'first_trip' }] : []), { type: 'teleport', region, x: r.spawn.x + 0.5, y: r.spawn.y + 0.5 }])
+      w.apply([
+        ...(cityById(region) ? [{ type: 'flag' as const, flag: 'first_trip' }] : []),
+        ...(firstArrival ? [{ type: 'flag' as const, flag: 'intro_done' }] : []),
+        { type: 'teleport', region, x: r.spawn.x + 0.5, y: r.spawn.y + 0.5 },
+      ])
       w.toast(`${r.name} — ${r.subtitle}`)
+      if (firstArrival) {
+        guidedRef.current = false
+        if (runtime.current) runtime.current.locked = false
+        w.toast(touch ? 'Agora é com você: use o joystick para andar e o botão de ação para falar.' : 'Agora é com você: ande com W A S D ou as setas e fale com E.')
+      }
     },
-    [w],
+    [w, touch],
   )
+
+  // ── Apresentação guiada (Vila → Quadro → Rodoviária → cidade) ──────────
+  // O jogador só avança falas e escolhe a cidade; o personagem anda sozinho.
+  // O controle é liberado na chegada à cidade escolhida.
+  const guidedRef = useRef(false)
+  const guideBusy = useRef(false)
+  const isGuided = (s: typeof state) => Boolean(s?.character && s.region === 'hub' && !s.flags.intro_done && !s.quests.tutorial?.done)
+  const guideStep = useCallback(async () => {
+    const rt = runtime.current
+    const s = w.world.current
+    // Uma janela aberta (fala, quadro, viagem) é o passo atual: espera ela terminar.
+    if (!rt || !s || guideBusy.current || overlayRef.current) return
+    guidedRef.current = isGuided(s)
+    rt.locked = guidedRef.current
+    if (!guidedRef.current) return
+    guideBusy.current = true
+    try {
+      const at = (step: string) => check(s, { at: `tutorial:${step}` }, WORLD.quests)
+      if (!s.quests.tutorial || at('talk_iara')) {
+        await rt.walkToEntity('iara')
+        setOverlay({ kind: 'dialogue', id: 'iara_intro', npc: 'iara' })
+      } else if (at('board')) {
+        await rt.walkToEntity('quadro')
+        setOverlay({ kind: 'citychoice' })
+      } else if (at('report')) {
+        await rt.walkToEntity('iara')
+        setOverlay({ kind: 'dialogue', id: 'iara_report', npc: 'iara' })
+      } else if (at('trip')) {
+        await rt.walkToEntity('dora')
+        setOverlay({ kind: 'dialogue', id: 'dora_guide', npc: 'dora' })
+      }
+    } finally {
+      guideBusy.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [w])
+
+  const chooseCity = (c: CityDef) => {
+    const s = w.world.current
+    if (!s) return
+    setOverlay(null)
+    const flags: Record<string, boolean> = { ...s.flags, city_chosen: true }
+    for (const x of Object.keys(flags)) if (x.startsWith('dest_')) delete flags[x]
+    w.commit({ ...s, flags: { ...flags, [destFlag(c.id)]: true } })
+    void w.fire({ type: 'flag', flag: 'city_chosen' }).then(() => guideStep())
+  }
+
+  /** Fim da conversa com a Dora: passagem com o vale, caminhada até o ônibus e viagem. */
+  const boardGuided = async () => {
+    const s = w.world.current
+    const dest = (s && destinationOf(s.flags)) ?? cityById('data_city')!
+    try {
+      if (!owned.has(dest.id)) await purchase(dest)
+    } catch (e) {
+      // Sem vale (já usado em outra cidade) ou sem conexão: o jogador assume e usa o balcão.
+      guidedRef.current = false
+      if (runtime.current) runtime.current.locked = false
+      w.toast(e instanceof Error ? e.message : 'Não foi possível emitir a passagem.', 'error')
+      return setOverlay({ kind: 'tickets' })
+    }
+    await runtime.current?.walkToEntity('onibus')
+    setOverlay({ kind: 'ride', to: dest.id })
+  }
+
+  // A apresentação começa (ou continua) assim que o mundo aparece. Os passos
+  // seguintes são disparados pelo fim de cada fala/escolha, não por renderização.
+  const guideRef = useRef(guideStep)
+  guideRef.current = guideStep
+  useEffect(() => {
+    if (runtime.current && hasCharacter) void guideRef.current()
+  }, [hasCharacter, w.loading])
 
   // ── Minha Cidade: matérias do Control viram prédios ────────────────────
   const myCityOn = Boolean(state?.flags.my_city_unlocked)
@@ -346,12 +436,17 @@ export default function WorldPage() {
         coins={totals.data?.coins ?? 0}
         regionName={region.name}
         objective={objective}
-        focus={overlay ? null : focus}
+        focus={overlay || guidedRef.current ? null : focus}
         touch={touch}
-        onPanel={(tab) => setOverlay({ kind: 'panel', tab })}
+        onPanel={(tab) => !guidedRef.current && setOverlay({ kind: 'panel', tab })}
         onExit={() => void exit()}
       />
-      {touch && !overlay && <TouchControls focus={focus} onStick={(dx, dy) => runtime.current?.setStick(dx, dy)} onAction={() => runtime.current?.interact()} />}
+      {guidedRef.current && !overlay && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-20 flex justify-center px-3" aria-live="polite">
+          <p className="eq-panel max-w-md px-3 py-2 text-center text-sm">Apresentação guiada: o personagem anda sozinho. Você só avança as falas e escolhe sua cidade; o controle é seu ao chegar lá.</p>
+        </div>
+      )}
+      {touch && !overlay && !guidedRef.current && <TouchControls focus={focus} onStick={(dx, dy) => runtime.current?.setStick(dx, dy)} onAction={() => runtime.current?.interact()} />}
 
       <div aria-live="polite" className="pointer-events-none absolute top-20 right-2 flex w-72 flex-col gap-2">
         {w.toasts.map((t) => (
@@ -372,7 +467,10 @@ export default function WorldPage() {
               onEffects={w.apply}
               onEnd={(last) => {
                 close()
-                void w.fire({ type: 'talk', npc: overlay.npc, endedAt: last })
+                const done = w.fire({ type: 'talk', npc: overlay.npc, endedAt: last })
+                if (!guidedRef.current) return
+                if (overlay.id === 'dora_guide') void boardGuided()
+                else void done.then(() => guideStep())
               }}
             />
           )}
@@ -406,6 +504,7 @@ export default function WorldPage() {
               onClose={close}
             />
           )}
+          {overlay.kind === 'citychoice' && <CityChoice onChoose={chooseCity} onClose={guidedRef.current ? null : close} />}
           {overlay.kind === 'ride' && <BusRide to={WORLD.regions[overlay.to].name} reducedMotion={reducedMotion} onArrive={() => arrive(overlay.to)} />}
           {overlay.kind === 'lot' && (
             <MyCityPanel

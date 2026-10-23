@@ -6,6 +6,7 @@ import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import type { UserSettings } from '@/types/db'
 import { buildExplorer, keyOf, type ExplorerIndex, type NodeKey, type NodeType } from './model'
 import { EXPLORER_TABLES } from './service'
+import type { ExplorerMetric } from './metric'
 
 export type ExplorerView = NonNullable<UserSettings['explorerView']>
 
@@ -92,6 +93,14 @@ export function useExplorerView(): [ExplorerView, (v: ExplorerView) => void] {
   const update = useUpdateSettings()
   const view = settings.explorerView ?? 'list'
   return [view, (v) => update.mutate({ explorerView: v })]
+}
+
+/** Indicador do mapa do edital (progresso, domínio, tempo…), salvo no perfil. */
+export function useExplorerMetric(): [ExplorerMetric, (v: ExplorerMetric) => void] {
+  const settings = useSettings()
+  const update = useUpdateSettings()
+  const metric = settings.explorerMetric ?? 'progress'
+  return [metric, (v) => update.mutate({ explorerMetric: v })]
 }
 
 /** URL de cada nó do Explorador. */

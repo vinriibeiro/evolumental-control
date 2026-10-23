@@ -160,3 +160,34 @@ export function BusRide({ to, reducedMotion, onArrive }: { to: string; reducedMo
     </div>
   )
 }
+
+/** Quadro de Missões na apresentação: cada cidade pede ajuda; o jogador escolhe a primeira. */
+export function CityChoice({ onChoose, onClose }: { onChoose: (city: CityDef) => void; onClose: (() => void) | null }) {
+  return (
+    <div className="eq-panel eq-pop flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden" role="dialog" aria-modal aria-label="Quadro de Missões">
+      <header className="flex items-center gap-2 border-b-2 border-[var(--eq-edge-dark)] p-3">
+        <div className="flex-1">
+          <h2 className="font-semibold">Quadro de Missões · pedidos de ajuda</h2>
+          <p className="text-xs text-[var(--eq-muted)]">Cada cidade cuida de uma disciplina. Escolha a que você quer ajudar primeiro: as outras continuam esperando.</p>
+        </div>
+        {onClose && (
+          <button className="eq-btn shrink-0" onClick={onClose} aria-label="Fechar">
+            <X className="size-4" />
+          </button>
+        )}
+      </header>
+      <ul className="grid min-h-0 flex-1 gap-2 overflow-y-auto p-3 sm:grid-cols-2">
+        {CITIES.map((c, i) => (
+          <li key={c.id}>
+            <button className="eq-btn h-full w-full flex-col items-start gap-0.5 py-2 text-left" autoFocus={i === 0} onClick={() => onChoose(c)}>
+              <span className="font-semibold">{c.name}</span>
+              <span className="text-xs font-normal text-[var(--eq-muted)]">
+                {c.subtitle} · {c.blurb}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}

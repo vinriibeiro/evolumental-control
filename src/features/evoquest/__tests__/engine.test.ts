@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { LocalBackend } from '@/lib/data/local'
 import { WORLD, START } from '../content'
 import { act, available, startCombat } from '../engine/combat'
-import { facingEntity, parseMap, step, tileSolid } from '../engine/map'
+import { approach, facingEntity, findPath, parseMap, step, tileSolid } from '../engine/map'
 import { applyEffects, check, completeStep, newWorld, reconcile, stepsCompletedBy } from '../engine/state'
 import type { Interaction, WorldState } from '../engine/types'
 import { canonSwitches, sha256 } from '../challenges'
 import { RAW_SOLUTIONS } from './solutions'
 import { POWER_PUZZLE } from '../content/dataCity'
-import { CITIES, STATION_SPOT, TICKET_PRICE } from '../content/cities'
+import { CITIES, destFlag, destinationOf, STATION_SPOT, TICKET_PRICE } from '../content/cities'
 import { CLASSIC_CONTENT, cityQuestId } from '../content/generatedCity'
 import { buildMyCity, emptyLots, levelFor, LOT_COUNT } from '../content/myCity'
 import { questCatalogRows } from '../catalogSql'
@@ -127,8 +127,8 @@ describe('motor: missões', () => {
     let s = newWorld(START)
     s = applyEffects(s, [{ type: 'startQuest', quest: 'tutorial' }]).state
     expect(stepsCompletedBy(s, Q, { type: 'talk', npc: 'iara', endedAt: 'i2' })).toHaveLength(0)
-    s = play(s, { type: 'talk', npc: 'iara', endedAt: 'i4' })
-    s = play(s, { type: 'solve', challenge: 'guild_board' })
+    s = play(s, { type: 'talk', npc: 'iara', endedAt: 'i3' })
+    s = play(s, { type: 'flag', flag: 'city_chosen' })
     s = play(s, { type: 'talk', npc: 'iara', endedAt: 'r3' })
     expect(s.flags.map_unlocked).toBe(true)
     expect(s.quests.sql_main).toBeUndefined()
@@ -170,6 +170,39 @@ describe('motor: missões', () => {
     expect(s.quests.sql_main.step).toBe(6)
     expect(s.flags.door_security).toBe(true)
     expect(s.inventory).toContain('log_impresso')
+  })
+})
+
+describe('apresentação guiada (piloto automático)', () => {
+  const hub = WORLD.regions.hub
+  const map = parseMap(hub.map)
+  const solids = hub.entities.filter((e) => e.solid)
+  const spot = (id: string) => approach(map, hub.entities.find((e) => e.id === id)!, {}, solids)
+
+  it('há caminho do início até Iara, Quadro, Dora e ônibus, sem atravessar nada', () => {
+    let pos = { x: START.x, y: START.y }
+    for (const id of ['iara', 'quadro', 'iara', 'dora', 'onibus']) {
+      const target = spot(id)
+      expect(target, id).toBeTruthy()
+      const path = findPath(map, pos, target!, {}, solids)
+      expect(path, `caminho até ${id}`).toBeTruthy()
+      for (const p of path!) expect(tileSolid(map, Math.floor(p.x), Math.floor(p.y), {})).toBe(false)
+      // Ao chegar, a entidade está à frente do personagem.
+      const end = path!.length ? path![path!.length - 1] : pos
+      expect(facingEntity({ ...end, facing: target!.facing }, hub.entities)?.id).toBe(id)
+      pos = end
+    }
+  })
+
+  it('findPath: passos de um tile, inalcançável = null', () => {
+    const path = findPath(map, { x: 15.5, y: 11.5 }, { x: 15, y: 13 }, {}, [])!
+    expect(path).toEqual([{ x: 15.5, y: 12.5 }, { x: 15.5, y: 13.5 }])
+    expect(findPath(map, { x: 15.5, y: 11.5 }, { x: 0, y: 0 }, {}, [])).toBeNull()
+  })
+
+  it('a cidade escolhida no quadro vira o destino das falas', () => {
+    expect(destinationOf({ [destFlag('archive')]: true })?.name).toBe('Vernácula')
+    expect(destinationOf({})).toBeNull()
   })
 })
 
@@ -279,7 +312,7 @@ describe('desafios: puzzle e backend local', () => {
     const b = new LocalBackend(`rpg-ticket-${Date.now()}`)
     await expect(b.gameBuyTicket('archive')).rejects.toThrow(/Rodoviária/)
     await b.gameCompleteStep('tutorial:talk_iara', null)
-    await b.gameCompleteStep('tutorial:board', `2|${JSON.stringify(['O Servidor Fantasma', 'Cidade dos Dados'])}`)
+    await b.gameCompleteStep('tutorial:board', null)
     await b.gameCompleteStep('tutorial:report', null)
     await expect(b.gameBuyTicket('atlantida')).rejects.toThrow(/desconhecida/)
     expect(await b.gameBuyTicket('archive')).toEqual({ bought: true, price: 0 })

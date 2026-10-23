@@ -4,7 +4,7 @@ import { CITIES } from './cities'
 import { ITEMS, SPEAKERS } from './common'
 import { DATA_CITY, DATA_CITY_CHALLENGES, DATA_CITY_DIALOGUES, DATA_CITY_INPUTS, DATA_CITY_QUESTS, POWER_PUZZLE, ROOT_BOSS, SENTINEL } from './dataCity'
 import { buildCity, CLASSIC_CONTENT, GENERATED_REWARDS } from './generatedCity'
-import { GUILD_BOARD, HUB, HUB_DIALOGUES, TUTORIAL } from './hub'
+import { GUILD_BOARD, HUB, HUB_DIALOGUES, SIDE_BOARD, TUTORIAL } from './hub'
 import { buildMyCity, emptyLots } from './myCity'
 import { byId, type WorldContent } from './registry'
 
@@ -17,7 +17,7 @@ const GENERATED = CITIES.filter((c) => CLASSIC_CONTENT[c.subject]).map((c) => bu
  * guarda os mesmos valores (migração do catálogo) e é quem credita.
  */
 const REWARDS: Record<string, { xp: number; coins: number }> = {
-  'tutorial:board': { xp: 30, coins: 10 },
+  'side_board:query': { xp: 30, coins: 10 },
   'sql_main:door': { xp: 40, coins: 5 },
   'sql_main:logs': { xp: 60, coins: 5 },
   'sql_main:who': { xp: 80, coins: 10 },
@@ -37,7 +37,7 @@ for (const g of GENERATED)
     if (s.id === 'finale') REWARDS[stepKey(g.quest.id, s.id)] = GENERATED_REWARDS.finale
   }
 
-const quests = byId([TUTORIAL, ...DATA_CITY_QUESTS, ...GENERATED.map((g) => g.quest)])
+const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, ...GENERATED.map((g) => g.quest)])
 const rewards: WorldContent['rewards'] = {}
 for (const q of Object.values(quests)) for (const s of q.steps) rewards[stepKey(q.id, s.id)] = REWARDS[stepKey(q.id, s.id)] ?? { xp: 0, coins: 0 }
 

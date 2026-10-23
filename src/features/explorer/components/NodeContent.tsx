@@ -12,8 +12,10 @@ import { formatDayKey, formatDuration, formatHours } from '@/lib/time'
 import { SessionList } from '@/features/timer/SessionList'
 import { SubjectCardsTab, SubjectMapsTab, SubjectQuestionsTab } from '@/pages/subjects/SubjectTabs'
 import { descendants, keyOf, subjectsUnder, type ExplorerIndex, type ExplorerNode } from '../model'
-import { useExplorerView } from '../useExplorer'
-import { ChildrenView, ViewSwitch, type NodeMetrics } from './ChildrenView'
+import { useExplorerMetric, useExplorerView } from '../useExplorer'
+import { ChildrenView, MetricSwitch, ViewSwitch, type NodeMetrics } from './ChildrenView'
+import { MasteryCard } from '@/components/Mastery'
+import { ForecastCard } from '@/components/insight/ForecastCard'
 import { useExplorerActions } from './ExplorerActions'
 import { NodeIcon, typeLabel } from './NodeIcon'
 
@@ -34,6 +36,7 @@ function useVisibleChildren(nodes: ExplorerNode[], parentArchived: boolean) {
 export function FolderContent({ node, index, metrics }: { node: ExplorerNode | null; index: ExplorerIndex; metrics: NodeMetrics }) {
   const actions = useExplorerActions()
   const [view, setView] = useExplorerView()
+  const [metric, setMetric] = useExplorerMetric()
   const children = node ? node.children : index.roots
   const { list, toggle } = useVisibleChildren(children, Boolean(node?.archived))
   const subjects = node ? subjectsUnder(node) : [...index.byKey.values()].filter((n) => n.type === 'subject' && !n.archived).map((n) => n.subject!)
@@ -100,6 +103,7 @@ export function FolderContent({ node, index, metrics }: { node: ExplorerNode | n
           <h2 className="text-sm font-semibold text-ink">{node ? 'Conteúdo' : 'Tudo'}</h2>
           <div className="flex items-center gap-3">
             {toggle}
+            <MetricSwitch value={metric} onChange={setMetric} />
             <ViewSwitch value={view} onChange={setView} />
           </div>
         </div>
@@ -144,6 +148,7 @@ export function SubjectContent({ node, metrics }: { node: ExplorerNode; metrics:
   const s = node.subject!
   const [tab, setTab] = useState<SubjectTab>('content')
   const [view, setView] = useExplorerView()
+  const [metric, setMetric] = useExplorerMetric()
   const actions = useExplorerActions()
   const navigate = useNavigate()
   const sessions = useSessions({ filters: [eq('subject_id', s.id), eq('status', 'completed')] })
@@ -217,6 +222,11 @@ export function SubjectContent({ node, metrics }: { node: ExplorerNode; metrics:
         </Card>
       </div>
 
+      <div className="mb-6 grid gap-3 lg:grid-cols-[1fr_2fr]">
+        <MasteryCard m={metrics.mastery?.(node)} now={Date.now()} />
+        <ForecastCard subjectIds={[s.id]} targetDate={s.target_date} title={`Previsão de conclusão de ${s.name}`} />
+      </div>
+
       <Tabs
         value={tab}
         onChange={setTab}
@@ -242,6 +252,7 @@ export function SubjectContent({ node, metrics }: { node: ExplorerNode; metrics:
               Colar estrutura (edital)
             </Button>
             <div className="flex-1" />
+            <MetricSwitch value={metric} onChange={setMetric} />
             <ViewSwitch value={view} onChange={setView} />
           </div>
           <ChildrenView

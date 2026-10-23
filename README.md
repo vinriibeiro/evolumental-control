@@ -14,6 +14,7 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 - [Configurar o backend (Supabase)](#configurar-o-backend-supabase)
 - [Aplicar as migrações](#aplicar-as-migrações)
 - [Testes e verificações](#testes-e-verificações)
+- [Inteligência de estudo](#inteligência-de-estudo)
 - [EvoQuest — Aprenda Jogando](#evoquest--aprenda-jogando)
 - [Arquitetura](#arquitetura)
 - [Regras de negócio importantes](#regras-de-negócio-importantes)
@@ -26,8 +27,8 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 
 | Módulo | O que faz |
 |---|---|
-| Visão geral | Tempo líquido de hoje/semana/mês/total, metas, sequência de dias, revisões e flashcards pendentes, conteúdos concluídos, gráficos (evolução, por matéria, planejado × realizado, por atividade, constância) com filtro de período e alternativa em tabela. |
-| Meu espaço de estudos | O dia em uma tela: sessão em andamento, próximo bloco do ciclo, blocos e revisões de hoje, tarefas e bloco de notas com salvamento automático. |
+| Hoje | A tela principal: resumo do dia, **próxima ação recomendada** (com os motivos), plano do dia (planejado, sugerido, atrasado, revisão, tarefa, concluído) e pendências acionáveis. "Ignorar por hoje" vale até o fim do dia. |
+| Visão geral | Organizada em três perguntas — *Como estou hoje?*, *O que preciso fazer?* e *Estou evoluindo?* (feed de evolução, visão semanal com "Por que este plano?", calendário anual de constância e previsão de conclusão). Os gráficos detalhados continuam abaixo, com filtro de período e alternativa em tabela. |
 | Trilhas | Trilhas prontas por carreira (Auditor Fiscal, Policial Federal, Professor SEEDF de Português, Professor de Português, Programador, Front-end, Back-end, Mobile, DevOps/SRE, Cloud, Cibersegurança, Engenharia de Dados, Analista e Cientista de Dados, Engenheiro de IA, QA, UX/UI, Product Manager, Suporte) e por matéria, com tópicos na ordem de estudo, pesos, fontes e criação automática do ciclo. Cada tópico tem atalhos de pesquisa (Google, YouTube, questões). |
 | Matérias e tópicos | Matérias com cor, ícone, prioridade, dificuldade, meta semanal, datas, edital e status; tópicos/subtópicos em profundidade ilimitada; arrastar para reordenar, mover, duplicar subárvore, colar a estrutura do edital como texto indentado, pesquisa em todos os níveis, progresso ponderado, materiais/links, arquivamento. |
 | Cronômetro | Cronômetro, temporizador, Pomodoro e intervalos personalizados; pausar/continuar/finalizar/cancelar/reiniciar; alertas visuais e sonoros; resumo antes de salvar; lançamento manual sem sobreposição. |
@@ -37,7 +38,8 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 | Flashcards | Baralhos e cartões ilimitados, pastas, tags, vínculo com matéria/tópico, importação CSV com prévia, exportação, revisão com repetição espaçada (SM-2 ajustável), modos vencidos/todos/aleatório/selecionados/contínuo, leitura por voz local (Web Speech API). |
 | Mapas mentais | Editor com React Flow: nós editáveis, conexões, cores, tamanhos e formas, desfazer/refazer, atalhos, salvamento automático, exportação PNG/PDF, vínculo com matéria/tópico. |
 | Revisões | Revisões planejadas × realizadas; concluir, adiar, cancelar, reabrir; agendamento automático após estudar um tópico. |
-| Questões | Registro por matéria/tópico/banca/concurso com validação; taxa de acertos, evolução e assuntos que exigem atenção. |
+| Questões | Registro por matéria/tópico/banca/concurso com validação; taxa de acertos, evolução e assuntos que exigem atenção. Ao registrar erros, o motivo é opcional (não sabia, esqueci, interpretação, distração, cálculo, confundiu conceitos, chute, outro) e o app oferece revisão, bloco no ciclo ou flashcard — nunca cria nada sozinho. |
+| Caderno de erros | `/questoes/caderno`: filtros por matéria, tópico, período, motivo, banca, concurso e situação; erros por matéria/tópico, motivos mais frequentes, tópicos reincidentes, erros recentes, taxa de reincidência e frases só com dados observáveis. |
 | Metas | Horas, sessões, questões, acertos, tópicos, flashcards e dias de estudo por dia/semana/mês; progresso, histórico e ajuste sem perder o passado. |
 | Relatórios | Filtros por período, matéria, tópico e atividade; indicadores e gráficos; exportação CSV/JSON. |
 | Configurações | Perfil, senha, tema claro/escuro/sistema, metas padrão, fuso horário, formato de hora, Pomodoro, som, voz e velocidade, parâmetros da repetição espaçada e exportação completa dos dados. |
@@ -101,7 +103,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql` e `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina). Em um projeto já existente, aplique **só as que ainda não rodou**.
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) e `20261026000000_caderno_de_erros.sql` (tabela `question_errors`). Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -135,6 +137,88 @@ npm run test:e2e     # fluxos reais + todas as páginas em desktop e celular
 npm run screenshots  # capturas de estados com dados de exemplo
 ```
 
+## Inteligência de estudo
+
+O app transforma o que já está registrado (sessões, questões, revisões, flashcards, EvoQuest, cronograma) em decisões. **Nada é IA e nada é opaco**: são funções puras e determinísticas em `src/lib/insight/`, testadas em `src/lib/insight/__tests__/`, que explicam cada número. Os indicadores são **calculados, não guardados** — a única tabela nova é a do caderno de erros, porque o motivo de um erro é uma informação que só o usuário tem.
+
+**Janela de dados.** Os indicadores leem os últimos 365 dias de sessões, questões e respostas do EvoQuest (`hooks/useInsight.ts`), mais revisões e flashcards. Evidências mais antigas já pesam quase nada pela meia-vida de 45 dias.
+
+### Domínio por tópico (0–100)
+
+"Concluído" não é "dominado". O domínio (`mastery.ts`) combina, quando existem:
+
+| Componente | Cálculo | Peso |
+|---|---|---|
+| Prática | acerto ponderado pela recência: `(Σ w·acertos + 2) / (Σ w·total + 4)`, `w = 0,5^(idade/45 dias)`; respostas do EvoQuest (ligadas pelo nome do tópico) contam meia questão | 0,5 |
+| Retenção | média de flashcards revisados `min(1, intervalo/21 d) × 0,85^lapsos` e de revisões feitas ÷ (feitas + atrasadas) | 0,2 |
+| Exposição | `1 − e^(−minutos/estimado)` (estimado do tópico ou 90 min) | 0,2 |
+| Autoavaliação | nota 0–5 do tópico ÷ 5 | 0,1 |
+
+A média usa só os componentes presentes. Regras conservadoras:
+- sem prática verificada (questões ou flashcards), o domínio não passa de **55%**; com menos de 10 questões, não passa de **79%**;
+- esquecimento: depois de 14 dias sem contato, −1% a cada 2,4 dias (no mínimo ×0,7);
+- reincidência: ≥ 3 erros nos últimos 14 dias com acerto < 60% → −10; erros em ≥ 2 dias diferentes nos últimos 30 com acerto < 70% → −5. Um erro isolado quase não mexe no valor.
+
+| Faixa | Classificação |
+|---|---|
+| 0–19 | Ainda não consolidado |
+| 20–39 | Frágil |
+| 40–59 | Em desenvolvimento |
+| 60–79 | Em consolidação |
+| 80–100 | Dominado |
+
+Junto do valor aparecem a **confiança** (baixa < 8 evidências, média < 30, alta ≥ 30 — com "Estimativa inicial — poucos dados" quando baixa), a quantidade de evidências, o último contato e o "porquê" (componentes e observações). Tópicos pai, matérias e pastas agregam os filhos **pelo peso**, contando conteúdo sem dados como 0.
+
+**Mapa do edital.** No Explorador, "Mostrar" alterna o indicador da árvore, das listas e dos cards entre progresso, domínio, tempo, questões, acerto e prioridade — sempre com texto, nunca só cor.
+
+### Motor de próxima ação
+
+`recommend.ts` dá pontos explícitos a cada tópico (ou matéria sem tópicos, ou grupo de flashcards vencidos) e cada ponto vira um motivo legível:
+
+| Sinal | Pontos |
+|---|---|
+| prioridade da matéria + do tópico | 3 × (soma − 2), até 24 |
+| peso no edital | 3 × (peso − 1), até 9 |
+| dificuldade | 2 × (dificuldade − 3) |
+| domínio baixo / conteúdo novo | (100 − domínio)/5 / 8 |
+| revisão | atrasada 25 + 2/dia (até 40); vence hoje 15 |
+| erros recentes · reincidência · caderno | 2/erro (14 d, até 15) · 8 · 1/erro não resolvido (até 10) |
+| tempo parado | 1 a cada 2 dias sem contato (a partir de 3), até 15 |
+| meta semanal · prova próxima | 15 × fração que falta · 10 se ≤ 30 dias |
+| cronograma · ciclo | bloco agora/próximas 2 h 30, atrasado 20, mais tarde 10 · 12 |
+| repetição | −20 se o tópico já teve ≥ 45 min hoje; −10 se a matéria ≥ 90 min |
+
+Ficam de fora matérias arquivadas/pausadas/concluídas, pastas, itens ignorados hoje, tópicos dominados e concluídos sem revisão pendente, e sugestões que não cabem no tempo livre (quando a disponibilidade está configurada). Empates seguem ordem estável; no topo, no máximo 2 itens da mesma matéria. O tipo sugerido é revisão, estudo, questões ou flashcards. O score não é salvo.
+
+### Planejado × realizado
+
+No Cronograma: média semanal planejada × realizada nas últimas 6 semanas completas (a atual fica de fora), execução e a frase "planejamento X% acima do ritmo". "Ajustar próximos planos ao meu ritmo" mostra uma **prévia** (antes/depois por semana) e só encurta blocos **futuros e pendentes** na proporção realizado ÷ planejado (entre 30% e 100%, múltiplos de 5 min, mínimo 15 min). O histórico não muda.
+
+### Previsão de conclusão
+
+`forecast.ts`: conteúdo restante = tópicos-folha não concluídos × (estimativa do tópico, ou média histórica dos concluídos, ou 90 min) × peso − tempo já estudado neles. Ritmo atual = média semanal das últimas 4 semanas completas. Mostra a data estimada, o ritmo necessário para uma data-alvo (a da matéria ou uma escolhida), a diferença e os cenários "+30 min/dia", "+1 h/dia" e meta personalizada, sinalizando ritmos acima da disponibilidade. É sempre apresentada como projeção e não altera o cronograma.
+
+### Visão semanal, feed e constância
+
+- **Esta semana**: disponibilidade (só se configurada), planejado, realizado, distribuição (conteúdo novo, revisões, questões, flashcards, reserva) e **"Por que este plano?"**, com as regras reais do planejador (prioridade, dificuldade, prova próxima, frequência, meta coberta) separadas dos ajustes sugeridos (acerto baixo, revisões vencendo, plano acima da disponibilidade).
+- **Sua evolução**: até 10 conquistas reais comparando hoje com 3 semanas atrás — domínio que subiu ou chegou a 80%, tópico que deixou de ser frágil, matéria concluída, matéria que deixou de ser a mais fraca, dias estudados na semana, meta semanal batida, constância maior, marcos de horas, acerto que subiu, revisões feitas.
+- **Constância no último ano**: um quadrado por dia (53 semanas), com o detalhe ao passar o mouse, focar ou tocar (tempo, questões, flashcards e matérias) e a mesma informação em tabela.
+
+### Busca global e comandos (Ctrl/Cmd+K)
+
+Pesquisa matérias, tópicos, flashcards, baralhos, questões (inclusive as ligadas aos tópicos encontrados), tarefas, mapas, trilhas e páginas, com resultados agrupados e contagem. Matérias e tópicos têm ações rápidas (Estudar, Questões, Revisar). Comandos: iniciar sessão, "estudar <matéria>", registrar estudo manual, fazer questões, revisar atrasados, revisar flashcards, nova tarefa, novo flashcard, novo mapa, abrir calendário, caderno de erros e cronograma. As consultas são limitadas por categoria no backend.
+
+### Caderno de erros (tabela `question_errors`)
+
+Cada linha classifica parte dos erros de um registro de questões: `reason`, `count`, `note`, `resolved`/`resolved_at`. Matéria, tópico, data, banca e concurso vêm do registro (sem duplicar). FK composta `(record_id, user_id)` com exclusão em cascata, RLS por usuário e gatilhos que garantem **soma dos motivos ≤ erros do registro** nas duas direções (inserir/alterar motivo e diminuir os erros do registro). O modo local (`LocalBackend`) aplica exatamente as mesmas regras. Testes: `supabase/tests/errors.test.ts` (PostgreSQL real) e `src/lib/insight/__tests__/errors.test.ts`.
+
+### Limitações conhecidas
+
+- Os indicadores são calculados no navegador sobre a janela de 365 dias. Para contas com muitos anos de dados, o próximo passo é mover agregações para views/RPCs no banco.
+- O vínculo do EvoQuest com tópicos do Control é por nome do tópico dentro da disciplina correspondente; nomes muito diferentes não se ligam.
+- Questões são registradas em lote (total/acertos por registro), então o caderno de erros classifica quantidades por motivo, não questões individuais.
+- O planejador gera blocos por prioridade × dificuldade; desempenho e revisões aparecem como **sugestões** na visão semanal, não alteram a geração automática.
+
 ## EvoQuest — Aprenda Jogando
 
 Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a mesma identidade visual, no modo local e no Supabase.
@@ -151,6 +235,8 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 | Linguagem M | 33 | casos com resultado deduzido das regras (não executa Power Query) |
 | SQL | 38 | 6 laboratórios reais em SQLite (sql.js/WASM) |
 | Python para Dados | 38 | 4 laboratórios reais em Pyodide (CPython + pandas em WASM) |
+
+**Apresentação guiada:** na primeira vez, o personagem anda sozinho (piloto automático) da Mestra Iara ao Quadro de Missões — onde o jogador escolhe a cidade —, à bilheteria e ao ônibus; o jogador só avança as falas. O controle do personagem começa na chegada à cidade escolhida. O antigo desafio SQL do quadro virou a missão opcional "O quadro que responde".
 
 **Mundo (`/evoquest`):** cada disciplina é uma cidade. Da **Rodoviária** da Vila Evolumental (ao sul da praça) sai um ônibus para cada cidade, e o bilhete é comprado no balcão com moedas:
 - a primeira passagem é o vale da Guilda, entregue no fim do tutorial: é grátis e vale para a cidade que o jogador escolher;
