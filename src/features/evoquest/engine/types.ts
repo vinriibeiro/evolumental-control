@@ -73,6 +73,8 @@ export type Interaction = { when?: Cond } & (
   | { do: 'citychoice' }
   /** Minha Cidade: prefeitura (todos os lotes) ou um lote específico. */
   | { do: 'lot'; lot: number | null }
+  /** Morador da Minha Cidade: revisa os flashcards vencidos da matéria. */
+  | { do: 'cards'; subject: string }
   | { do: 'effects'; effects: Effect[]; text?: string }
   | { do: 'say'; text: string }
 )

@@ -12,6 +12,7 @@ export const SPEAKERS: Speaker[] = [
   { id: 'iara', name: 'Mestra Iara', role: 'Líder da Guilda dos Estudos', look: { skin: '#a86f4c', hair: '#e8e2d6', outfit: '#6b4b8a', accent: '#deb887' } },
   { id: 'tomo', name: 'Tomo', role: 'Guardião das Revisões', look: { skin: '#e9c49c', hair: '#4f6d8a', outfit: '#4f7a55', accent: '#f5deb3' } },
   { id: 'dora', name: 'Dora', role: 'Bilheteira da Rodoviária', look: { skin: '#b97a52', hair: '#6b3b25', outfit: '#2f5f8a', accent: '#eda100' } },
+  { id: 'morador', name: 'Morador', role: 'Minha Cidade', look: { skin: '#d9a77a', hair: '#4a3728', outfit: '#4f7a55', accent: '#f5deb3' } },
   { id: 'lina', name: 'Arquiteta Lina', role: 'Prefeitura · terrenos e obras', look: { skin: '#f0c9a0', hair: '#26201c', outfit: '#d95926', accent: '#f5deb3' } },
   { id: 'maya', name: 'Maya Kort', role: 'Analista de dados', look: { skin: '#c99068', hair: '#18120e', outfit: '#1d3a5f', accent: '#38d0ff' } },
   { id: 'bras', name: 'Brás Teles', role: 'Chefe de segurança', look: { skin: '#7a4d33', hair: '#2b2b2b', outfit: '#3b3f46', accent: '#eda100' } },

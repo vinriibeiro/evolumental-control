@@ -252,6 +252,14 @@ describe('cidades e Rodoviária', () => {
     expect(r.entities.filter((e) => e.id.startsWith('lote_'))).toHaveLength(LOT_COUNT)
     expect(r.map.rows.join('')).toContain('Y') // a torre (nível 5) tem telhado dourado
     expect(r.entities.find((e) => e.id === 'lote_4')?.name).toBe('M4 · Prédio')
+    // Cada prédio construído tem um morador (NPC) que abre a revisão de flashcards da matéria.
+    const moradores = r.entities.filter((e) => e.id.startsWith('morador_'))
+    expect(moradores).toHaveLength(LOT_COUNT)
+    expect(moradores[2]).toMatchObject({ kind: 'npc', sprite: 'morador', on: [{ do: 'cards', subject: 's2' }] })
+    expect(WORLD.speakers.morador).toBeTruthy()
+    const empty = buildMyCity(emptyLots())
+    expect(empty.entities.some((e) => e.id.startsWith('morador_'))).toBe(false)
+    for (const m of moradores) expect(tileSolid(parseMap(r.map), m.x, m.y, {}), `morador ${m.id} em tile sólido`).toBe(false)
   })
 })
 

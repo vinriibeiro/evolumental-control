@@ -248,7 +248,7 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 | Cidade dos Dados | SQL | história escrita à mão (terminal SQL real, Sentinela, chefe ROOT) |
 | Aurora, Babel, Silogia, Gaussópolis, Vernácula, Medida Certa, Pipeline | Python, Inglês, Lógica, Estatística, Português, DAX, M | geradas das unidades do modo clássico (`content/generatedCity.ts`): cada unidade é um prédio com um guardião (lição, treino e chefe); vencer o chefe, conferido no servidor em `game_answers`, cumpre a etapa e rende 25 moedas |
 
-**Minha Cidade:** depois da primeira viagem, a Arquiteta Lina (na Rodoviária) entrega a escritura de um terreno com 6 lotes. Cada lote recebe uma matéria do Control, e o prédio cresce com o tempo líquido estudado nela: Fundação com 1 h, Casa com 5 h, Sobrado com 15 h, Prédio com 40 h e Torre com 100 h. Pelo prédio dá para abrir o cronômetro, os flashcards e a página daquela matéria.
+**Minha Cidade:** depois da primeira viagem, a Arquiteta Lina (na Rodoviária) entrega a escritura de um terreno com 6 lotes. Cada lote recebe uma matéria do Control, e o prédio cresce com o tempo líquido estudado nela: Fundação com 1 h, Casa com 5 h, Sobrado com 15 h, Prédio com 40 h e Torre com 100 h. Pelo prédio dá para abrir o cronômetro, os flashcards e a página daquela matéria. Cada prédio construído tem um **morador** que revisa com você, dentro do jogo, os flashcards vencidos da matéria — os mesmos cartões, o mesmo SM-2 e o mesmo registro de revisão do módulo Flashcards (sem XP, nada duplicado).
 
 **Modos:**
 - partida rápida (3/5/10/15 min ou personalizada);

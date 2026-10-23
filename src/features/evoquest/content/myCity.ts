@@ -109,6 +109,19 @@ export function buildMyCity(lots: LotView[]): RegionDef {
       verb: lot.subjectId ? 'Visitar' : 'Construir',
       on: [{ do: 'lot', lot: i }],
     })
+    // Todo prédio construído tem um morador que revisa os flashcards da matéria.
+    if (lot.subjectId)
+      entities.push({
+        id: `morador_${i}`,
+        kind: 'npc',
+        x: x + 1,
+        y: y + 4,
+        name: `Morador · ${lot.name}`,
+        sprite: 'morador',
+        solid: true,
+        verb: 'Revisar',
+        on: [{ do: 'cards', subject: lot.subjectId }],
+      })
   })
 
   return {

@@ -200,6 +200,6 @@ Publicado na `main` em 23/10 (commit `48949da`). Detalhes e fórmulas no README,
 - Banco: `question_errors` (migração 20261026000000) com a mesma regra no modo local.
 
 Pendências:
-- Minha Cidade ainda não tem desafios próprios (ideia: usar os flashcards da matéria); cidades geradas sem história própria.
+- Minha Cidade: cada prédio construído tem um morador que revisa os flashcards vencidos da matéria (23/10). Cidades geradas continuam sem história própria.
 - Indicadores são calculados no navegador sobre 365 dias; para contas grandes, mover agregações para views/RPCs.
 - Vínculo EvoQuest ↔ tópicos do Control é por nome; nomes diferentes não se ligam.

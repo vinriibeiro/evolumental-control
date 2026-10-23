@@ -19,6 +19,7 @@ import { recordPlayTime } from './services/world'
 import { play } from './ui/audio'
 import { Hud, TouchControls } from './ui/Controls'
 import { Dialogue, SayBox } from './ui/Dialogue'
+import { CardsEncounter } from './ui/CardsEncounter'
 import { BossView, CombatView, PuzzleView } from './ui/Encounters'
 import { MyCityPanel } from './ui/MyCityPanel'
 import { Onboarding } from './ui/Onboarding'
@@ -39,6 +40,7 @@ type Overlay =
   | { kind: 'bus' }
   | { kind: 'ride'; to: string }
   | { kind: 'lot'; lot: number | null }
+  | { kind: 'cards'; subject: string }
   | { kind: 'citychoice' }
 
 const TEXT_KEY = 'evl-world-text'
@@ -135,6 +137,8 @@ export default function WorldPage() {
           return setOverlay({ kind: 'bus' })
         case 'lot':
           return setOverlay({ kind: 'lot', lot: i.lot })
+        case 'cards':
+          return setOverlay({ kind: 'cards', subject: i.subject })
         case 'citychoice':
           return setOverlay({ kind: 'citychoice' })
         case 'effects':
@@ -506,6 +510,18 @@ export default function WorldPage() {
           )}
           {overlay.kind === 'citychoice' && <CityChoice onChoose={chooseCity} onClose={guidedRef.current ? null : close} />}
           {overlay.kind === 'ride' && <BusRide to={WORLD.regions[overlay.to].name} reducedMotion={reducedMotion} onArrive={() => arrive(overlay.to)} />}
+          {overlay.kind === 'cards' && (
+            <CardsEncounter
+              subjectId={overlay.subject}
+              subjectName={citySubjects.find((s) => s.id === overlay.subject)?.name ?? 'matéria'}
+              sound={sound}
+              onNavigate={(to) => {
+                close()
+                void w.save().then(() => flushTime()).then(() => navigate(to))
+              }}
+              onClose={close}
+            />
+          )}
           {overlay.kind === 'lot' && (
             <MyCityPanel
               lots={state.myCity?.lots ?? []}
