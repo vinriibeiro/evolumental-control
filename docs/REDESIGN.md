@@ -189,3 +189,17 @@ idempotente) e RPC `game_save_world` (salva só campos cosméticos/posição; pr
 
 Critério de aprovação da fatia vertical: sem XP, moedas e níveis, a missão ainda é interessante? O jogador está
 *fazendo* algo ou só *respondendo*?
+
+### Inteligência de estudo e apresentação guiada (22–23/10/2026)
+
+Publicado na `main` em 23/10 (commit `48949da`). Detalhes e fórmulas no README, seção "Inteligência de estudo".
+
+- EvoQuest: a primeira visita é guiada (piloto automático da Iara ao ônibus; o jogador escolhe a cidade no Quadro de Missões e assume o controle na cidade). O desafio SQL do quadro virou a missão opcional `side_board`.
+- Camada `src/lib/insight/` (pura, testada): domínio por tópico, motor de próxima ação, lógica do dia, planejado × realizado, caderno de erros, previsão, visão semanal, feed e calendário de constância.
+- Telas: Hoje (`/espaco`, primeira do menu), mapa do edital no Explorador, cartão planejado × realizado no Cronograma, Caderno de erros (`/questoes/caderno`), previsão por matéria, Visão geral em três perguntas, Ctrl+K com comandos.
+- Banco: `question_errors` (migração 20261026000000) com a mesma regra no modo local.
+
+Pendências:
+- Minha Cidade ainda não tem desafios próprios (ideia: usar os flashcards da matéria); cidades geradas sem história própria.
+- Indicadores são calculados no navegador sobre 365 dias; para contas grandes, mover agregações para views/RPCs.
+- Vínculo EvoQuest ↔ tópicos do Control é por nome; nomes diferentes não se ligam.
