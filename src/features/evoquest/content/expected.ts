@@ -76,8 +76,38 @@ export const EXPECTED: Record<string, { hash: string; columns: number; rows: num
     "columns": 0,
     "rows": 0
   },
+  "sup_guided": {
+    "hash": "0f9c8612088116a298e62c1151e9393c8efb872df5a5101f99a88e9953aa1d6b",
+    "columns": 2,
+    "rows": 4
+  },
+  "sup_independent": {
+    "hash": "8cf8aafb21bc9f5a4c2fa5ae91512974c15aeee386fb54a2440e596db99563e9",
+    "columns": 2,
+    "rows": 4
+  },
+  "sup_drone": {
+    "hash": "a896e7b9c817a15756814b476641b3e3a028de6320662f12f984bf3c8ec27d84",
+    "columns": 2,
+    "rows": 3
+  },
+  "sup_transfer": {
+    "hash": "4f51ff64efa995039a9477b9b1d11c25e74c3066952f2e511b158dde5b279d1f",
+    "columns": 2,
+    "rows": 1
+  },
+  "sup_worst": {
+    "hash": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+    "columns": 0,
+    "rows": 0
+  },
   "enc_sentinel": {
     "hash": "b61eb51eb7cfabb4e182bed833f9a8e633068e91fcb75bf63c9214659e2f9adf",
+    "columns": 0,
+    "rows": 0
+  },
+  "enc_drone": {
+    "hash": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
     "columns": 0,
     "rows": 0
   }

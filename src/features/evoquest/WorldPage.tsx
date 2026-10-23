@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useBackend } from '@/app/data'
 import { invalidateTables, useAll, useSessions } from '@/hooks/data'
@@ -21,11 +21,13 @@ import { Hud, TouchControls } from './ui/Controls'
 import { Dialogue, SayBox } from './ui/Dialogue'
 import { CardsEncounter } from './ui/CardsEncounter'
 import { BossView, CombatView, PuzzleView } from './ui/Encounters'
+import { useMastery } from '@/hooks/useInsight'
 import { MyCityPanel } from './ui/MyCityPanel'
 import { Onboarding } from './ui/Onboarding'
 import { Panels, type PanelTab } from './ui/Panels'
 import { BusBoarding, BusRide, CityChoice, TicketCounter } from './ui/Station'
 import { Terminal } from './ui/Terminal'
+import { FieldReport, FieldReview } from './ui/FieldReport'
 import { useWorld } from './ui/useWorld'
 
 type Overlay =
@@ -42,6 +44,8 @@ type Overlay =
   | { kind: 'lot'; lot: number | null }
   | { kind: 'cards'; subject: string }
   | { kind: 'citychoice' }
+  | { kind: 'debrief'; quest: string }
+  | { kind: 'field'; template: string }
 
 const TEXT_KEY = 'evl-world-text'
 const IDLE_MS = 120_000
@@ -141,6 +145,10 @@ export default function WorldPage() {
           return setOverlay({ kind: 'cards', subject: i.subject })
         case 'citychoice':
           return setOverlay({ kind: 'citychoice' })
+        case 'debrief':
+          return setOverlay({ kind: 'debrief', quest: i.quest })
+        case 'field':
+          return setOverlay({ kind: 'field', template: i.template })
         case 'effects':
           w.apply(i.effects)
           if (i.text) w.toast(i.text)
@@ -328,6 +336,25 @@ export default function WorldPage() {
     if (runtime.current && hasCharacter) void guideRef.current()
   }, [hasCharacter, w.loading])
 
+  // Atalhos do menu do Control: ?painel=mapa|diario abre o painel; ?ir=minha-cidade
+  // embarca na linha gratuita (se a escritura já foi entregue). Fora da apresentação.
+  const [params, setParams] = useSearchParams()
+  useEffect(() => {
+    const s = w.world.current
+    if (!s?.character || w.loading || isGuided(s)) return
+    const painel = params.get('painel')
+    const ir = params.get('ir')
+    if (!painel && !ir) return
+    setParams({}, { replace: true })
+    if (painel === 'mapa') setOverlay({ kind: 'panel', tab: 'map' })
+    else if (painel === 'diario') setOverlay({ kind: 'panel', tab: 'journal' })
+    else if (ir === 'minha-cidade') {
+      if (!s.flags.my_city_unlocked) w.toast('A linha "Minha Cidade" é liberada pela Arquiteta Lina, na Rodoviária, depois da sua primeira viagem.')
+      else if (s.region !== MY_CITY) setOverlay({ kind: 'ride', to: MY_CITY })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, w.loading, hasCharacter])
+
   // ── Minha Cidade: matérias do Control viram prédios ────────────────────
   const myCityOn = Boolean(state?.flags.my_city_unlocked)
   const subjects = useAll('subjects', {}, { enabled: myCityOn })
@@ -472,6 +499,8 @@ export default function WorldPage() {
               onEnd={(last) => {
                 close()
                 const done = w.fire({ type: 'talk', npc: overlay.npc, endedAt: last })
+                const report = WORLD.dialogues[overlay.id]?.debrief
+                if (report) void done.then(() => setOverlay({ kind: 'debrief', quest: report }))
                 if (!guidedRef.current) return
                 if (overlay.id === 'dora_guide') void boardGuided()
                 else void done.then(() => guideStep())
@@ -479,6 +508,18 @@ export default function WorldPage() {
             />
           )}
           {overlay.kind === 'say' && <SayBox text={overlay.text} onClose={close} />}
+          {overlay.kind === 'debrief' && (
+            <FieldReport
+              quest={overlay.quest}
+              onField={state.quests[overlay.quest]?.done ? () => setOverlay({ kind: 'field', template: 'field_groupby' }) : null}
+              onNavigate={(to) => {
+                close()
+                void w.save().then(() => flushTime()).then(() => navigate(to))
+              }}
+              onClose={close}
+            />
+          )}
+          {overlay.kind === 'field' && <FieldReview template={overlay.template} sound={sound} onClose={close} />}
           {overlay.kind === 'terminal' && (
             <Terminal challenge={WORLD.challenges[overlay.id] as SqlChallenge} sound={sound} onSolved={(answer) => w.fire({ type: 'solve', challenge: overlay.id }, answer)} onClose={close} />
           )}
@@ -523,7 +564,7 @@ export default function WorldPage() {
             />
           )}
           {overlay.kind === 'lot' && (
-            <MyCityPanel
+            <CityHall
               lots={state.myCity?.lots ?? []}
               subjects={citySubjects}
               seconds={secondsBySubject}
@@ -569,4 +610,10 @@ function Shell({ children, textLarge, reducedMotion }: { children: React.ReactNo
       {children}
     </div>
   )
+}
+
+/** Prefeitura com o domínio do Control (só carrega quando a prefeitura abre). */
+function CityHall(props: Omit<ComponentProps<typeof MyCityPanel>, 'mastery'>) {
+  const { index } = useMastery()
+  return <MyCityPanel {...props} mastery={index?.bySubject} />
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BookOpen, Building2, Hammer, Layers, Timer, X } from 'lucide-react'
-import { LEVELS, LOT_COUNT, levelFor } from '../content/myCity'
+import { functionFor, LEVELS, LOT_COUNT, levelFor } from '../content/myCity'
+import type { MasteryLevel } from '@/lib/insight/mastery'
 
 export interface CitySubject {
   id: string
@@ -13,6 +14,8 @@ interface Props {
   subjects: CitySubject[]
   /** Segundos líquidos estudados por matéria. */
   seconds: Map<string, number>
+  /** Domínio da matéria no Control (funcionamento do prédio). */
+  mastery?: Map<string, { value: number; level: MasteryLevel }>
   /** Lote aberto pela placa; null = prefeitura (todos os lotes). */
   focus: number | null
   onAssign: (lot: number, subjectId: string | null) => void
@@ -27,7 +30,7 @@ const hours = (s: number) => {
 }
 
 /** Prefeitura da Minha Cidade: cada lote recebe uma matéria; o prédio cresce com as horas estudadas. */
-export function MyCityPanel({ lots, subjects, seconds, focus, onAssign, onNavigate, onClose }: Props) {
+export function MyCityPanel({ lots, subjects, seconds, mastery, focus, onAssign, onNavigate, onClose }: Props) {
   const [open, setOpen] = useState<number | null>(focus)
   const byId = new Map(subjects.map((s) => [s.id, s]))
   const all = Array.from({ length: LOT_COUNT }, (_, i) => lots[i] ?? null)
@@ -37,7 +40,11 @@ export function MyCityPanel({ lots, subjects, seconds, focus, onAssign, onNaviga
         <Building2 className="size-5 text-[var(--eq-gold)]" aria-hidden />
         <div className="flex-1">
           <h2 className="font-semibold">{open == null ? 'Prefeitura · planta da cidade' : `Lote ${open + 1}`}</h2>
-          <p className="text-xs text-[var(--eq-muted)]">Os prédios crescem com o tempo líquido estudado na matéria: {LEVELS.slice(1).map((l) => `${l.name} ${l.hours} h`).join(' · ')}.</p>
+          <p className="text-xs text-[var(--eq-muted)]">
+            Obra: cresce com o tempo líquido estudado ({LEVELS.slice(1)
+              .map((l) => `${l.name} ${l.hours} h`)
+              .join(' · ')}). Funcionamento: vem do domínio da matéria no Control.
+          </p>
         </div>
         <button className="eq-btn shrink-0" onClick={onClose} aria-label="Fechar">
           <X className="size-4" />
@@ -55,7 +62,11 @@ export function MyCityPanel({ lots, subjects, seconds, focus, onAssign, onNaviga
                     <span>
                       <span className="block text-xs text-[var(--eq-muted)]">Lote {i + 1}</span>
                       <span className="block font-semibold">{s ? s.name : 'Terreno livre'}</span>
-                      {s && <span className="block text-xs text-[var(--eq-muted)]">{lv.name}</span>}
+                      {s && (
+                        <span className="block text-xs text-[var(--eq-muted)]">
+                          {lv.name} · {functionFor(mastery?.get(s.id)).name}
+                        </span>
+                      )}
                     </span>
                     {s ? <span className="size-3 shrink-0 rounded-sm" style={{ background: s.color }} aria-hidden /> : <Hammer className="size-4 shrink-0" aria-hidden />}
                   </button>
@@ -69,6 +80,7 @@ export function MyCityPanel({ lots, subjects, seconds, focus, onAssign, onNaviga
             index={open}
             subject={all[open] ? (byId.get(all[open]!) ?? null) : null}
             seconds={all[open] ? (seconds.get(all[open]!) ?? 0) : 0}
+            mastery={all[open] ? mastery?.get(all[open]!) : undefined}
             free={subjects.filter((s) => !all.includes(s.id))}
             onAssign={(id) => onAssign(open, id)}
             onNavigate={onNavigate}
@@ -80,10 +92,29 @@ export function MyCityPanel({ lots, subjects, seconds, focus, onAssign, onNaviga
   )
 }
 
-function Lot({ index, subject, seconds, free, onAssign, onNavigate, onBack }: { index: number; subject: CitySubject | null; seconds: number; free: CitySubject[]; onAssign: (id: string | null) => void; onNavigate: (to: string) => void; onBack: (() => void) | null }) {
+function Lot({
+  index,
+  subject,
+  seconds,
+  mastery,
+  free,
+  onAssign,
+  onNavigate,
+  onBack,
+}: {
+  index: number
+  subject: CitySubject | null
+  seconds: number
+  mastery: { value: number; level: MasteryLevel } | undefined
+  free: CitySubject[]
+  onAssign: (id: string | null) => void
+  onNavigate: (to: string) => void
+  onBack: (() => void) | null
+}) {
   const [pick, setPick] = useState(free[0]?.id ?? '')
   const [changing, setChanging] = useState(!subject)
   const lv = levelFor(seconds)
+  const fn = functionFor(mastery)
   return (
     <div className="space-y-4">
       {subject && (
@@ -92,12 +123,17 @@ function Lot({ index, subject, seconds, free, onAssign, onNavigate, onBack }: { 
             <span className="size-3 rounded-sm" style={{ background: subject.color }} aria-hidden /> {subject.name}
           </p>
           <p className="mt-1 text-sm">
-            {lv.name} · {hours(seconds)} estudados
+            <span className="text-[var(--eq-muted)]">Obra:</span> {lv.name} · {hours(seconds)} estudados
           </p>
           <div className="mt-2 h-2.5 overflow-hidden rounded-sm border border-[var(--eq-edge-dark)] bg-[#120e0b]" role="meter" aria-label="Obra até o próximo nível" aria-valuenow={Math.round(lv.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
             <div className="h-full bg-[var(--eq-gold)]" style={{ width: `${Math.round(lv.progress * 100)}%` }} />
           </div>
           <p className="mt-1 text-xs text-[var(--eq-muted)]">{lv.next ? `Faltam ${hours(Math.max(0, lv.next.hours * 3600 - seconds))} para virar ${lv.next.name}.` : 'Obra completa: a torre mais alta da cidade.'}</p>
+          <p className="mt-3 text-sm">
+            <span className="text-[var(--eq-muted)]">Funcionamento:</span> {fn.name}
+            {fn.level !== 'none' && ` · domínio ${fn.value}%`}
+          </p>
+          <p className="mt-1 text-xs text-[var(--eq-muted)]">{fn.text} Sobe com questões, flashcards, revisões e missões de aprendizagem — não com o tempo.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="eq-btn eq-btn-primary" onClick={() => onNavigate(`/cronometro?materia=${subject.id}`)}>
               <Timer className="size-4" aria-hidden /> Estudar agora

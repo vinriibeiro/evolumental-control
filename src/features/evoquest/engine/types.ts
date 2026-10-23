@@ -77,6 +77,10 @@ export type Interaction = { when?: Cond } & (
   | { do: 'cards'; subject: string }
   | { do: 'effects'; effects: Effect[]; text?: string }
   | { do: 'say'; text: string }
+  /** Relatório de campo de uma missão de aprendizagem (o que aprendeu, aplicou, revisar). */
+  | { do: 'debrief'; quest: string }
+  /** Revisão de campo: exercício parametrizado (novo a cada vez), só evidência. */
+  | { do: 'field'; template: string }
 )
 
 export interface RegionDef {
@@ -128,6 +132,8 @@ export interface DialogueDef {
   id: string
   start: string
   nodes: DialogueNode[]
+  /** Ao terminar, abre o relatório de campo desta missão. */
+  debrief?: string
 }
 
 /** Objetivo de uma etapa de missão. */

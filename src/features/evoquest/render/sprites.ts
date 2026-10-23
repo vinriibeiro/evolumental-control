@@ -376,6 +376,24 @@ export function drawObject(c: Ctx, sprite: string, x: number, y: number, t: numb
       px(c, '#ff3d3d', ox + 14, oy + 6 + hover, 1, 2)
       break
     }
+    case 'drone': {
+      // Drone de inventário: corpo amarelo, hélices girando e visor que reconta.
+      const hover = Math.round(Math.sin(t * 3) * 1.5)
+      c.fillStyle = 'rgba(0,0,0,0.3)'
+      c.fillRect(ox + 4, oy + 14, 8, 2)
+      const blade = Math.floor(t * 12) % 2 === 0
+      px(c, '#c9d1d9', blade ? ox + 1 : ox + 3, oy + 1 + hover, blade ? 5 : 2, 1)
+      px(c, '#c9d1d9', blade ? ox + 10 : ox + 11, oy + 1 + hover, blade ? 5 : 2, 1)
+      px(c, '#3b4048', ox + 3, oy + 2 + hover, 1, 2)
+      px(c, '#3b4048', ox + 12, oy + 2 + hover, 1, 2)
+      px(c, '#d9a400', ox + 3, oy + 4 + hover, 10, 7)
+      px(c, '#7a5c00', ox + 3, oy + 10 + hover, 10, 1)
+      px(c, '#11151c', ox + 5, oy + 6 + hover, 6, 3)
+      const count = Math.floor(t * 3) % 4
+      px(c, '#38ff9c', ox + 6 + count, oy + 7 + hover, 1, 1)
+      px(c, '#3b4048', ox + 7, oy + 11 + hover, 2, 2)
+      break
+    }
     case 'root': {
       const flick = Math.sin(t * 7) > 0.6
       c.save()

@@ -37,7 +37,7 @@ export function CombatView({ encounter: def, sound, onWin, onClose }: { encounte
   const [typing, setTyping] = useState<CombatAction | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [claimed, setClaimed] = useState(false)
-  const speaker = WORLD.speakers.sentinel
+  const speaker = WORLD.speakers[def.portrait ?? 'sentinel'] ?? WORLD.speakers.sentinel
 
   useEffect(() => {
     if (s.outcome !== 'won' || claimed) return
@@ -83,7 +83,7 @@ export function CombatView({ encounter: def, sound, onWin, onClose }: { encounte
       <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-[1fr_1.1fr]">
         <section className="space-y-3">
           <div className="flex items-center gap-3">
-            <Portrait object="sentinel" label={def.name} size={72} />
+            <Portrait object={def.portrait ?? 'sentinel'} label={def.name} size={72} />
             <div className="flex-1 space-y-2">
               <Bar label="Integridade" value={s.integrity} max={def.integrity} color="var(--eq-bad)" />
               <Bar label="Firewall" value={s.firewall} max={def.maxFirewall} color="var(--eq-cyan)" segments={def.maxFirewall} />

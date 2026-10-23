@@ -452,6 +452,23 @@ export interface GameQuestProgress extends Owned {
   completed_at: ISODateTime
 }
 
+/**
+ * Evidência de aprendizagem do mundo (gravada só pela RPC game_record_evidence):
+ * COMO o jogador resolveu uma atividade — estágio, nível de ajuda e tentativas.
+ * Alimenta o domínio do Control; não tem relação com XP.
+ */
+export interface GameEvidence extends Owned {
+  activity_id: string
+  subject: string
+  concept: string
+  stage: 'guided' | 'independent' | 'transfer' | 'boss'
+  /** 0 = sozinho; 1–3 = pistas; 4 = explicação completa. */
+  help_level: number
+  attempts: number
+  solved: boolean
+  seed: number | null
+}
+
 /** Salvamento do mundo do RPG (posição, inventário, escolhas). */
 export interface GameSave extends Owned {
   slot: string
@@ -485,6 +502,7 @@ export interface Tables {
   game_purchases: GamePurchase
   game_quest_progress: GameQuestProgress
   game_saves: GameSave
+  game_evidence: GameEvidence
 }
 
 export type TableName = keyof Tables

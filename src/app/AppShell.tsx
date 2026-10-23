@@ -1,7 +1,8 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronsLeft, ChevronsRight, CloudOff, Gamepad2, Layers, LogOut, Menu, Pause, Play, Search, Settings, Sun, Timer, X } from 'lucide-react'
-import { NAV, NAV_GROUPS, titleFor } from './nav'
+import { titleFor } from './nav'
+import { SidebarFooter, SidebarNav } from './SidebarNav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { IconButton } from '@/components/ui/Button'
@@ -75,9 +76,9 @@ export function AppShell() {
           'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200 lg:flex',
           collapsed ? 'w-[72px]' : 'w-64',
         )}
-        aria-label="Navegação principal"
+        aria-label="Barra lateral"
       >
-        <SidebarContent collapsed={collapsed} />
+        <SidebarContent collapsed={collapsed} onSearch={() => setSearchOpen(true)} />
         <div className="border-t border-line p-3">
           <IconButton label={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => setCollapsed((c) => !c)} className="w-full">
             {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
@@ -89,13 +90,20 @@ export function AppShell() {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-[var(--overlay)]" onClick={() => setMobileOpen(false)} aria-hidden />
-          <aside className="animate-fade-in app-safe-top absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-xl" aria-label="Navegação principal">
+          <aside className="animate-fade-in app-safe-top absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-xl" aria-label="Menu">
             <div className="absolute top-3 right-3">
               <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>
                 <X className="size-5" />
               </IconButton>
             </div>
-            <SidebarContent collapsed={false} large />
+            <SidebarContent
+              collapsed={false}
+              large
+              onSearch={() => {
+                setMobileOpen(false)
+                setSearchOpen(true)
+              }}
+            />
           </aside>
         </div>
       )}
@@ -108,7 +116,7 @@ export function AppShell() {
           <Link to="/" className="lg:hidden" aria-label="Início">
             <LogoMark className="size-8" />
           </Link>
-          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink">{titleFor(location.pathname)}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink">{titleFor(location.pathname, location.search)}</h1>
           <LiveTimerChip />
           <button
             onClick={() => setSearchOpen(true)}
@@ -197,10 +205,7 @@ function AppTabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean
   )
 }
 
-/** Item com subpáginas próprias no menu (ex.: /questoes e /questoes/caderno) só fica ativo na rota exata. */
-const exactMatch = (to: string) => to === '/' || NAV.some((o) => o.to.startsWith(`${to}/`))
-
-function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: boolean }) {
+function SidebarContent({ collapsed, large, onSearch }: { collapsed: boolean; large?: boolean; onSearch: () => void }) {
   return (
     <>
       <div className={cn('flex h-16 shrink-0 items-center', collapsed ? 'justify-center px-2' : 'px-4')}>
@@ -208,40 +213,8 @@ function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: bool
           <Logo collapsed={collapsed} />
         </Link>
       </div>
-      <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-2">
-        {NAV_GROUPS.map((g) => (
-          <div key={g.id} className={cn(g.id !== 'estudar' && 'mt-3')}>
-            {g.label && !collapsed && <p className="mb-1 px-3 text-[11px] font-semibold tracking-wide text-muted uppercase">{g.label}</p>}
-            {g.label && collapsed && <div className="mx-auto mb-1 h-px w-6 bg-line" aria-hidden />}
-            <ul className="flex flex-col gap-0.5" aria-label={g.label ?? undefined}>
-              {NAV.filter((n) => n.group === g.id).map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    end={exactMatch(item.to)}
-                    title={collapsed ? item.label : undefined}
-                    className={({ isActive }) =>
-                      cn(
-                        'flex items-center gap-3 rounded-lg font-medium transition-colors',
-                        large ? 'px-3 py-3 text-[15px]' : 'px-3 py-2 text-sm',
-                        collapsed && 'justify-center px-0',
-                        isActive ? 'bg-accent/35 text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink',
-                      )
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
-                        {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
-                      </>
-                    )}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </nav>
+      <SidebarNav collapsed={collapsed} large={large} />
+      <SidebarFooter collapsed={collapsed} large={large} onSearch={onSearch} />
     </>
   )
 }

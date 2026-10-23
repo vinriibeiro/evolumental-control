@@ -14,7 +14,7 @@ import { WORLD } from '../content'
 import { DATASETS } from '../content/datasets'
 import { EXPECTED } from '../content/expected'
 import { WORLD_CATALOG_MIGRATION, worldCatalogSql } from '../catalogSql'
-import { RAW_SOLUTIONS, SQL_SOLUTIONS, WRONG_ANSWERS } from './solutions'
+import { ALTERNATIVE_SOLUTIONS, RAW_SOLUTIONS, SQL_SOLUTIONS, WRONG_ANSWERS } from './solutions'
 
 let SQL: SqlJsStatic
 beforeAll(async () => {
@@ -77,8 +77,29 @@ describe('catálogo do mundo', () => {
     }
   })
 
-  it('o gabarito não está no conteúdo enviado ao navegador', () => {
-    const shipped = JSON.stringify(WORLD.challenges)
+  it('o gabarito não está no conteúdo enviado ao navegador (exceto a explicação completa, último degrau da escada)', () => {
+    // A explicação completa só abre depois de 3 pistas e novas tentativas, e
+    // resolver com ela não gera evidência de domínio. O resto não revela a resposta.
+    const shipped = JSON.stringify(Object.values(WORLD.challenges).map((c) => ({ ...c, explanation: undefined })))
     for (const sol of Object.values(SQL_SOLUTIONS)) expect(shipped).not.toContain(sol)
+  })
+
+  it('mais de um caminho válido: soluções alternativas dão o mesmo resultado esperado', async () => {
+    for (const a of ALTERNATIVE_SOLUTIONS) {
+      const ch = WORLD.challenges[a.challenge] as SqlChallenge
+      const out = run(ch, a.query)
+      expect(out.error, `${a.challenge}: ${out.error}`).toBeUndefined()
+      expect(await sha256(canonResult(out.result!, ch.orderMatters)), a.query).toBe(ch.expect.hash)
+    }
+  })
+
+  it('atividades pedagógicas têm conceito, estágio, escada de 3 pistas e explicação', () => {
+    for (const ch of Object.values(WORLD.challenges)) {
+      if (ch.kind !== 'sql' || !ch.stage) continue
+      expect(ch.concept, ch.id).toBeTruthy()
+      expect(ch.ladder, ch.id).toHaveLength(3)
+      expect(ch.explanation?.length, ch.id).toBeGreaterThan(40)
+      if (ch.lesson) expect(WORLD.lessons[ch.lesson], ch.id).toBeTruthy()
+    }
   })
 })

@@ -1,8 +1,13 @@
 // Liga respostas do EvoQuest a tópicos do Control: a disciplina do jogo
 // precisa corresponder à matéria (vínculo em Perfil do EvoQuest ou nome
 // parecido) e o nome do tópico do jogo precisa casar com o do tópico.
+//
+// Evidências do mundo (game_evidence) entram com PESO: o estágio pedagógico
+// define quantas "questões equivalentes" a atividade vale e o nível de ajuda
+// reduz o crédito do acerto (ver engine/pedagogy). XP não entra aqui.
 import { relatedGameSubject } from '@/features/explorer/insights'
-import type { GameAnswer, Subject, Topic } from '@/types/db'
+import { evidenceCredit, type HelpLevel } from '@/features/evoquest/engine/pedagogy'
+import type { GameAnswer, GameEvidence, Subject, Topic } from '@/types/db'
 
 const fold = (s: string) =>
   s
@@ -20,8 +25,26 @@ export interface GameTopicCatalog {
   [gameSubject: string]: Array<{ id: string; name: string }>
 }
 
+/** Resposta do jogo com peso: `correct` pode ser fracionário (crédito parcial). */
+export interface WeightedGameAnswer {
+  subject_id: string
+  topic: string
+  answered_at: string
+  correct: boolean | number
+  /** Questões equivalentes (padrão 1). */
+  weight?: number
+}
+
+/** Converte evidências do mundo em respostas ponderadas (estágio × ajuda). */
+export function worldEvidenceAnswers(rows: Array<Pick<GameEvidence, 'subject' | 'concept' | 'stage' | 'help_level' | 'solved' | 'created_at'>>): WeightedGameAnswer[] {
+  return rows.map((r) => {
+    const c = evidenceCredit(r.stage, Math.min(4, Math.max(0, r.help_level)) as HelpLevel, r.solved)
+    return { subject_id: r.subject, topic: r.concept, answered_at: r.created_at, correct: c.correct, weight: c.weight }
+  })
+}
+
 export function gameEvidenceByTopic(
-  answers: Array<Pick<GameAnswer, 'subject_id' | 'topic' | 'correct' | 'answered_at'>>,
+  answers: Array<Pick<GameAnswer, 'subject_id' | 'topic' | 'correct' | 'answered_at'> | WeightedGameAnswer>,
   catalog: GameTopicCatalog,
   topics: Topic[],
   subjects: Subject[],
@@ -49,7 +72,9 @@ export function gameEvidenceByTopic(
     for (const topicId of target.get(`${a.subject_id}|${a.topic}`) ?? []) {
       const cur = out.get(topicId) ?? { total: 0, correct: 0, lastAt: null }
       const at = Date.parse(a.answered_at)
-      out.set(topicId, { total: cur.total + 1, correct: cur.correct + (a.correct ? 1 : 0), lastAt: cur.lastAt == null || at > cur.lastAt ? at : cur.lastAt })
+      const weight = ('weight' in a && a.weight) || 1
+      const correct = typeof a.correct === 'number' ? a.correct : a.correct ? weight : 0
+      out.set(topicId, { total: cur.total + weight, correct: cur.correct + correct, lastAt: cur.lastAt == null || at > cur.lastAt ? at : cur.lastAt })
     }
   }
   return out

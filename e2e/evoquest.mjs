@@ -53,7 +53,7 @@ async function playUntilSummary(max = 40) {
 }
 
 await step('abre o EvoQuest com as 8 disciplinas', async () => {
-  await page.goto(`${BASE}/evoquest`)
+  await page.goto(`${BASE}/evoquest/treino`)
   await page.getByRole('heading', { name: /EvoQuest/ }).waitFor()
   for (const name of ['Inglês', 'Português', 'Raciocínio Lógico', 'Estatística', 'DAX', 'Linguagem M', 'SQL', 'Python para Dados']) await page.getByRole('link', { name: new RegExp(name) }).first().waitFor()
   await page.screenshot({ path: `${OUT}/01-home.png`, fullPage: true })
@@ -231,7 +231,7 @@ await step('contra o relógio inicia com cronômetro', async () => {
 
 await step('cartão do EvoQuest na visão geral', async () => {
   await page.goto(`${BASE}/`)
-  await page.getByText('EvoQuest', { exact: true }).waitFor()
+  await page.getByRole('main').getByText('EvoQuest', { exact: true }).first().waitFor()
 })
 
 await step('celular: partida sem rolagem horizontal', async () => {
@@ -254,7 +254,7 @@ await step('tema escuro (pela preferência do app)', async () => {
   await page.goto(`${BASE}/configuracoes`)
   await page.getByRole('radio', { name: /Escuro/ }).click()
   await page.waitForFunction(() => document.documentElement.classList.contains('dark'))
-  await page.goto(`${BASE}/evoquest`)
+  await page.goto(`${BASE}/evoquest/treino`)
   await page.getByRole('heading', { name: /EvoQuest/ }).waitFor()
   if (!(await page.evaluate(() => document.documentElement.classList.contains('dark')))) throw new Error('tema escuro não aplicado')
   await page.screenshot({ path: `${OUT}/14-dark.png`, fullPage: true })

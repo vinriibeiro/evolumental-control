@@ -7,7 +7,11 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { RAW_SOLUTIONS } from '@/features/evoquest/__tests__/solutions'
+import initSqlJs from 'sql.js'
+import { RAW_SOLUTIONS, SQL_SOLUTIONS } from '@/features/evoquest/__tests__/solutions'
+import { canonResult } from '@/features/evoquest/challenges'
+import { DATASETS } from '@/features/evoquest/content/datasets'
+import { runQuery } from '@/game/lab/sqlCore'
 
 const ALICE = '11111111-1111-4111-8111-111111111111'
 const BOB = '22222222-2222-4222-8222-222222222222'
@@ -149,6 +153,69 @@ describe('EvoQuest RPG — game_complete_step', () => {
   it('anon não chama a RPC', async () => {
     await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
     await expect(db.query(`select public.game_complete_step('tutorial:talk_iara', null)`)).rejects.toThrow()
+    await db.exec(`reset role;`)
+  })
+})
+
+describe('EvoQuest — evidências de aprendizagem (game_record_evidence)', () => {
+  const record = (user: string, a: { id?: string; activity: string; help?: number; attempts?: number; solved: boolean; seed?: number | null; answer?: string | null }) =>
+    as(user, async () =>
+      (
+        await db.query<{ r: { applied: boolean } }>(`select public.game_record_evidence($1, $2, $3::smallint, $4::smallint, $5, $6, $7) as r`, [
+          a.id ?? crypto.randomUUID(),
+          a.activity,
+          a.help ?? 0,
+          a.attempts ?? 1,
+          a.solved,
+          a.seed ?? null,
+          a.answer ?? null,
+        ])
+      ).rows[0].r,
+    )
+
+  let answer = ''
+  beforeAll(async () => {
+    const SQL = await initSqlJs()
+    answer = canonResult(runQuery(SQL, DATASETS.supply, SQL_SOLUTIONS.sup_independent))
+  })
+
+  it('confere a resposta pelo hash, é idempotente e não credita XP', async () => {
+    await expect(record(ALICE, { activity: 'sup_independent', solved: true, answer: 'inventada' })).rejects.toThrow(/não confere/)
+    await expect(record(ALICE, { activity: 'nao_existe', solved: false })).rejects.toThrow(/desconhecida/)
+    await expect(record(ALICE, { activity: 'sup_independent', solved: false, help: 7 })).rejects.toThrow()
+    const before = await totals(ALICE)
+    const id = crypto.randomUUID()
+    expect(await record(ALICE, { id, activity: 'sup_independent', help: 2, attempts: 3, solved: true, answer })).toEqual({ applied: true })
+    expect(await record(ALICE, { id, activity: 'sup_independent', help: 2, attempts: 3, solved: true, answer })).toEqual({ applied: false })
+    expect(await totals(ALICE)).toBe(before)
+    const rows = await as(ALICE, async () => (await db.query<{ stage: string; concept: string; help_level: number }>(`select stage, concept, help_level from public.game_evidence`)).rows)
+    // Estágio e conceito vêm do catálogo do servidor.
+    expect(rows).toEqual([{ stage: 'independent', concept: 'groupby', help_level: 2 }])
+  })
+
+  it('atividade parametrizada exige semente e tem limite diário', async () => {
+    await expect(record(BOB, { activity: 'field_groupby', solved: true })).rejects.toThrow(/semente/)
+    for (let i = 0; i < 5; i++) await record(BOB, { activity: 'field_groupby', solved: true, seed: i + 1 })
+    await expect(record(BOB, { activity: 'field_groupby', solved: true, seed: 9 })).rejects.toThrow(/Limite diário/)
+  })
+
+  it('RLS: cada um lê só as próprias evidências; ninguém grava, altera ou lê o catálogo direto', async () => {
+    await as(BOB, async () => {
+      const mine = await db.query<{ user_id: string }>(`select user_id from public.game_evidence`)
+      expect(mine.rows.length).toBe(5)
+      expect(mine.rows.every((r) => r.user_id === BOB)).toBe(true)
+      await expect(db.query(`insert into public.game_evidence (id, activity_id, subject, concept, stage, help_level, attempts, solved) values (gen_random_uuid(), 'sup_transfer', 'sql', 'groupby', 'boss', 0, 1, true)`)).rejects.toThrow()
+      await expect(db.query(`update public.game_evidence set help_level = 0`)).rejects.toThrow()
+      await expect(db.query(`delete from public.game_evidence`)).rejects.toThrow()
+      await expect(db.query(`select * from public.game_activities`)).rejects.toThrow()
+    })
+  })
+
+  it('zerar dados do jogo apaga as evidências; anon não chama a RPC', async () => {
+    await as(BOB, () => db.query(`select public.game_wipe_my_data()`))
+    await as(BOB, async () => expect((await db.query(`select * from public.game_evidence`)).rows).toHaveLength(0))
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
+    await expect(db.query(`select public.game_record_evidence(gen_random_uuid(), 'sup_guided', 0::smallint, 1::smallint, false, null, null)`)).rejects.toThrow()
     await db.exec(`reset role;`)
   })
 })

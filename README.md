@@ -103,7 +103,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) e `20261026000000_caderno_de_erros.sql` (tabela `question_errors`). Em um projeto já existente, aplique **só as que ainda não rodou**.
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) `20261026000000_caderno_de_erros.sql` (tabela `question_errors`) e `20261027000000_evoquest_evidencias.sql` (evidências de aprendizagem do EvoQuest: `game_activities`, `game_evidence`, RPC `game_record_evidence`). Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -149,7 +149,7 @@ O app transforma o que já está registrado (sessões, questões, revisões, fla
 
 | Componente | Cálculo | Peso |
 |---|---|---|
-| Prática | acerto ponderado pela recência: `(Σ w·acertos + 2) / (Σ w·total + 4)`, `w = 0,5^(idade/45 dias)`; respostas do EvoQuest (ligadas pelo nome do tópico) contam meia questão | 0,5 |
+| Prática | acerto ponderado pela recência: `(Σ w·acertos + 2) / (Σ w·total + 4)`, `w = 0,5^(idade/45 dias)`; respostas do EvoQuest (ligadas pelo nome do tópico) contam meia questão; atividades das missões de aprendizagem entram com peso por estágio (guiada 1, independente 2, transferência 3, desafio integrado 4) × crédito pela ajuda (sem pista 1; 1, 2 e 3 pistas 0,8 / 0,6 / 0,3; explicação completa 0) | 0,5 |
 | Retenção | média de flashcards revisados `min(1, intervalo/21 d) × 0,85^lapsos` e de revisões feitas ÷ (feitas + atrasadas) | 0,2 |
 | Exposição | `1 − e^(−minutos/estimado)` (estimado do tópico ou 90 min) | 0,2 |
 | Autoavaliação | nota 0–5 do tópico ÷ 5 | 0,1 |
@@ -249,6 +249,26 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 | Aurora, Babel, Silogia, Gaussópolis, Vernácula, Medida Certa, Pipeline | Python, Inglês, Lógica, Estatística, Português, DAX, M | geradas das unidades do modo clássico (`content/generatedCity.ts`): cada unidade é um prédio com um guardião (lição, treino e chefe); vencer o chefe, conferido no servidor em `game_answers`, cumpre a etapa e rende 25 moedas |
 
 **Minha Cidade:** depois da primeira viagem, a Arquiteta Lina (na Rodoviária) entrega a escritura de um terreno com 6 lotes. Cada lote recebe uma matéria do Control, e o prédio cresce com o tempo líquido estudado nela: Fundação com 1 h, Casa com 5 h, Sobrado com 15 h, Prédio com 40 h e Torre com 100 h. Pelo prédio dá para abrir o cronômetro, os flashcards e a página daquela matéria. Cada prédio construído tem um **morador** que revisa com você, dentro do jogo, os flashcards vencidos da matéria — os mesmos cartões, o mesmo SM-2 e o mesmo registro de revisão do módulo Flashcards (sem XP, nada duplicado).
+
+**Funcionamento da Minha Cidade:** o tamanho do prédio (obra) vem do **tempo**; o **funcionamento** vem do **domínio** da matéria no Control (`functionFor` em `content/myCity.ts`): Às escuras (sem prática verificada) → Luz de serviço → Meio expediente → Em operação → Movimentado → Referência da cidade. Estudar muito sem praticar constrói um prédio grande e apagado.
+
+**Missões de aprendizagem (modelo pedagógico):** em vez de "pergunta → resposta → XP", a missão segue *problema no mundo → descoberta → aprendizagem → experimentação → aplicação → consequência*. A primeira é **O Almoxarifado em Pane** (GROUP BY), no subsolo da Cidade dos Dados — o elevador de carga abre depois da etapa "quem foi" (JOIN) da missão principal:
+
+| Etapa | O que acontece |
+|---|---|
+| Problema | Otávia, a almoxarife: o painel de reposição travou porque só entende resumos por fornecedor |
+| Lição | ficha de campo no próprio terminal: objetivo, por que importa, 3 frases, exemplo resolvido que o jogador **executa** e erros comuns (após a 1ª tentativa) |
+| Guiada | completar o `GROUP BY` de uma consulta pronta → o painel acende |
+| Independente | escrever do zero a soma de itens por fornecedor → o portão abre |
+| Combate | o drone de inventário: a consulta certa (WHERE antes do GROUP BY) revela qual fornecedor recalibra o drone; valor errado custa sinal |
+| Transferência | outro problema e outras tabelas (notas × entregas): achar quem cobrou a mais — vale qualquer caminho (JOIN de subconsultas, CTE, subconsultas correlacionadas), porque o arquivo confere o resultado |
+| Debrief | relatório de campo: o que aprendeu, o que aplicou com pouca ou nenhuma ajuda, onde teve dificuldade, o que vale revisar e como cada atividade contou no domínio |
+
+- **Escada de pistas** (`engine/pedagogy.ts`): tentar sozinho → pista 1 (conceito) → pista 2 (a parte do problema) → pista 3 (parte da solução) → explicação completa. Cada degrau só abre depois de uma nova tentativa; o nível usado vai junto com a evidência.
+- **Domínio ≠ XP:** XP, moedas e história continuam no catálogo de etapas (`game_complete_step`, uma vez por etapa). O domínio vem de `game_evidence`, gravada só pela RPC `game_record_evidence` (`security definer`): estágio e conceito vêm do catálogo do servidor, a resposta é conferida pelo hash, o id gerado no cliente torna o envio idempotente e há limite diário por atividade. Resolver depois da explicação completa conta como contato, não como acerto; sair depois de tentar sem resolver registra a dificuldade.
+- **Revisão de campo** (`content/fieldReview.ts`): exercícios de GROUP BY **parametrizados** — cada semente gera outro depósito, outros números e outra pergunta (soma, contagem com filtro ou HAVING), então não dá para decorar. A resposta é calculada dos dados gerados (não há consulta-gabarito no pacote); só vale evidência (sem XP), com limite de 5 por dia.
+- **Oportunidades** (Diário, tecla J): regras determinísticas com o motivo escrito — dificuldade recorrente vira *recuperação*, último acerto há 7+ dias vira *revisão*, missão liberada vira *convite*. Nada é agendado no Control automaticamente.
+- **Para outra cidade:** escrever uma `LessonDef`, desafios com `stage`/`concept`/`ladder`/`explanation`, uma missão `kind: 'mastery'` e um item em `LEARNING_PATHS`; o catálogo do servidor (`activityCatalogRows`) e o relatório saem do conteúdo. O terminal SQL é o adaptador de hoje; outras disciplinas precisam do próprio adaptador (mesma escada, mesma evidência).
 
 **Modos:**
 - partida rápida (3/5/10/15 min ou personalizada);

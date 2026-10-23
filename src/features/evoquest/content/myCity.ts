@@ -1,6 +1,9 @@
 // Minha Cidade: a cidade do próprio jogador, construída com as matérias do
 // Control. Cada lote recebe uma matéria e o prédio cresce com as horas
-// líquidas estudadas nela — o mapa é gerado de novo quando algo muda.
+// líquidas estudadas nela (desenvolvimento físico) e funciona conforme o
+// domínio da matéria (desenvolvimento funcional) — o mapa é gerado de novo
+// quando algo muda.
+import type { MasteryLevel } from '@/lib/insight/mastery'
 import type { RegionDef } from '../engine/types'
 import { STATION_SPOT } from './cities'
 import { canvas } from './registry'
@@ -32,6 +35,25 @@ export function levelFor(seconds: number): LevelInfo {
   const next = LEVELS[level + 1] ?? null
   const from = LEVELS[level].hours
   return { level, name: LEVELS[level].name, next, progress: next ? Math.min(1, (hours - from) / (next.hours - from)) : 1 }
+}
+
+/**
+ * Desenvolvimento FUNCIONAL do prédio: vem do domínio da matéria no Control
+ * (prática verificada, retenção…), não do tempo. Horas constroem o prédio;
+ * domínio faz ele funcionar.
+ */
+export const FUNCTIONS: Record<MasteryLevel, { name: string; text: string }> = {
+  none: { name: 'Às escuras', text: 'Ainda sem prática verificada: o prédio existe, mas não funciona.' },
+  unconsolidated: { name: 'Luz de serviço', text: 'Primeiros acertos: só o térreo acende.' },
+  fragile: { name: 'Meio expediente', text: 'Funciona com falhas: os erros recentes ainda pesam.' },
+  developing: { name: 'Em operação', text: 'Funciona no dia a dia: falta consolidar.' },
+  consolidating: { name: 'Movimentado', text: 'Gente entrando e saindo: o domínio está se firmando.' },
+  mastered: { name: 'Referência da cidade', text: 'Domínio consolidado: o prédio atende a cidade inteira.' },
+}
+
+export function functionFor(m: { value: number; level: MasteryLevel } | null | undefined) {
+  const level: MasteryLevel = m?.level ?? 'none'
+  return { level, value: m?.value ?? 0, ...FUNCTIONS[level] }
 }
 
 export interface LotView {

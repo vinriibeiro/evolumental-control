@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { masteryIndex, type InsightInput } from '../evidence'
-import { gameEvidenceByTopic } from '../game'
+import { gameEvidenceByTopic, worldEvidenceAnswers } from '../game'
 import { aggregateMastery, computeMastery, emptyEvidence, lastContactLabel, levelOf, type TopicEvidence } from '../mastery'
 import { card, DAY, daysAgo, NOW, questions, review, session, subject, topic, TODAY, TZ } from './fixtures'
 
@@ -203,5 +203,39 @@ describe('EvoQuest → tópicos do Control', () => {
     const map = gameEvidenceByTopic(answers, { portugues: [{ id: 'crase', name: 'Crase' }, { id: 'reg', name: 'Regência' }] }, topics, [s], {})
     expect(map.get('c')).toEqual({ total: 2, correct: 1, lastAt: Date.parse('2026-10-21T10:00:00Z') })
     expect(map.has('r')).toBe(false)
+  })
+})
+
+describe('EvoQuest mundo → domínio (evidências ponderadas, sem XP)', () => {
+  const s = subject('bd', { name: 'Banco de dados SQL' })
+  const topics = [topic('g', 'bd', { name: 'GROUP BY' })]
+  const catalog = { sql: [{ id: 'groupby', name: 'GROUP BY' }] }
+  const row = (stage: 'guided' | 'independent' | 'transfer' | 'boss', help_level: number, solved: boolean) => ({ subject: 'sql', concept: 'groupby', stage, help_level, solved, created_at: '2026-10-21T10:00:00Z' })
+
+  it('estágio vira peso e ajuda reduz o crédito; explicação completa não conta acerto', () => {
+    const answers = worldEvidenceAnswers([row('guided', 0, true), row('independent', 2, true), row('transfer', 4, true)])
+    const map = gameEvidenceByTopic(answers, catalog, topics, [s], { sql: 'bd' })
+    const g = map.get('g')!
+    expect(g.total).toBe(1 + 2 + 3)
+    expect(g.correct).toBeCloseTo(1 + 2 * 0.6 + 0)
+  })
+
+  it('transferência sem ajuda pesa mais que várias guiadas; não resolvida pesa como erro', () => {
+    const transfer = gameEvidenceByTopic(worldEvidenceAnswers([row('transfer', 0, true)]), catalog, topics, [s], { sql: 'bd' }).get('g')!
+    const guided = gameEvidenceByTopic(worldEvidenceAnswers([row('guided', 0, true), row('guided', 0, true)]), catalog, topics, [s], { sql: 'bd' }).get('g')!
+    expect(transfer.correct).toBeGreaterThan(guided.correct)
+    const failed = gameEvidenceByTopic(worldEvidenceAnswers([row('independent', 1, false)]), catalog, topics, [s], { sql: 'bd' }).get('g')!
+    expect(failed).toMatchObject({ total: 2, correct: 0 })
+  })
+
+  it('o domínio sobe só com evidência: mesma prática com explicação completa fica abaixo', () => {
+    const at = (answers: ReturnType<typeof worldEvidenceAnswers>) => {
+      const game = gameEvidenceByTopic(answers, catalog, topics, [s], { sql: 'bd' })
+      const input: InsightInput = { subjects: [s], topics, sessions: [], questions: [], reviews: [], cards: [], game, today: TODAY, tz: TZ }
+      return masteryIndex(input, NOW).byTopic.get('g')!.value
+    }
+    const solo = at(worldEvidenceAnswers([row('independent', 0, true), row('transfer', 0, true)]))
+    const helped = at(worldEvidenceAnswers([row('independent', 4, true), row('transfer', 4, true)]))
+    expect(solo).toBeGreaterThan(helped)
   })
 })

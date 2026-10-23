@@ -18,6 +18,7 @@ import {
   type GameAnswerResult,
   type GameClaimInput,
   type GameFinishInput,
+  type GameEvidenceInput,
   type GameStartInput,
   type ListQuery,
   type ListResult,
@@ -55,11 +56,13 @@ const INDEXES: Record<TableName, string> = {
   game_purchases: 'id, &item_id',
   game_quest_progress: 'id, &step_key',
   game_saves: 'id, &slot',
+  game_evidence: 'id, activity_id, created_at',
 }
 
 const V1_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !t.startsWith('game_') && t !== 'study_folders').map(([t, i]) => [t, t === 'subjects' ? 'id, status' : i]))
 const RPG_TABLES = ['game_quest_progress', 'game_saves']
-const V4_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => t !== 'question_errors'))
+const V5_INDEXES = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => t !== 'game_evidence'))
+const V4_INDEXES = Object.fromEntries(Object.entries(V5_INDEXES).filter(([t]) => t !== 'question_errors'))
 const V2_INDEXES = { ...V1_INDEXES, ...Object.fromEntries(Object.entries(INDEXES).filter(([t]) => t.startsWith('game_') && !RPG_TABLES.includes(t))) }
 const V3_INDEXES = Object.fromEntries(Object.entries(V4_INDEXES).filter(([t]) => !RPG_TABLES.includes(t)))
 
@@ -85,7 +88,9 @@ class LocalDb extends Dexie {
     // v4: EvoQuest RPG — progresso de missões e salvamento do mundo.
     this.version(4).stores(V4_INDEXES)
     // v5: caderno de erros.
-    this.version(5).stores(INDEXES)
+    this.version(5).stores(V5_INDEXES)
+    // v6: evidências de aprendizagem do EvoQuest.
+    this.version(6).stores(INDEXES)
   }
   t(table: TableName): Table<AnyRow, string> {
     return this.table(table)
@@ -585,6 +590,34 @@ export class LocalBackend implements DataBackend {
       if (c.xp > 0 || c.coins > 0) await this.db.t('game_rewards').add({ ...this.stamp(), id: crypto.randomUUID(), source: `quest:${step}`, kind: 'mission', xp: c.xp, coins: c.coins } as AnyRow)
     })
     return { applied: true, xp: c.xp, coins: c.coins }
+  }
+
+  async gameRecordEvidence(i: GameEvidenceInput): Promise<{ applied: boolean }> {
+    // Mesmas regras da RPC game_record_evidence, com o catálogo do conteúdo.
+    const { activityCatalogRows } = await import('@/features/evoquest/catalogSql')
+    const { sha256 } = await import('@/features/evoquest/challenges')
+    const a = activityCatalogRows().find((r) => r.id === i.activity)
+    if (!a) throw new DataError('validation', 'Atividade desconhecida')
+    if (await this.db.t('game_evidence').get(i.id)) return { applied: false }
+    if (!Number.isInteger(i.help) || i.help < 0 || i.help > 4 || !Number.isInteger(i.attempts) || i.attempts < 0 || i.attempts > 1000) throw new DataError('validation', 'Dados de evidência inválidos')
+    if (a.parametric && i.seed == null) throw new DataError('validation', 'Atividade parametrizada exige a semente')
+    if (i.solved && !a.parametric && a.hash && (i.answer == null || (await sha256(i.answer)) !== a.hash)) throw new DataError('validation', 'Resposta não confere')
+    const since = new Date(Date.now() - 86_400_000).toISOString()
+    const today = await this.db.t('game_evidence').where('activity_id').equals(i.activity).filter((r) => String(r.created_at) > since).count()
+    if (today >= a.dailyLimit) throw new DataError('validation', 'Limite diário de registros desta atividade atingido')
+    await this.db.t('game_evidence').add({
+      ...this.stamp(),
+      id: i.id,
+      activity_id: i.activity,
+      subject: a.subject,
+      concept: a.concept,
+      stage: a.stage,
+      help_level: i.help,
+      attempts: i.attempts,
+      solved: i.solved,
+      seed: i.seed ?? null,
+    } as AnyRow)
+    return { applied: true }
   }
 
   async resetAllData(): Promise<void> {

@@ -3,6 +3,7 @@
 import type { Challenge } from '../challenges'
 import type { EncounterDef } from '../engine/combat'
 import type { DialogueDef, ItemDef, QuestDef, RegionDef, Speaker } from '../engine/types'
+import type { LessonDef } from '../engine/pedagogy'
 import { EXPECTED } from './expected'
 
 export interface BossPhase {
@@ -29,6 +30,8 @@ export interface WorldContent {
   challenges: Record<string, Challenge>
   encounters: Record<string, EncounterDef>
   bosses: Record<string, BossDef>
+  /** Lições de campo (conceito, exemplo resolvido, erros comuns). */
+  lessons: Record<string, LessonDef>
   /** Recompensa de cada etapa (`missao:etapa`) — espelhada no catálogo do servidor. */
   rewards: Record<string, { xp: number; coins: number }>
 }

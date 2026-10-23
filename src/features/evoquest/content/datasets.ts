@@ -104,7 +104,58 @@ INSERT INTO missoes VALUES
  (5, 'O Drone Teimoso', 'Laboratório Aurora', 'em breve');
 `
 
+// ── Almoxarifado (missão de GROUP BY) ─────────────────────────────────────
+const SUPPLY = `
+CREATE TABLE fornecedores (id INTEGER PRIMARY KEY, nome TEXT, cidade TEXT);
+INSERT INTO fornecedores VALUES
+ (1, 'Ferragens Nobre', 'Vila Evolumental'),
+ (2, 'Cabos & Cia', 'Cidade dos Dados'),
+ (3, 'Placa Viva', 'Aurora'),
+ (4, 'Lumen Peças', 'Babel');
+CREATE TABLE entregas (id INTEGER PRIMARY KEY, fornecedor_id INTEGER, dia TEXT, itens INTEGER, status TEXT);
+INSERT INTO entregas VALUES
+ (1, 2, '2026-10-01', 20, 'ok'),
+ (2, 1, '2026-10-01', 10, 'ok'),
+ (3, 4, '2026-10-02', 8, 'atrasada'),
+ (4, 3, '2026-10-02', 5, 'ok'),
+ (5, 2, '2026-10-03', 15, 'atrasada'),
+ (6, 1, '2026-10-04', 12, 'ok'),
+ (7, 4, '2026-10-05', 8, 'ok'),
+ (8, 2, '2026-10-06', 15, 'ok'),
+ (9, 3, '2026-10-07', 5, 'avariada'),
+ (10, 1, '2026-10-08', 8, 'atrasada'),
+ (11, 2, '2026-10-09', 20, 'atrasada'),
+ (12, 4, '2026-10-10', 8, 'ok'),
+ (13, 3, '2026-10-11', 10, 'ok'),
+ (14, 1, '2026-10-12', 10, 'ok'),
+ (15, 2, '2026-10-13', 10, 'ok'),
+ (16, 4, '2026-10-14', 8, 'atrasada'),
+ (17, 1, '2026-10-15', 10, 'ok'),
+ (18, 3, '2026-10-16', 5, 'ok'),
+ (19, 2, '2026-10-17', 10, 'atrasada'),
+ (20, 4, '2026-10-18', 8, 'ok');
+CREATE TABLE notas (id INTEGER PRIMARY KEY, fornecedor_id INTEGER, mes TEXT, itens INTEGER);
+INSERT INTO notas VALUES
+ (1, 1, '2026-10', 30),
+ (2, 1, '2026-10', 20),
+ (3, 2, '2026-10', 60),
+ (4, 2, '2026-10', 50),
+ (5, 3, '2026-10', 25),
+ (6, 4, '2026-10', 24),
+ (7, 4, '2026-10', 16);
+`
+
+/** Banco mínimo do exemplo resolvido da lição de GROUP BY. */
+const LESSON_GROUPBY = `
+CREATE TABLE chamados (id INTEGER PRIMARY KEY, setor TEXT, prioridade TEXT);
+INSERT INTO chamados VALUES
+ (1, 'TI', 'alta'), (2, 'RH', 'baixa'), (3, 'TI', 'baixa'), (4, 'Financeiro', 'alta'),
+ (5, 'TI', 'alta'), (6, 'Financeiro', 'baixa'), (7, 'RH', 'alta'), (8, 'TI', 'baixa'), (9, 'Financeiro', 'alta');
+`
+
 export const DATASETS: Record<string, string> = {
+  supply: SUPPLY,
+  lesson_groupby: LESSON_GROUPBY,
   guild: GUILD,
   security: SECURITY,
   cafe: CAFE,
@@ -135,3 +186,9 @@ export const SCHEMAS: Record<string, Array<{ table: string; columns: string[] }>
   ],
 }
 SCHEMAS.core_ghosts = SCHEMAS.core
+SCHEMAS.supply = [
+  { table: 'fornecedores', columns: ['id', 'nome', 'cidade'] },
+  { table: 'entregas', columns: ['id', 'fornecedor_id', 'dia', 'itens', 'status'] },
+  { table: 'notas', columns: ['id', 'fornecedor_id', 'mes', 'itens'] },
+]
+SCHEMAS.lesson_groupby = [{ table: 'chamados', columns: ['id', 'setor', 'prioridade'] }]

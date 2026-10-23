@@ -174,7 +174,6 @@ idempotente) e RPC `game_save_world` (salva só campos cosméticos/posição; pr
 ### Pendências da fatia vertical (próxima sessão)
 
 - E2E no navegador de Brás → logs → JOIN → Sentinela → Zé → painel → chefe → final (o motor e o servidor já estão testados).
-- Atualizar `e2e/evoquest.mjs`: o modo clássico saiu de `/evoquest` para `/evoquest/treino`.
 - Polimento de arte e animação; sons de passos; revisar textos com jogadores reais.
 - Aplicar no Supabase as migrações `20261023000000_explorer.sql` e `20261023000100_evoquest_rpg.sql`.
 | 5 | Ferramentas de conteúdo para novas regiões | em parte: `buildCity` gera cidades a partir das unidades do modo clássico |
@@ -203,3 +202,19 @@ Pendências:
 - Minha Cidade: cada prédio construído tem um morador que revisa os flashcards vencidos da matéria (23/10). Cidades geradas continuam sem história própria.
 - Indicadores são calculados no navegador sobre 365 dias; para contas grandes, mover agregações para views/RPCs.
 - Vínculo EvoQuest ↔ tópicos do Control é por nome; nomes diferentes não se ligam.
+
+### Navegação em categorias e pedagogia do EvoQuest (23/10/2026)
+
+**Navegação.** A barra lateral virou um accordion (`src/app/nav.ts` + `src/app/SidebarNav.tsx`): Hoje sempre visível; Estudar, Planejar, Fixar, Analisar e EvoQuest recolhíveis, uma aberta por vez, aberta sozinha na categoria da rota, estado guardado na sessão, `aria-expanded`/`aria-controls`, item e categoria destacados (ponto + texto para leitor de tela). Busca e Configurações ficam no rodapé. Nenhuma URL mudou; os itens do EvoQuest usam parâmetros (`/evoquest?painel=mapa`, `?painel=diario`, `?ir=minha-cidade`) que o mundo trata e limpa. No celular, as abas de baixo continuam iguais (Hoje e EvoQuest a um toque).
+
+**Diagnóstico dos desafios (antes):** 296 desafios clássicos — 54 múltipla escolha, 27 V/F, 46 numéricos, 23 lacunas, 17 associação, 17 categorização, 15 achar o erro, 11 ordenação, 9 resposta curta, 12 ditado, 6 escuta, 24 multietapas (todos os chefes), 18 prever saída, 7 completar código, 6 SQL, 4 Python. Cerca de 27% eram reconhecimento puro (MCQ/VF), ~28% outras formas de reconhecimento e ~3% aplicação real; os itens são fixos (memorizáveis). As cidades geradas levam à fila do modo clássico. A Cidade dos Dados aplicava o conhecimento, mas não ensinava (2 pistas estáticas, sem exemplo, sem prática guiada, sem debrief), e as conquistas do mundo viravam só XP, nunca evidência de domínio.
+
+**Feito (fatia vertical em SQL — GROUP BY):** modelo pedagógico genérico (`engine/pedagogy.ts`), lição de campo com exemplo executável, escada de pistas, missão `sql_supply` com guiada → independente → combate → transferência (múltiplos caminhos) → debrief, evidências separadas de XP (`game_evidence` + RPC, espelhada no modo local, Dexie v6), integração com o domínio do Control (`worldEvidenceAnswers` em `lib/insight/game.ts`), revisão de campo parametrizada, quadro de oportunidades com motivo, Minha Cidade com obra (tempo) × funcionamento (domínio). Migração `20261027000000_evoquest_evidencias.sql`.
+
+Pendências e próximos passos:
+- Aplicar a migração `20261027000000_evoquest_evidencias.sql` no Supabase.
+- Levar o modelo às outras cidades, uma por vez (cada uma com o adaptador da disciplina: Python com Pyodide, inglês com escuta/ditado, lógica com tabelas-verdade…). Não criar várias antes de validar o Almoxarifado com jogadores.
+- O motor de próxima ação do Control (`recommend`) ainda não aponta missões do mundo; hoje o quadro de oportunidades usa só as evidências do próprio mundo.
+- O relatório oferece revisão de campo e o link para o domínio; não cria revisão no Control (decisão: nada automático). Um botão explícito "agendar revisão" pode vir depois.
+- O funcionamento da Minha Cidade aparece na prefeitura; o mapa ainda não desenha luzes conforme o domínio.
+- Atividades parametrizadas não têm gabarito no servidor (só semente + limite diário); a evidência da revisão de campo é, por isso, menos protegida que a das atividades fixas.

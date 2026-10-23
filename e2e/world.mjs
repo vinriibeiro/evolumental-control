@@ -67,7 +67,7 @@ async function useAt(x, y, facing, name) {
 async function runSql(query) {
   const editor = page.getByLabel('Comando SQL')
   await editor.fill(query)
-  await page.getByRole('button', { name: /Executar/ }).click()
+  await page.getByRole('button', { name: /^Executar Ctrl/ }).click()
 }
 
 await step('primeira experiência: cena, criação de personagem e chegada à Vila', async () => {
@@ -132,6 +132,101 @@ await step('progresso persiste após recarregar (servidor/local reconciliado)', 
   const s = await st()
   if (s.region !== 'data_city') throw new Error(`região ${s.region}`)
   await page.waitForTimeout(300)
+})
+
+await step('história até o elevador: Brás, logs e quem foi (JOIN)', async () => {
+  await useAt(8.5, 5.5, 'up', 'Brás Teles')
+  await talkThrough()
+  await useAt(2.5, 4.5, 'up', 'Terminal de logs')
+  await runSql("SELECT * FROM access_logs WHERE action = 'UPDATE' AND (hour < 7 OR hour >= 20);")
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await page.waitForTimeout(400)
+  await useAt(2.5, 4.5, 'up', 'Terminal de logs')
+  await runSql("SELECT DISTINCT e.name, e.department, e.status FROM access_logs l JOIN employees e ON e.id = l.employee_id WHERE l.action = 'UPDATE' AND (l.hour < 7 OR l.hour >= 20);")
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await page.waitForTimeout(400)
+  if (!(await st()).steps.includes('sql_main:who')) throw new Error('etapa "quem" não concluída')
+})
+
+await step('Almoxarifado (GROUP BY): lição, guiada com pista, independente, drone, transferência e relatório de campo', async () => {
+  await useAt(10.5, 20.5, 'down', 'Elevador de carga')
+  await page.waitForTimeout(500)
+  if ((await st()).region !== 'data_warehouse') throw new Error('elevador não levou ao almoxarifado')
+  await useAt(6.5, 11.5, 'up', 'Otávia')
+  await talkThrough()
+  // Guiada: a ficha abre sozinha; tentar com os sublinhados libera a 1ª pista.
+  await useAt(11.5, 10.5, 'up', 'Painel de reposição')
+  await page.getByText('Objetivo:').first().waitFor()
+  await page.getByRole('button', { name: 'Executar o exemplo' }).click()
+  await page.getByText('3 linha(s)').waitFor()
+  if (!(await page.getByRole('button', { name: /Pedir pista 1/ }).isDisabled())) throw new Error('pista liberada antes de tentar')
+  await page.getByRole('button', { name: /^Executar Ctrl/ }).click()
+  await page.getByText(/Troque pela coluna/).waitFor()
+  await page.getByRole('button', { name: /Pedir pista 1/ }).click()
+  await page.getByText('Pista 1:').waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-almoxarifado-guiada.png` })
+  await runSql('SELECT fornecedor_id, COUNT(*) AS entregas FROM entregas GROUP BY fornecedor_id;')
+  await page.getByText(/prática guiada resolvida com 1 pista/).waitFor()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await page.waitForTimeout(400)
+  // Independente: do zero; o portão abre.
+  await useAt(11.5, 10.5, 'up', 'Painel de reposição')
+  await runSql('SELECT fornecedor_id, COUNT(*) FROM entregas GROUP BY fornecedor_id;')
+  await page.getByText(/some a coluna itens/).waitFor()
+  await runSql('SELECT fornecedor_id, SUM(itens) AS total FROM entregas GROUP BY fornecedor_id;')
+  await page.getByText(/prática independente resolvida/).waitFor()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await page.waitForTimeout(500)
+  if (!(await st()).flags.supply_gate) throw new Error('portão não abriu')
+  // Combate: a consulta revela o fornecedor que recalibra o drone.
+  await useAt(12.5, 4.5, 'right', 'Drone')
+  const combat = page.getByRole('dialog', { name: /Confronto/ })
+  await combat.waitFor()
+  await combat.getByRole('button', { name: /^Examinar/ }).click()
+  await combat.getByRole('button', { name: /^Consultar entregas/ }).click()
+  await runSql("SELECT fornecedor_id, COUNT(*) FROM entregas WHERE status = 'atrasada' GROUP BY fornecedor_id;")
+  await page.getByText(/Atrasos por fornecedor/).waitFor()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await combat.getByRole('button', { name: /^Recalibrar/ }).click()
+  await page.getByLabel('Recalibrar drone').fill('2')
+  await page.getByRole('button', { name: 'Executar', exact: true }).click()
+  await combat.getByText('Vitória.').waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-almoxarifado-drone.png` })
+  await combat.getByRole('button', { name: 'Continuar' }).click()
+  await page.waitForTimeout(600)
+  if (!(await st()).flags.drone_down) throw new Error('drone não saiu da porta')
+  // Transferência: outro problema, qualquer caminho (aqui, com CTE).
+  await useAt(17.5, 3.5, 'up', 'Arquivo de notas')
+  await runSql(
+    'WITH n AS (SELECT fornecedor_id, SUM(itens) t FROM notas GROUP BY fornecedor_id), e AS (SELECT fornecedor_id, SUM(itens) t FROM entregas GROUP BY fornecedor_id) SELECT f.nome, n.t - e.t FROM fornecedores f JOIN n ON n.fornecedor_id = f.id JOIN e ON e.fornecedor_id = f.id WHERE n.t > e.t;',
+  )
+  await page.getByText(/transferência resolvida sem pistas/).waitFor()
+  await page.getByRole('button', { name: 'Continuar' }).click()
+  await page.waitForTimeout(500)
+  // Debrief: a conversa termina no relatório de campo.
+  await useAt(6.5, 11.5, 'up', 'Otávia')
+  const report = page.getByRole('dialog', { name: /Relatório de campo/ })
+  for (let i = 0; i < 10 && !(await report.count()); i++) {
+    await page.getByRole('dialog').getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo/ }).click()
+    await page.waitForTimeout(200)
+  }
+  await report.getByText('Aplicou com pouca ou nenhuma ajuda').waitFor()
+  await report.getByText(/Painel de reposição — contagem/).first().waitFor()
+  await report.getByText('Como isso conta no domínio do Control').click()
+  await report.getByText(/Transferência \(peso 3\)/).waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-almoxarifado-relatorio.png` })
+  const s = await st()
+  if (!s.quests.sql_supply?.done) throw new Error('missão não concluída')
+  // Revisão de campo: exercício gerado na hora (só evidência, sem XP).
+  await report.getByRole('button', { name: 'Fazer uma revisão de campo' }).click()
+  await page.getByRole('dialog', { name: 'Revisão de campo — GROUP BY' }).waitFor()
+  await page.getByText('gerado para este exercício').waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-almoxarifado-revisao.png` })
+  await page.getByRole('button', { name: 'Fechar terminal' }).click()
+  // Diário: oportunidade de revisão com o motivo; volta pelo elevador.
+  await useAt(2.5, 11.5, 'left', 'Elevador de carga')
+  await page.waitForTimeout(500)
+  if ((await st()).region !== 'data_city') throw new Error('não voltou ao saguão')
 })
 
 await step('painéis: diário, habilidades, inventário e mapa com passagens', async () => {

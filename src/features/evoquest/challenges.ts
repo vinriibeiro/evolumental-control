@@ -3,6 +3,7 @@
 // só o hash SHA-256 da resposta canônica (gerado pelos testes a partir das
 // soluções, que ficam fora do pacote do app). O servidor confere o mesmo hash.
 import type { QueryResult } from '@/game/lab/sqlCore'
+import type { Stage } from './engine/pedagogy'
 
 export interface SqlFeedback {
   when: {
@@ -35,6 +36,21 @@ export interface SqlChallenge {
   hints: string[]
   success: string
   skills: string[]
+  // ── Pedagogia (opcional) ──
+  /** Estágio da aprendizagem: define o peso da evidência de domínio. */
+  stage?: Stage
+  /** Tópico do EvoQuest exercitado (ex.: "groupby"). */
+  concept?: string
+  /** Lição de campo mostrada no terminal (id em WORLD.lessons). */
+  lesson?: string
+  /** Escada de pistas: conceito → parte do problema → parte da solução. */
+  ladder?: [string, string, string]
+  /** Explicação completa (último degrau): o raciocínio inteiro. */
+  explanation?: string
+  /** Banco gerado na hora (revisão de campo parametrizada) em vez de DATASETS[database]. */
+  inline?: { dataset: string; schema: Array<{ table: string; columns: string[] }> }
+  /** Semente do exercício parametrizado (vai junto com a evidência). */
+  seed?: number
 }
 
 export interface InputChallenge {

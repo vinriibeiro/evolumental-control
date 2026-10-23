@@ -80,6 +80,7 @@ export const TABLES: TableName[] = [
   'game_purchases',
   'game_quest_progress',
   'game_saves',
+  'game_evidence',
 ]
 
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
@@ -206,6 +207,7 @@ export const DEFAULTS: Defaults = {
   game_purchases: {},
   game_quest_progress: {},
   game_saves: { slot: 'main', data: {} },
+  game_evidence: { seed: null },
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
@@ -235,4 +237,5 @@ export const TABLE_LABELS: Record<TableName, string> = {
   game_purchases: 'itens do EvoQuest',
   game_quest_progress: 'etapas de missões do EvoQuest',
   game_saves: 'salvamentos do EvoQuest',
+  game_evidence: 'evidências de aprendizagem do EvoQuest',
 }

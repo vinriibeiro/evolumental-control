@@ -38,6 +38,20 @@ export interface FlashcardReviewInput {
   dueAt: string
 }
 
+/** Evidência de aprendizagem de uma atividade do mundo (ver game_record_evidence). */
+export interface GameEvidenceInput {
+  /** Gerado no cliente: repetir o envio não duplica (idempotência). */
+  id: string
+  activity: string
+  help: number
+  attempts: number
+  solved: boolean
+  /** Obrigatória nas atividades parametrizadas. */
+  seed?: number | null
+  /** Resposta canônica: conferida pelo hash quando solved = true. */
+  answer?: string | null
+}
+
 export interface GameStartInput {
   id: string
   subjectId: string
@@ -117,6 +131,11 @@ export interface DataBackend {
    * resposta e credita a recompensa do catálogo uma única vez.
    */
   gameCompleteStep(step: string, answer: string | null): Promise<{ applied: boolean; xp: number; coins: number }>
+  /**
+   * Registra a evidência de uma atividade pedagógica (estágio e conceito vêm
+   * do catálogo do servidor). Não credita XP. applied = false: id já gravado.
+   */
+  gameRecordEvidence(input: GameEvidenceInput): Promise<{ applied: boolean }>
   /** Apaga todos os dados de estudo e restaura as preferências; mantém a conta. */
   resetAllData(): Promise<void>
   /** Exclui a conta e, em cascata, todos os dados. */

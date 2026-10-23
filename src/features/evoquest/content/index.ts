@@ -7,6 +7,7 @@ import { buildCity, CLASSIC_CONTENT, GENERATED_REWARDS } from './generatedCity'
 import { GUILD_BOARD, HUB, HUB_DIALOGUES, SIDE_BOARD, TUTORIAL } from './hub'
 import { buildMyCity, emptyLots } from './myCity'
 import { byId, type WorldContent } from './registry'
+import { DRONE, LESSON_GROUPBY, SUPPLY_PATH, SUPPLY_QUEST, WAREHOUSE, WAREHOUSE_CHALLENGES, WAREHOUSE_DIALOGUES, WAREHOUSE_INPUTS, WAREHOUSE_ITEMS, WAREHOUSE_SPEAKERS } from './warehouse'
 
 /** Cidades sem história escrita à mão: geradas das unidades do modo clássico. */
 const GENERATED = CITIES.filter((c) => CLASSIC_CONTENT[c.subject]).map((c) => buildCity(c, CLASSIC_CONTENT[c.subject], subjectMeta(c.subject)?.name ?? c.blurb))
@@ -30,6 +31,11 @@ const REWARDS: Record<string, { xp: number; coins: number }> = {
   'sql_main:finale': { xp: 100, coins: 40 },
   'side_badges:find': { xp: 70, coins: 10 },
   'side_cafe:find': { xp: 60, coins: 10 },
+  // Almoxarifado (GROUP BY): XP e moedas por jogar; domínio vem só das evidências.
+  'sql_supply:guided': { xp: 20, coins: 5 },
+  'sql_supply:independent': { xp: 40, coins: 10 },
+  'sql_supply:drone': { xp: 60, coins: 10 },
+  'sql_supply:transfer': { xp: 100, coins: 25 },
 }
 for (const g of GENERATED)
   for (const s of g.quest.steps) {
@@ -37,20 +43,21 @@ for (const g of GENERATED)
     if (s.id === 'finale') REWARDS[stepKey(g.quest.id, s.id)] = GENERATED_REWARDS.finale
   }
 
-const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, ...GENERATED.map((g) => g.quest)])
+const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, SUPPLY_QUEST, ...GENERATED.map((g) => g.quest)])
 const rewards: WorldContent['rewards'] = {}
 for (const q of Object.values(quests)) for (const s of q.steps) rewards[stepKey(q.id, s.id)] = REWARDS[stepKey(q.id, s.id)] ?? { xp: 0, coins: 0 }
 
 export const WORLD: WorldContent = {
   // my_city é trocada em tempo de execução pela versão com as matérias do jogador.
-  regions: byId([HUB, DATA_CITY, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
-  speakers: byId([...SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
-  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
-  items: byId([...ITEMS, ...GENERATED.flatMap((g) => g.items)]),
+  regions: byId([HUB, DATA_CITY, WAREHOUSE, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
+  speakers: byId([...SPEAKERS, ...WAREHOUSE_SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
+  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...WAREHOUSE_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
+  items: byId([...ITEMS, ...WAREHOUSE_ITEMS, ...GENERATED.flatMap((g) => g.items)]),
   quests,
-  challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE]),
-  encounters: byId([SENTINEL]),
+  challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE, ...WAREHOUSE_CHALLENGES, ...WAREHOUSE_INPUTS]),
+  encounters: byId([SENTINEL, DRONE]),
   bosses: byId([ROOT_BOSS]),
+  lessons: byId([LESSON_GROUPBY]),
   rewards,
 }
 
@@ -64,5 +71,8 @@ export const SQL_SKILLS: Array<{ id: string; name: string; requires: string[]; c
   { id: 'subqueries', name: 'Subqueries', requires: ['join', 'agregacao'], covers: ['subquery'] },
   { id: 'avancado', name: 'SQL Avançado', requires: ['subqueries'], covers: ['update'] },
 ]
+
+/** Caminhos de aprendizagem (uma missão por conceito; outras cidades entram aqui). */
+export const LEARNING_PATHS = [SUPPLY_PATH]
 
 export const START = { region: 'hub', x: HUB.spawn.x + 0.5, y: HUB.spawn.y + 0.5 }

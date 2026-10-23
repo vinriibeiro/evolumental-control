@@ -19,7 +19,28 @@ export const SQL_SOLUTIONS: Record<string, string> = {
     "SELECT e.department, SUM(p.amount - c.salary) FROM payroll p JOIN contracts c ON c.employee_id = p.employee_id JOIN employees e ON e.id = p.employee_id WHERE p.origin <> 'ghost' GROUP BY e.department HAVING SUM(p.amount - c.salary) > 0;",
   boss_fix:
     "UPDATE payroll SET amount = (SELECT c.salary FROM contracts c WHERE c.employee_id = payroll.employee_id) WHERE origin = 'rh'; DELETE FROM payroll WHERE origin = 'ghost';",
+  // Almoxarifado (GROUP BY)
+  sup_guided: 'SELECT fornecedor_id, COUNT(*) AS entregas FROM entregas GROUP BY fornecedor_id;',
+  sup_independent: 'SELECT fornecedor_id, SUM(itens) FROM entregas GROUP BY fornecedor_id;',
+  sup_drone: "SELECT fornecedor_id, COUNT(*) FROM entregas WHERE status = 'atrasada' GROUP BY fornecedor_id;",
+  sup_transfer:
+    'SELECT f.nome, n.total - e.total FROM fornecedores f JOIN (SELECT fornecedor_id, SUM(itens) AS total FROM notas GROUP BY fornecedor_id) n ON n.fornecedor_id = f.id JOIN (SELECT fornecedor_id, SUM(itens) AS total FROM entregas GROUP BY fornecedor_id) e ON e.fornecedor_id = f.id WHERE n.total - e.total > 0;',
 }
+
+/** Outros caminhos válidos (o resultado é que é conferido, não a consulta). */
+export const ALTERNATIVE_SOLUTIONS: Array<{ challenge: string; query: string }> = [
+  {
+    challenge: 'sup_transfer',
+    query:
+      'WITH n AS (SELECT fornecedor_id, SUM(itens) t FROM notas GROUP BY fornecedor_id), e AS (SELECT fornecedor_id, SUM(itens) t FROM entregas GROUP BY fornecedor_id) SELECT f.nome, n.t - e.t AS diferenca FROM n JOIN e USING (fornecedor_id) JOIN fornecedores f ON f.id = n.fornecedor_id WHERE n.t > e.t;',
+  },
+  {
+    challenge: 'sup_transfer',
+    query:
+      'SELECT f.nome, (SELECT SUM(itens) FROM notas WHERE fornecedor_id = f.id) - (SELECT SUM(itens) FROM entregas WHERE fornecedor_id = f.id) AS d FROM fornecedores f WHERE (SELECT SUM(itens) FROM notas WHERE fornecedor_id = f.id) > (SELECT SUM(itens) FROM entregas WHERE fornecedor_id = f.id);',
+  },
+  { challenge: 'sup_independent', query: 'select fornecedor_id, sum(itens) as total from entregas group by 1 order by 1 desc' },
+]
 
 /** Respostas digitadas / estados (já na forma canônica). */
 export const RAW_SOLUTIONS: Record<string, string> = {
@@ -27,10 +48,18 @@ export const RAW_SOLUTIONS: Record<string, string> = {
   sent_ip: '10.0.66.6',
   puzzle_power: 'A0B1C1D0',
   enc_sentinel: '4096|10.0.66.6',
+  sup_worst: '2',
+  enc_drone: '2',
 }
 
 /** Erros típicos e o retorno que o terminal deve dar (trecho). */
 export const WRONG_ANSWERS: Array<{ challenge: string; query: string; expect: string }> = [
+  // Almoxarifado (GROUP BY): o retorno explica o erro de conceito, sem dar a consulta.
+  { challenge: 'sup_guided', query: 'SELECT fornecedor_id, COUNT(*) AS entregas FROM entregas GROUP BY ____;', expect: 'Troque pela coluna' },
+  { challenge: 'sup_guided', query: 'SELECT fornecedor_id, COUNT(*) AS entregas FROM entregas GROUP BY id;', expect: 'uma linha por ENTREGA' },
+  { challenge: 'sup_independent', query: 'SELECT fornecedor_id, COUNT(*) FROM entregas GROUP BY fornecedor_id;', expect: 'some a coluna itens' },
+  { challenge: 'sup_drone', query: 'SELECT fornecedor_id, COUNT(*) FROM entregas GROUP BY fornecedor_id;', expect: 'WHERE vem antes do GROUP BY' },
+  { challenge: 'sup_drone', query: "SELECT fornecedor_id, COUNT(*) FROM entregas WHERE COUNT(*) > 0 AND status = 'atrasada' GROUP BY fornecedor_id;", expect: 'COUNT não pode ficar no WHERE' },
   { challenge: 'sql_door', query: 'SELECT * FROM employees WHERE clearance >= 4;', expect: 'status' },
   { challenge: 'sql_door', query: "SELECT * FROM employees WHERE status = 'Active' AND clearance >= 4;", expect: 'maiúsculas' },
   { challenge: 'sql_door', query: "SELECT * FROM employees WHERE status = 'active' AND clearance > 4;", expect: 'Maior ou igual' },

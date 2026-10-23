@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Backpack, BookOpen, Check, Circle, CircleDot, Lock, Map as MapIcon, Settings2, Sparkles, Star, Ticket, X } from 'lucide-react'
-import { SQL_SKILLS, WORLD } from '../content'
+import { useAll } from '@/hooks/data'
+import { LEARNING_PATHS, SQL_SKILLS, WORLD } from '../content'
+import { worldOpportunities } from '../engine/opportunities'
 import { CITIES } from '../content/cities'
 import { cityQuestId } from '../content/generatedCity'
 import { MY_CITY } from '../content/myCity'
@@ -99,12 +101,42 @@ function Inventory({ state }: { state: WorldState }) {
   )
 }
 
+/** Quadro de oportunidades: o que vale fazer agora e por quê (regras determinísticas). */
+function Opportunities({ state }: { state: WorldState }) {
+  const evidence = useAll('game_evidence')
+  const concepts = Object.fromEntries(
+    LEARNING_PATHS.filter((p) => state.quests[p.quest]?.done).map((p) => [p.concept, { name: Object.values(WORLD.lessons).find((l) => l.concept === p.concept)?.conceptName ?? p.concept, where: p.practice }]),
+  )
+  const missions = LEARNING_PATHS.filter((p) => state.steps.includes(p.unlockedBy) && !state.quests[p.quest]?.done).map((p) => ({ id: p.quest, title: WORLD.quests[p.quest].title, where: p.where }))
+  const list = worldOpportunities(evidence.data ?? [], concepts, missions, Date.now())
+  if (!list.length) return null
+  return (
+    <section aria-label="Oportunidades" className="rounded-md border-2 border-[var(--eq-edge-dark)] bg-[#120e0b] p-3">
+      <p className="mb-2 text-xs font-semibold tracking-wider text-[var(--eq-gold)] uppercase">Oportunidades agora</p>
+      <ul className="space-y-2 text-sm">
+        {list.map((o) => (
+          <li key={o.id}>
+            <p className="font-semibold">
+              {o.kind === 'recovery' ? 'Recuperação · ' : o.kind === 'spaced' ? 'Revisão · ' : 'Missão · '}
+              {o.title}
+            </p>
+            <p className="text-[var(--eq-muted)]">
+              {o.reason} <span className="text-[#f5deb3]">Onde: {o.where}.</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function Journal({ state }: { state: WorldState }) {
   const quests = Object.values(WORLD.quests).filter((q) => state.quests[q.id])
   if (!quests.length) return <p className="text-[var(--eq-muted)]">Nenhuma missão ainda. Fale com a Mestra Iara, em frente à Guilda.</p>
   const order = { main: 0, side: 1, contract: 2, event: 3, mastery: 4 }
   return (
     <div className="space-y-5">
+      <Opportunities state={state} />
       {quests
         .sort((a, b) => Number(state.quests[a.id].done) - Number(state.quests[b.id].done) || order[a.kind] - order[b.kind])
         .map((q) => {
@@ -113,7 +145,7 @@ function Journal({ state }: { state: WorldState }) {
           return (
             <section key={q.id} className={p.done ? 'opacity-70' : ''}>
               <p className="text-xs font-semibold tracking-wider text-[var(--eq-muted)] uppercase">
-                {q.kind === 'main' ? 'Missão principal' : 'Missão secundária'} · {WORLD.regions[q.region]?.name}
+                {q.kind === 'main' ? 'Missão principal' : q.kind === 'mastery' ? 'Missão de aprendizagem' : 'Missão secundária'} · {WORLD.regions[q.region]?.name}
                 {p.done && ' · concluída'}
               </p>
               <h3 className="font-semibold text-[var(--eq-gold)]">{q.title}</h3>

@@ -11,6 +11,7 @@ import {
   type GameAnswerInput,
   type GameAnswerResult,
   type GameClaimInput,
+  type GameEvidenceInput,
   type GameFinishInput,
   type GameStartInput,
   type ListQuery,
@@ -245,6 +246,18 @@ export class SupabaseBackend implements DataBackend {
 
   gameCompleteStep(step: string, answer: string | null) {
     return this.rpc<{ applied: boolean; xp: number; coins: number }>('game_complete_step', { p_step: step, p_answer: answer })
+  }
+
+  gameRecordEvidence(i: GameEvidenceInput) {
+    return this.rpc<{ applied: boolean }>('game_record_evidence', {
+      p_id: i.id,
+      p_activity: i.activity,
+      p_help: i.help,
+      p_attempts: i.attempts,
+      p_solved: i.solved,
+      p_seed: i.seed ?? null,
+      p_answer: i.answer ?? null,
+    })
   }
 
   async resetAllData(): Promise<void> {

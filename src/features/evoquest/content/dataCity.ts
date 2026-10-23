@@ -58,6 +58,21 @@ export const DATA_CITY: RegionDef = {
       on: [{ do: 'effects', effects: [{ type: 'teleport', ...STATION_SPOT }], text: 'O ônibus leva você de volta à Rodoviária da Vila Evolumental.' }],
     },
     {
+      // Leva ao Almoxarifado (missão de GROUP BY). Exige o JOIN da investigação.
+      id: 'elevador_carga',
+      kind: 'portal',
+      x: 10,
+      y: 21,
+      name: 'Elevador de carga',
+      sprite: 'bus_stop',
+      verb: 'Descer',
+      marker: { step: 'sql_main:who', notStep: 'sql_supply:talk' },
+      on: [
+        { when: { notStep: 'sql_main:who' }, do: 'say', text: 'Elevador de carga — acesso liberado depois que a investigação descobrir quem altera os registros.' },
+        { do: 'effects', effects: [{ type: 'teleport', region: 'data_warehouse', x: 3.5, y: 11.5 }], text: 'O elevador desce até o almoxarifado.' },
+      ],
+    },
+    {
       id: 'maya',
       kind: 'npc',
       x: 8,
@@ -73,7 +88,7 @@ export const DATA_CITY: RegionDef = {
         { when: { at: 'sql_main:door' }, do: 'say', text: 'Maya: "O terminal fica ao lado da porta, no corredor. Ativos, nível 4 ou mais."' },
         { when: { at: 'sql_main:logs' }, do: 'say', text: 'Maya: "Ninguém trabalha de madrugada aqui. Se tem UPDATE às 3 da manhã, é o nosso fantasma."' },
         { when: { at: 'sql_main:who' }, do: 'say', text: 'Maya: "Os logs só têm o employee_id. O nome está em employees. Junte as duas tabelas."' },
-        { when: { at: 'sql_main:sentinel' }, do: 'say', text: 'Maya: "A Sentinela não cai na força bruta. Descubra o que a está controlando."' },
+        { when: { at: 'sql_main:sentinel' }, do: 'say', text: 'Maya: "A Sentinela não cai na força bruta. Descubra o que a está controlando. E se quiser praticar resumos de dados antes, a Otávia precisa de ajuda no almoxarifado (elevador de carga)."' },
         { when: { questDone: 'sql_main' }, do: 'say', text: 'Maya: "A cidade está respirando de novo. Volte quando quiser — sempre tem dado esquisito por aqui."' },
         { do: 'say', text: 'Maya: "Estou acompanhando tudo pelos monitores. Siga em frente."' },
       ],

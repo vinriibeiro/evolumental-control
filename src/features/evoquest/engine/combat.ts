@@ -37,6 +37,8 @@ export interface EnemyMove {
 export interface EncounterDef {
   id: string
   name: string
+  /** Sprite do retrato (padrão: sentinel) e falante do confronto. */
+  portrait?: string
   intro: string
   integrity: number
   firewall: number
