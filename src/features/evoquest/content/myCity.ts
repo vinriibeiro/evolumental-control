@@ -56,11 +56,18 @@ export function functionFor(m: { value: number; level: MasteryLevel } | null | u
   return { level, value: m?.value ?? 0, ...FUNCTIONS[level] }
 }
 
+/** Janelas no mapa: 0 apagadas, 1 metade acesa, 2 todas acesas. */
+export function lightFor(level: MasteryLevel): 0 | 1 | 2 {
+  return level === 'none' ? 0 : level === 'unconsolidated' || level === 'fragile' ? 1 : 2
+}
+
 export interface LotView {
   subjectId: string | null
   name: string
   color: string
   level: number
+  /** Janelas acesas pelo domínio (ausente = ainda não carregado: janelas comuns). */
+  light?: 0 | 1 | 2
 }
 
 const HEX = /^#[0-9a-f]{6}$/i
@@ -76,6 +83,7 @@ export function buildMyCity(lots: LotView[]): RegionDef {
   const H = 20
   // Legenda: # cerca · . grama · , rua · O praça · d terra · f fundação · B parede · H parede alta
   // · D porta · Y telhado dourado · 0–5 telhado na cor da matéria do lote · T árvore · F flores
+  // · w x z parede com janelas apagadas/meio acesas/acesas · k m n o mesmo na parede alta
   const map = canvas(W, H, '.')
   map.rect(0, 0, W - 1, 0, '#').rect(0, H - 1, W - 1, H - 1, '#').rect(0, 0, 0, H - 1, '#').rect(W - 1, 0, W - 1, H - 1, '#')
   map.rect(1, 6, W - 2, 6, ',').rect(1, 14, W - 2, 14, ',').rect(15, 6, 15, 14, ',')
@@ -95,6 +103,12 @@ export function buildMyCity(lots: LotView[]): RegionDef {
     Y: { solid: true, sprite: 'roof:#eda100' },
     T: { solid: true, sprite: 'tree' },
     F: { solid: false, sprite: 'flowers' },
+    w: { solid: true, sprite: 'wall_lit0' },
+    x: { solid: true, sprite: 'wall_lit1' },
+    z: { solid: true, sprite: 'wall_lit2' },
+    k: { solid: true, sprite: 'wall_tall_lit0' },
+    m: { solid: true, sprite: 'wall_tall_lit1' },
+    n: { solid: true, sprite: 'wall_tall_lit2' },
   }
 
   const entities: RegionDef['entities'] = [
@@ -117,10 +131,12 @@ export function buildMyCity(lots: LotView[]): RegionDef {
     legend[roof] = { solid: true, sprite: `roof:${HEX.test(lot.color) ? lot.color : '#9b3d2f'}` }
     map.rect(x, y, x + 5, y + 3, 'd')
     const lv = lot.subjectId ? lot.level : 0
+    const wall = lot.light == null ? 'B' : 'wxz'[lot.light]
+    const tall = lot.light == null ? 'H' : 'kmn'[lot.light]
     if (lv === 1) map.rect(x + 1, y + 2, x + 4, y + 3, 'f')
-    if (lv === 2) map.rect(x + 1, y + 2, x + 4, y + 2, roof).rect(x + 1, y + 3, x + 4, y + 3, 'B').set(x + 2, y + 3, 'D')
-    if (lv === 3) map.rect(x, y + 1, x + 5, y + 2, roof).rect(x, y + 3, x + 5, y + 3, 'B').set(x + 2, y + 3, 'D')
-    if (lv >= 4) map.rect(x, y, x + 5, y, lv === 5 ? 'Y' : roof).rect(x, y + 1, x + 5, y + 3, 'H').set(x + 2, y + 3, 'D')
+    if (lv === 2) map.rect(x + 1, y + 2, x + 4, y + 2, roof).rect(x + 1, y + 3, x + 4, y + 3, wall).set(x + 2, y + 3, 'D')
+    if (lv === 3) map.rect(x, y + 1, x + 5, y + 2, roof).rect(x, y + 3, x + 5, y + 3, wall).set(x + 2, y + 3, 'D')
+    if (lv >= 4) map.rect(x, y, x + 5, y, lv === 5 ? 'Y' : roof).rect(x, y + 1, x + 5, y + 3, tall).set(x + 2, y + 3, 'D')
     entities.push({
       id: `lote_${i}`,
       kind: 'object',

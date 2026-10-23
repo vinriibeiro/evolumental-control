@@ -239,6 +239,29 @@ Object.assign(TILES, {
     }
   },
 })
+
+// Minha Cidade: o funcionamento (domínio) aparece nas janelas — apagadas,
+// metade acesa ou todas acesas. A forma do prédio continua vindo do tempo.
+const DARK = '#2a3340'
+const LIT = '#ffd75e'
+for (const light of [0, 1, 2]) {
+  const glass = (i: number) => (light === 2 || (light === 1 && i % 2 === 0) ? LIT : DARK)
+  TILES[`wall_lit${light}`] = (c) => {
+    px(c, '#e6d7bd', 0, 0, TILE, TILE)
+    px(c, '#c9b694', 0, 15, TILE, 1)
+    ;[3, 10].forEach((x, i) => {
+      px(c, '#8a6a46', x, 4, 4, 5)
+      px(c, glass(i), x + 1, 5, 2, 3)
+    })
+  }
+  TILES[`wall_tall_lit${light}`] = (c) => {
+    px(c, '#d9cbb2', 0, 0, TILE, TILE)
+    ;[[2, 2], [9, 2], [2, 9], [9, 9]].forEach(([x, y], i) => {
+      px(c, '#6b5a44', x, y, 5, 5)
+      px(c, glass(i), x + 1, y + 1, 3, 3)
+    })
+  }
+}
 for (let i = 0; i < 8; i++)
   TILES[`bus_${i}`] = (c) => c.drawImage(bus(), (i % 4) * TILE, Math.floor(i / 4) * TILE, TILE, TILE, 0, 0, TILE, TILE)
 

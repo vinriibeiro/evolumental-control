@@ -11,7 +11,7 @@ import { useGameSettings } from '@/game/useGame'
 import type { SqlChallenge, SwitchPuzzle } from './challenges'
 import { WORLD } from './content'
 import { cityById, cityOfTicket, destFlag, destinationOf, type CityDef } from './content/cities'
-import { buildMyCity, levelFor, LOT_COUNT, MY_CITY, type LotView } from './content/myCity'
+import { buildMyCity, levelFor, lightFor, LOT_COUNT, MY_CITY, type LotView } from './content/myCity'
 import { check, currentStep, stepKey } from './engine/state'
 import type { EntityDef, Interaction } from './engine/types'
 import { GameRuntime } from './render/runtime'
@@ -366,15 +366,19 @@ export default function WorldPage() {
     return m
   }, [studied.data])
   const lots = state?.myCity?.lots
+  // Domínio por matéria (funcionamento dos prédios): só carrega na Minha Cidade.
+  const cityMastery = useMastery(myCityOn && state?.region === MY_CITY).index?.bySubject
   useEffect(() => {
     const byId = new Map(citySubjects.map((s) => [s.id, s]))
     const view: LotView[] = Array.from({ length: LOT_COUNT }, (_, i) => {
       const s = lots?.[i] ? byId.get(lots[i]!) : undefined
-      return s ? { subjectId: s.id, name: s.name, color: s.color, level: levelFor(secondsBySubject.get(s.id) ?? 0).level } : { subjectId: null, name: 'Terreno livre', color: '#8a6239', level: 0 }
+      if (!s) return { subjectId: null, name: 'Terreno livre', color: '#8a6239', level: 0 }
+      const m = cityMastery?.get(s.id)
+      return { subjectId: s.id, name: s.name, color: s.color, level: levelFor(secondsBySubject.get(s.id) ?? 0).level, light: cityMastery ? lightFor(m?.level ?? 'none') : undefined }
     })
     // O runtime lê as regiões a cada quadro: trocar o objeto redesenha a cidade.
     WORLD.regions[MY_CITY] = buildMyCity(view)
-  }, [citySubjects, secondsBySubject, lots])
+  }, [citySubjects, secondsBySubject, lots, cityMastery])
 
   const assignLot = (lot: number, subjectId: string | null) => {
     const s = w.world.current

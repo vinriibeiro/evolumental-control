@@ -184,6 +184,10 @@ export function computeMastery(ev: TopicEvidence, now: number): MasteryResult {
   if (!verified && raw > 0.55) {
     raw = 0.55
     notes.push('Sem prática verificada (questões ou flashcards): domínio limitado a 55%')
+  } else if (practiceCount === 0 && cardRet == null && raw > 0.59) {
+    // Só o jogo (missões, revisão de campo, partidas): ainda não há questões nem flashcards.
+    raw = 0.59
+    notes.push('Prática só no EvoQuest (sem questões ou flashcards): domínio limitado a 59%')
   } else if (practiceCount < 10 && raw > 0.79) {
     raw = 0.79
     notes.push('Menos de 10 questões: domínio limitado a 79%')

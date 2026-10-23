@@ -214,6 +214,9 @@ await step('Almoxarifado (GROUP BY): lição, guiada com pista, independente, dr
   await report.getByText(/Painel de reposição — contagem/).first().waitFor()
   await report.getByText('Como isso conta no domínio do Control').click()
   await report.getByText(/Transferência \(peso 3\)/).waitFor()
+  // Revisão no Control só com clique; sem tópico ligado, explica como ligar.
+  await report.getByText('Revisão no Control (opcional)').waitFor()
+  await report.getByText(/Nenhum tópico do Control corresponde a GROUP BY/).waitFor()
   await page.screenshot({ path: `${OUT}/mundo-almoxarifado-relatorio.png` })
   const s = await st()
   if (!s.quests.sql_supply?.done) throw new Error('missão não concluída')
@@ -227,6 +230,39 @@ await step('Almoxarifado (GROUP BY): lição, guiada com pista, independente, dr
   await useAt(2.5, 11.5, 'left', 'Elevador de carga')
   await page.waitForTimeout(500)
   if ((await st()).region !== 'data_city') throw new Error('não voltou ao saguão')
+})
+
+await step('Control ↔ mundo: tópico "GROUP BY" do Control recebe a sugestão no Diário e a revisão agendada por clique', async () => {
+  // Matéria e tópico criados pelo próprio backend local do app (mesmo módulo que a página usa).
+  await page.evaluate(async () => {
+    const { getLocalBackend } = await import('/src/app/data.tsx')
+    const b = getLocalBackend()
+    const [s] = await b.insert('subjects', [{ name: 'SQL', color: '#336699' }])
+    await b.insert('topics', [{ subject_id: s.id, name: 'GROUP BY' }])
+  })
+  await page.reload()
+  await page.getByText('Cidade dos Dados').first().waitFor()
+  await page.waitForTimeout(500)
+  await page.keyboard.press('j')
+  await page.getByText(/Sugestão do Control · Praticar GROUP BY/).waitFor({ timeout: 15000 })
+  await page.getByText(/O Control recomenda este tópico agora/).first().waitFor()
+  await page.screenshot({ path: `${OUT}/mundo-oportunidades.png` })
+  await page.keyboard.press('Escape')
+  // Relatório de novo (Otávia, missão concluída) → agendar revisão do tópico.
+  await useAt(10.5, 20.5, 'down', 'Elevador de carga')
+  await page.waitForTimeout(500)
+  await useAt(6.5, 11.5, 'up', 'Otávia')
+  const report = page.getByRole('dialog', { name: /Relatório de campo/ })
+  await report.getByRole('button', { name: /Revisar “GROUP BY” em 3 dias/ }).click()
+  await report.getByText(/Revisão de GROUP BY agendada para/).waitFor()
+  const reviews = await page.evaluate(async () => {
+    const { getLocalBackend } = await import('/src/app/data.tsx')
+    return (await getLocalBackend().list('reviews')).rows.map((r) => r.title)
+  })
+  if (!reviews.includes('Revisar GROUP BY (EvoQuest)')) throw new Error(`revisão não criada: ${JSON.stringify(reviews)}`)
+  await report.getByRole('button', { name: 'Voltar ao mundo' }).click()
+  await useAt(2.5, 11.5, 'left', 'Elevador de carga')
+  await page.waitForTimeout(500)
 })
 
 await step('painéis: diário, habilidades, inventário e mapa com passagens', async () => {
@@ -272,6 +308,11 @@ await step('volta de ônibus; Lina entrega a escritura; Minha Cidade', async () 
   if ((await st()).region !== 'my_city') throw new Error('não chegou à Minha Cidade')
   await useAt(5.5, 6.5, 'up', 'Lote 1')
   await page.getByRole('dialog', { name: 'Prefeitura da Minha Cidade' }).waitFor()
+  // Lote com a matéria SQL: obra pelo tempo (ainda terreno), funcionamento pelo domínio (já há prática no mundo).
+  await page.getByLabel('Matéria').selectOption({ label: 'SQL' })
+  await page.getByRole('button', { name: 'Construir' }).click()
+  await page.getByText(/· domínio \d+%/).waitFor({ timeout: 15000 })
+  if (await page.getByText('Às escuras').count()) throw new Error('domínio do mundo não chegou ao funcionamento do prédio')
   await page.screenshot({ path: `${OUT}/mundo-minha-cidade-lote.png` })
   await page.keyboard.press('Escape')
   await page.screenshot({ path: `${OUT}/mundo-minha-cidade.png` })

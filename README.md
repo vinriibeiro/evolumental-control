@@ -155,7 +155,7 @@ O app transforma o que já está registrado (sessões, questões, revisões, fla
 | Autoavaliação | nota 0–5 do tópico ÷ 5 | 0,1 |
 
 A média usa só os componentes presentes. Regras conservadoras:
-- sem prática verificada (questões ou flashcards), o domínio não passa de **55%**; com menos de 10 questões, não passa de **79%**;
+- sem prática verificada (questões ou flashcards), o domínio não passa de **55%**; com prática só no EvoQuest (sem questões nem flashcards), não passa de **59%**; com menos de 10 questões, não passa de **79%**;
 - esquecimento: depois de 14 dias sem contato, −1% a cada 2,4 dias (no mínimo ×0,7);
 - reincidência: ≥ 3 erros nos últimos 14 dias com acerto < 60% → −10; erros em ≥ 2 dias diferentes nos últimos 30 com acerto < 70% → −5. Um erro isolado quase não mexe no valor.
 
@@ -250,7 +250,7 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 
 **Minha Cidade:** depois da primeira viagem, a Arquiteta Lina (na Rodoviária) entrega a escritura de um terreno com 6 lotes. Cada lote recebe uma matéria do Control, e o prédio cresce com o tempo líquido estudado nela: Fundação com 1 h, Casa com 5 h, Sobrado com 15 h, Prédio com 40 h e Torre com 100 h. Pelo prédio dá para abrir o cronômetro, os flashcards e a página daquela matéria. Cada prédio construído tem um **morador** que revisa com você, dentro do jogo, os flashcards vencidos da matéria — os mesmos cartões, o mesmo SM-2 e o mesmo registro de revisão do módulo Flashcards (sem XP, nada duplicado).
 
-**Funcionamento da Minha Cidade:** o tamanho do prédio (obra) vem do **tempo**; o **funcionamento** vem do **domínio** da matéria no Control (`functionFor` em `content/myCity.ts`): Às escuras (sem prática verificada) → Luz de serviço → Meio expediente → Em operação → Movimentado → Referência da cidade. Estudar muito sem praticar constrói um prédio grande e apagado.
+**Funcionamento da Minha Cidade:** o tamanho do prédio (obra) vem do **tempo**; o **funcionamento** vem do **domínio** da matéria no Control (`functionFor` em `content/myCity.ts`): Às escuras (sem prática verificada) → Luz de serviço → Meio expediente → Em operação → Movimentado → Referência da cidade. No mapa, o funcionamento aparece nas janelas: apagadas (sem domínio), metade acesas (frágil) ou todas acesas (em operação para cima). Estudar muito sem praticar constrói um prédio grande e apagado.
 
 **Missões de aprendizagem (modelo pedagógico):** em vez de "pergunta → resposta → XP", a missão segue *problema no mundo → descoberta → aprendizagem → experimentação → aplicação → consequência*. A primeira é **O Almoxarifado em Pane** (GROUP BY), no subsolo da Cidade dos Dados — o elevador de carga abre depois da etapa "quem foi" (JOIN) da missão principal:
 
@@ -267,7 +267,8 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 - **Escada de pistas** (`engine/pedagogy.ts`): tentar sozinho → pista 1 (conceito) → pista 2 (a parte do problema) → pista 3 (parte da solução) → explicação completa. Cada degrau só abre depois de uma nova tentativa; o nível usado vai junto com a evidência.
 - **Domínio ≠ XP:** XP, moedas e história continuam no catálogo de etapas (`game_complete_step`, uma vez por etapa). O domínio vem de `game_evidence`, gravada só pela RPC `game_record_evidence` (`security definer`): estágio e conceito vêm do catálogo do servidor, a resposta é conferida pelo hash, o id gerado no cliente torna o envio idempotente e há limite diário por atividade. Resolver depois da explicação completa conta como contato, não como acerto; sair depois de tentar sem resolver registra a dificuldade.
 - **Revisão de campo** (`content/fieldReview.ts`): exercícios de GROUP BY **parametrizados** — cada semente gera outro depósito, outros números e outra pergunta (soma, contagem com filtro ou HAVING), então não dá para decorar. A resposta é calculada dos dados gerados (não há consulta-gabarito no pacote); só vale evidência (sem XP), com limite de 5 por dia.
-- **Oportunidades** (Diário, tecla J): regras determinísticas com o motivo escrito — dificuldade recorrente vira *recuperação*, último acerto há 7+ dias vira *revisão*, missão liberada vira *convite*. Nada é agendado no Control automaticamente.
+- **Oportunidades** (Diário, tecla J): regras determinísticas com o motivo escrito — dificuldade recorrente vira *recuperação*, o **motor de próxima ação do Control** (`recommend`) aponta onde praticar no mundo quando o tópico recomendado corresponde ao conceito de uma missão liberada (com os motivos de maior peso do próprio Control), último acerto há 7+ dias vira *revisão*, missão liberada vira *convite*.
+- **Revisão no Control só por clique:** o relatório de campo oferece "Revisar em 3/7 dias" para o tópico do Control ligado ao conceito (mesma ligação por nome/vínculo usada no domínio). Sem tópico ligado, explica como ligar. Nada é agendado automaticamente.
 - **Para outra cidade:** escrever uma `LessonDef`, desafios com `stage`/`concept`/`ladder`/`explanation`, uma missão `kind: 'mastery'` e um item em `LEARNING_PATHS`; o catálogo do servidor (`activityCatalogRows`) e o relatório saem do conteúdo. O terminal SQL é o adaptador de hoje; outras disciplinas precisam do próprio adaptador (mesma escada, mesma evidência).
 
 **Modos:**

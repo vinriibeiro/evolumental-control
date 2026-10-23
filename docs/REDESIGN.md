@@ -214,7 +214,8 @@ Pendências:
 Pendências e próximos passos:
 - Aplicar a migração `20261027000000_evoquest_evidencias.sql` no Supabase.
 - Levar o modelo às outras cidades, uma por vez (cada uma com o adaptador da disciplina: Python com Pyodide, inglês com escuta/ditado, lógica com tabelas-verdade…). Não criar várias antes de validar o Almoxarifado com jogadores.
-- O motor de próxima ação do Control (`recommend`) ainda não aponta missões do mundo; hoje o quadro de oportunidades usa só as evidências do próprio mundo.
-- O relatório oferece revisão de campo e o link para o domínio; não cria revisão no Control (decisão: nada automático). Um botão explícito "agendar revisão" pode vir depois.
-- O funcionamento da Minha Cidade aparece na prefeitura; o mapa ainda não desenha luzes conforme o domínio.
+- ~~Motor de próxima ação no mundo~~ feito: recomendações do Control cujo tópico corresponde a um conceito com missão liberada aparecem no quadro de oportunidades, com os motivos do Control.
+- ~~Agendar revisão~~ feito: botão explícito no relatório de campo (3 ou 7 dias) para o tópico ligado; nada automático.
+- ~~Luzes da Minha Cidade~~ feito: janelas apagadas / meio acesas / acesas conforme o domínio.
+- Nova trava de domínio: prática só no EvoQuest não passa de 59% (uma missão sozinha chegava a 74%).
 - Atividades parametrizadas não têm gabarito no servidor (só semente + limite diário); a evidência da revisão de campo é, por isso, menos protegida que a das atividades fixas.

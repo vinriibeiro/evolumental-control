@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { masteryIndex, type InsightInput } from '../evidence'
-import { gameEvidenceByTopic, worldEvidenceAnswers } from '../game'
+import { gameEvidenceByTopic, gameTopicTargets, worldEvidenceAnswers } from '../game'
 import { aggregateMastery, computeMastery, emptyEvidence, lastContactLabel, levelOf, type TopicEvidence } from '../mastery'
 import { card, DAY, daysAgo, NOW, questions, review, session, subject, topic, TODAY, TZ } from './fixtures'
 
@@ -237,5 +237,26 @@ describe('EvoQuest mundo → domínio (evidências ponderadas, sem XP)', () => {
     const solo = at(worldEvidenceAnswers([row('independent', 0, true), row('transfer', 0, true)]))
     const helped = at(worldEvidenceAnswers([row('independent', 4, true), row('transfer', 4, true)]))
     expect(solo).toBeGreaterThan(helped)
+  })
+})
+
+describe('gameTopicTargets (ligação conceito do jogo → tópico do Control)', () => {
+  it('liga pelo vínculo da matéria e pelo nome do tópico; pastas ficam de fora', () => {
+    const s = subject('bd', { name: 'Minha matéria' })
+    const topics = [topic('g', 'bd', { name: 'Group By' }), topic('p', 'bd', { name: 'GROUP BY', kind: 'folder' })]
+    const t = gameTopicTargets({ sql: [{ id: 'groupby', name: 'GROUP BY' }] }, topics, [s], { sql: 'bd' })
+    expect(t.get('sql|groupby')).toEqual(['g'])
+    expect(gameTopicTargets({ sql: [{ id: 'groupby', name: 'GROUP BY' }] }, topics, [s], {}).size).toBe(0)
+  })
+})
+
+describe('trava: prática só no EvoQuest', () => {
+  it('sem questões nem flashcards, o domínio não passa de 59% e a nota explica', () => {
+    const r = computeMastery(ev({ game: { total: 40, correct: 40, lastAt: NOW } }), NOW)
+    expect(r.value).toBe(59)
+    expect(r.notes.join(' ')).toMatch(/só no EvoQuest/)
+    // Com questões registradas, a trava do jogo deixa de valer (passa a de 10 questões).
+    const withQ = computeMastery(ev({ game: { total: 40, correct: 40, lastAt: NOW }, questions: [q(1, 12, 12)] }), NOW)
+    expect(withQ.value).toBeGreaterThan(59)
   })
 })

@@ -8,7 +8,8 @@ import { canonResult, sha256 } from '../challenges'
 import { LEARNING_PATHS, WORLD } from '../content'
 import { DATASETS } from '../content/datasets'
 import { FIELD_GROUPBY, fieldChallenge, generateField } from '../content/fieldReview'
-import { worldOpportunities, type EvidenceLike } from '../engine/opportunities'
+import { controlOpportunities, sortOpportunities, worldOpportunities, type ControlRec, type EvidenceLike } from '../engine/opportunities'
+import { buildMyCity, emptyLots, lightFor } from '../content/myCity'
 import { canReveal, debrief, evidenceCredit, FULL_EXPLANATION, recordAttempt, reveal, startLadder, STAGE_WEIGHT } from '../engine/pedagogy'
 import { latestResults, questActivities } from '../ui/FieldReport'
 import { SQL_SOLUTIONS } from './solutions'
@@ -184,5 +185,59 @@ describe('backend local: game_record_evidence (mesmas regras da RPC)', () => {
     await expect(b.gameRecordEvidence({ id: crypto.randomUUID(), activity: FIELD_GROUPBY.id, help: 0, attempts: 1, solved: true })).rejects.toThrow(/semente/)
     for (let i = 0; i < FIELD_GROUPBY.dailyLimit; i++) await b.gameRecordEvidence({ id: crypto.randomUUID(), activity: FIELD_GROUPBY.id, help: 0, attempts: 1, solved: true, seed: i + 1 })
     await expect(b.gameRecordEvidence({ id: crypto.randomUUID(), activity: FIELD_GROUPBY.id, help: 0, attempts: 1, solved: true, seed: 99 })).rejects.toThrow(/Limite diário/)
+  })
+})
+
+describe('motor de próxima ação do Control dentro do mundo', () => {
+  const paths = { groupby: { name: 'GROUP BY', where: 'Almoxarifado' } }
+  const topicConcept = new Map([['t-gb', 'groupby']])
+  const rec = (topicId: string | null, reasons: ControlRec['reasons']) => ({ topicId, reasons })
+
+  it('recomendação de um tópico ligado a um conceito vira oportunidade com os motivos de maior peso do Control', () => {
+    const [o, ...rest] = controlOpportunities(
+      [
+        rec('outro', [{ label: 'Revisão atrasada', points: 30 }]),
+        rec('t-gb', [
+          { label: 'Domínio baixo', points: 12 },
+          { label: 'Acerto recente 40%', points: 0, info: true },
+          { label: 'Erros recentes', points: 6 },
+          { label: 'Prioridade', points: 3 },
+        ]),
+        rec('t-gb', [{ label: 'Repetido', points: 5 }]),
+      ],
+      topicConcept,
+      paths,
+    )
+    expect(rest).toEqual([])
+    expect(o).toMatchObject({ id: 'control:groupby', kind: 'control', title: 'Praticar GROUP BY', where: 'Almoxarifado' })
+    expect(o.reason).toBe('O Control recomenda este tópico agora: domínio baixo; erros recentes.')
+  })
+
+  it('conceito sem caminho liberado não aparece; ordem: recuperação, Control, revisão, missão', () => {
+    expect(controlOpportunities([rec('t-gb', [])], topicConcept, {})).toEqual([])
+    const kinds = sortOpportunities([
+      { id: 'm', kind: 'mission', title: '', reason: '', where: '' },
+      { id: 's', kind: 'spaced', title: '', reason: '', where: '' },
+      { id: 'c', kind: 'control', title: '', reason: '', where: '' },
+      { id: 'r', kind: 'recovery', title: '', reason: '', where: '' },
+    ]).map((o) => o.kind)
+    expect(kinds).toEqual(['recovery', 'control', 'spaced', 'mission'])
+  })
+})
+
+describe('Minha Cidade: janelas acesas pelo domínio', () => {
+  it('nível de domínio → janelas apagadas, meio acesas ou acesas', () => {
+    expect(['none', 'unconsolidated', 'fragile', 'developing', 'consolidating', 'mastered'].map((l) => lightFor(l as Parameters<typeof lightFor>[0]))).toEqual([0, 1, 1, 2, 2, 2])
+  })
+
+  it('a forma do prédio vem do tempo; as janelas, do domínio', () => {
+    const lot = (light?: 0 | 1 | 2) => [{ subjectId: 's', name: 'SQL', color: '#336699', level: 4, light }, ...emptyLots().slice(1)]
+    const rows = (light?: 0 | 1 | 2) => buildMyCity(lot(light)).map.rows.slice(1, 5).map((r) => r.slice(2, 8))
+    expect(rows(undefined)[2]).toContain('H')
+    expect(rows(0)[2]).toMatch(/^k+D?k*$/)
+    expect(rows(2)[2]).toMatch(/^n+D?n*$/)
+    // Mesmo tamanho (tempo) com qualquer domínio.
+    expect(rows(0).map((r) => r.replace(/[kmn]/g, 'H'))).toEqual(rows(undefined))
+    expect(buildMyCity(lot(1)).map.legend.m.sprite).toBe('wall_tall_lit1')
   })
 })

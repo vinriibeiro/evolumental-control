@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { ClipboardList, X } from 'lucide-react'
 import { useBackend } from '@/app/data'
-import { fetchAll } from '@/hooks/data'
+import { fetchAll, useAll, useInsert } from '@/hooks/data'
+import { useSettings } from '@/hooks/useSettings'
+import { gameSettings } from '@/game/useGame'
 import { inList } from '@/lib/data/types'
-import type { GameEvidence } from '@/types/db'
+import { gameTopicTargets } from '@/lib/insight/game'
+import { addDays, formatDayKey, todayKey } from '@/lib/time'
+import type { GameEvidence, Topic } from '@/types/db'
 import type { SqlChallenge } from '../challenges'
 import { WORLD } from '../content'
 import { fieldChallenge } from '../content/fieldReview'
@@ -113,6 +117,8 @@ export function FieldReport({ quest, onField, onNavigate, onClose }: { quest: st
               </ul>
             </details>
 
+            <ScheduleReview concepts={[...new Set(results.map((r) => r.concept))]} suggested={d.review.length > 0} />
+
             <div className="flex flex-wrap gap-2">
               {onField && (
                 <button className="eq-btn eq-btn-primary" onClick={onField}>
@@ -130,6 +136,63 @@ export function FieldReport({ quest, onField, onNavigate, onClose }: { quest: st
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Revisão no Control, só com o clique do jogador (nunca automática): agenda
+ * uma revisão do tópico do Control que corresponde ao conceito da missão.
+ */
+function ScheduleReview({ concepts, suggested }: { concepts: string[]; suggested: boolean }) {
+  const settings = useSettings()
+  const subjects = useAll('subjects')
+  const topics = useAll('topics')
+  const insert = useInsert('reviews')
+  const [done, setDone] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const today = todayKey(settings.timezone)
+  const lessons = Object.values(WORLD.lessons).filter((l) => concepts.includes(l.concept))
+  const catalog: Record<string, Array<{ id: string; name: string }>> = {}
+  for (const l of lessons) (catalog[l.subject] ??= []).push({ id: l.concept, name: l.conceptName })
+  const targets = subjects.data && topics.data ? gameTopicTargets(catalog, topics.data, subjects.data, gameSettings(settings).links) : null
+  const byId = new Map((topics.data ?? []).map((t) => [t.id, t]))
+  const linked: Array<{ name: string; topic: Topic }> = []
+  for (const l of lessons) for (const id of targets?.get(`${l.subject}|${l.concept}`) ?? []) if (byId.get(id)) linked.push({ name: l.conceptName, topic: byId.get(id)! })
+
+  if (!targets) return null
+  const schedule = async (name: string, topic: Topic, days: number) => {
+    setError(null)
+    try {
+      await insert.mutateAsync({ subject_id: topic.subject_id, topic_id: topic.id, title: `Revisar ${name} (EvoQuest)`, scheduled_for: addDays(today, days), origin: 'manual' })
+      setDone(`Revisão de ${topic.name} agendada para ${formatDayKey(addDays(today, days), 'long')}.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível agendar.')
+    }
+  }
+  return (
+    <Section title="Revisão no Control (opcional)">
+      {done ? (
+        <p role="status">{done}</p>
+      ) : linked.length ? (
+        <>
+          <p className="mb-2 text-[var(--eq-muted)]">{suggested ? 'Vale revisar: agende se quiser — nada é criado sem o seu clique.' : 'Para fixar, uma revisão espaçada ajuda. Nada é criado sem o seu clique.'}</p>
+          <div className="flex flex-wrap gap-2">
+            {linked.slice(0, 2).flatMap(({ name, topic }) =>
+              [3, 7].map((days) => (
+                <button key={`${topic.id}${days}`} className="eq-btn" disabled={insert.isPending} onClick={() => void schedule(name, topic, days)}>
+                  Revisar “{topic.name}” em {days} dias
+                </button>
+              )),
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="text-[var(--eq-muted)]">
+          Nenhum tópico do Control corresponde a {lessons.map((l) => l.conceptName).join(', ') || 'este conceito'}. Crie um tópico com esse nome numa matéria de SQL (ou vincule a matéria em Perfil do EvoQuest) para agendar revisões e somar o domínio.
+        </p>
+      )}
+      {error && <p className="mt-1 text-[var(--eq-bad)]">{error}</p>}
+    </Section>
   )
 }
 

@@ -53,7 +53,7 @@ export async function loadInsightInput(backend: DataBackend, settings: UserSetti
 }
 
 /** Entrada crua (recarrega quando qualquer tabela usada muda). */
-export function useInsightInput() {
+export function useInsightInput(enabled = true) {
   const backend = useBackend()
   const settings = useSettings()
   const today = todayKey(settings.timezone)
@@ -61,12 +61,13 @@ export function useInsightInput() {
     queryKey: ['data', [...INSIGHT_TABLES], 'insight', backend.kind, today, settings.timezone, settings.evoquest?.links ?? null],
     queryFn: () => loadInsightInput(backend, settings),
     staleTime: 60_000,
+    enabled,
   })
 }
 
 /** Domínio de todos os tópicos e matérias. */
-export function useMastery() {
-  const input = useInsightInput()
+export function useMastery(enabled = true) {
+  const input = useInsightInput(enabled)
   const index = useMemo(() => (input.data ? masteryIndex(input.data, Date.now()) : null), [input.data])
   return { index, input: input.data ?? null, isPending: input.isPending, error: input.error, refetch: input.refetch }
 }

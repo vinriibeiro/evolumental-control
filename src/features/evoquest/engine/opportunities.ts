@@ -1,8 +1,9 @@
 // Oportunidades no mundo: o que vale fazer agora, com o MOTIVO explícito.
 // Regras determinísticas sobre as evidências (nada de IA): dificuldade
 // recorrente vira oportunidade de recuperação, conceito parado há dias vira
-// revisão espaçada e missão de aprendizagem liberada vira convite. Nunca cria
-// revisão ou flashcard no Control sozinha — só aponta.
+// revisão espaçada, missão de aprendizagem liberada vira convite e o motor de
+// próxima ação do Control (recommend) aponta onde praticar no mundo. Nunca
+// cria revisão ou flashcard no Control sozinha — só aponta.
 import type { Stage } from './pedagogy'
 
 export interface EvidenceLike {
@@ -15,7 +16,7 @@ export interface EvidenceLike {
 
 export interface Opportunity {
   id: string
-  kind: 'recovery' | 'spaced' | 'mission'
+  kind: 'recovery' | 'control' | 'spaced' | 'mission'
   title: string
   /** Por que esta oportunidade aparece (regra legível). */
   reason: string
@@ -62,6 +63,47 @@ export function worldOpportunities(
       out.push({ id: `spaced:${concept}`, kind: 'spaced', title: `Revisar ${info.name}`, reason: `Último acerto há ${days} dias: uma revisão curta agora ajuda a não esquecer.`, where: info.where })
   }
   for (const m of missions) out.push({ id: `mission:${m.id}`, kind: 'mission', title: m.title, reason: 'Missão de aprendizagem liberada e ainda não concluída.', where: m.where })
-  const order = { recovery: 0, spaced: 1, mission: 2 }
-  return out.sort((a, b) => order[a.kind] - order[b.kind])
+  return sortOpportunities(out)
+}
+
+const ORDER: Record<Opportunity['kind'], number> = { recovery: 0, control: 1, spaced: 2, mission: 3 }
+export const sortOpportunities = (list: Opportunity[]) => [...list].sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
+
+/** Recomendação do Control (motor de próxima ação), só o que importa aqui. */
+export interface ControlRec {
+  topicId: string | null
+  reasons: Array<{ label: string; points: number; info?: boolean }>
+}
+
+/**
+ * Recomendações do Control cujo tópico corresponde a um conceito com missão
+ * no mundo viram oportunidades, com os mesmos motivos do Control (os de maior
+ * peso). Só conceitos com caminho liberado; no máximo `limit`, um por conceito.
+ */
+export function controlOpportunities(
+  recs: ControlRec[],
+  topicConcept: Map<string, string>,
+  paths: Record<string, { name: string; where: string }>,
+  limit = 2,
+): Opportunity[] {
+  const out: Opportunity[] = []
+  for (const r of recs) {
+    const concept = r.topicId ? topicConcept.get(r.topicId) : undefined
+    const path = concept ? paths[concept] : undefined
+    if (!concept || !path || out.some((o) => o.id === `control:${concept}`)) continue
+    const top = r.reasons
+      .filter((x) => !x.info && x.points > 0)
+      .sort((a, b) => b.points - a.points)
+      .slice(0, 2)
+      .map((x) => x.label.toLowerCase())
+    out.push({
+      id: `control:${concept}`,
+      kind: 'control',
+      title: `Praticar ${path.name}`,
+      reason: `O Control recomenda este tópico agora${top.length ? `: ${top.join('; ')}` : ''}.`,
+      where: path.where,
+    })
+    if (out.length >= limit) break
+  }
+  return out
 }

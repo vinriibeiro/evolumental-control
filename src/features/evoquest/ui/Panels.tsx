@@ -2,8 +2,12 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Backpack, BookOpen, Check, Circle, CircleDot, Lock, Map as MapIcon, Settings2, Sparkles, Star, Ticket, X } from 'lucide-react'
 import { useAll } from '@/hooks/data'
+import { useSettings } from '@/hooks/useSettings'
+import { useToday } from '@/hooks/useToday'
+import { gameSettings } from '@/game/useGame'
+import { gameTopicTargets, type GameTopicCatalog } from '@/lib/insight/game'
 import { LEARNING_PATHS, SQL_SKILLS, WORLD } from '../content'
-import { worldOpportunities } from '../engine/opportunities'
+import { controlOpportunities, sortOpportunities, worldOpportunities } from '../engine/opportunities'
 import { CITIES } from '../content/cities'
 import { cityQuestId } from '../content/generatedCity'
 import { MY_CITY } from '../content/myCity'
@@ -101,14 +105,38 @@ function Inventory({ state }: { state: WorldState }) {
   )
 }
 
-/** Quadro de oportunidades: o que vale fazer agora e por quê (regras determinísticas). */
+const lessonOf = (concept: string) => Object.values(WORLD.lessons).find((l) => l.concept === concept)
+
+/**
+ * Quadro de oportunidades: o que vale fazer agora e por quê (regras
+ * determinísticas). Junta as evidências do mundo e o motor de próxima ação
+ * do Control (tópicos do Control ligados aos conceitos das missões).
+ */
 function Opportunities({ state }: { state: WorldState }) {
   const evidence = useAll('game_evidence')
+  const today = useToday()
+  const settings = useSettings()
   const concepts = Object.fromEntries(
-    LEARNING_PATHS.filter((p) => state.quests[p.quest]?.done).map((p) => [p.concept, { name: Object.values(WORLD.lessons).find((l) => l.concept === p.concept)?.conceptName ?? p.concept, where: p.practice }]),
+    LEARNING_PATHS.filter((p) => state.quests[p.quest]?.done).map((p) => [p.concept, { name: lessonOf(p.concept)?.conceptName ?? p.concept, where: p.practice }]),
   )
   const missions = LEARNING_PATHS.filter((p) => state.steps.includes(p.unlockedBy) && !state.quests[p.quest]?.done).map((p) => ({ id: p.quest, title: WORLD.quests[p.quest].title, where: p.where }))
-  const list = worldOpportunities(evidence.data ?? [], concepts, missions, Date.now())
+  const fromWorld = worldOpportunities(evidence.data ?? [], concepts, missions, Date.now())
+
+  // Control → mundo: tópico recomendado que corresponde ao conceito de uma missão liberada.
+  const d = today.derived
+  const open = LEARNING_PATHS.filter((p) => state.steps.includes(p.unlockedBy))
+  const catalog: GameTopicCatalog = {}
+  for (const p of open) {
+    const l = lessonOf(p.concept)
+    if (l) (catalog[l.subject] ??= []).push({ id: p.concept, name: l.conceptName })
+  }
+  const topicConcept = new Map<string, string>()
+  if (d)
+    for (const [key, ids] of gameTopicTargets(catalog, [...d.topicsById.values()], [...d.subjectsById.values()], gameSettings(settings).links))
+      for (const id of ids) topicConcept.set(id, key.split('|')[1])
+  const paths = Object.fromEntries(open.map((p) => [p.concept, { name: lessonOf(p.concept)?.conceptName ?? p.concept, where: state.quests[p.quest]?.done ? p.practice : p.where }]))
+  const fromControl = controlOpportunities(d?.recommendations ?? [], topicConcept, paths).filter((o) => !fromWorld.some((w) => w.id === `recovery:${o.id.slice(8)}`))
+  const list = sortOpportunities([...fromWorld, ...fromControl])
   if (!list.length) return null
   return (
     <section aria-label="Oportunidades" className="rounded-md border-2 border-[var(--eq-edge-dark)] bg-[#120e0b] p-3">
@@ -117,7 +145,7 @@ function Opportunities({ state }: { state: WorldState }) {
         {list.map((o) => (
           <li key={o.id}>
             <p className="font-semibold">
-              {o.kind === 'recovery' ? 'Recuperação · ' : o.kind === 'spaced' ? 'Revisão · ' : 'Missão · '}
+              {o.kind === 'recovery' ? 'Recuperação · ' : o.kind === 'control' ? 'Sugestão do Control · ' : o.kind === 'spaced' ? 'Revisão · ' : 'Missão · '}
               {o.title}
             </p>
             <p className="text-[var(--eq-muted)]">

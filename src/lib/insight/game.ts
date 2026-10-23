@@ -43,15 +43,11 @@ export function worldEvidenceAnswers(rows: Array<Pick<GameEvidence, 'subject' | 
   })
 }
 
-export function gameEvidenceByTopic(
-  answers: Array<Pick<GameAnswer, 'subject_id' | 'topic' | 'correct' | 'answered_at'> | WeightedGameAnswer>,
-  catalog: GameTopicCatalog,
-  topics: Topic[],
-  subjects: Subject[],
-  links: Record<string, string | null>,
-): Map<string, { total: number; correct: number; lastAt: number | null }> {
-  const out = new Map<string, { total: number; correct: number; lastAt: number | null }>()
-  if (!answers.length) return out
+/**
+ * (disciplina do jogo, tópico do jogo) → tópicos do Control. A disciplina
+ * precisa corresponder à matéria (vínculo ou nome) e o nome do tópico casar.
+ */
+export function gameTopicTargets(catalog: GameTopicCatalog, topics: Topic[], subjects: Subject[], links: Record<string, string | null>): Map<string, string[]> {
   const subjectById = new Map(subjects.map((s) => [s.id, s]))
   // (disciplina do jogo, tópico do jogo) → tópicos do Control
   const target = new Map<string, string[]>()
@@ -68,6 +64,19 @@ export function gameEvidenceByTopic(
           target.set(k, [...(target.get(k) ?? []), t.id])
         }
   }
+  return target
+}
+
+export function gameEvidenceByTopic(
+  answers: Array<Pick<GameAnswer, 'subject_id' | 'topic' | 'correct' | 'answered_at'> | WeightedGameAnswer>,
+  catalog: GameTopicCatalog,
+  topics: Topic[],
+  subjects: Subject[],
+  links: Record<string, string | null>,
+): Map<string, { total: number; correct: number; lastAt: number | null }> {
+  const out = new Map<string, { total: number; correct: number; lastAt: number | null }>()
+  if (!answers.length) return out
+  const target = gameTopicTargets(catalog, topics, subjects, links)
   for (const a of answers) {
     for (const topicId of target.get(`${a.subject_id}|${a.topic}`) ?? []) {
       const cur = out.get(topicId) ?? { total: 0, correct: 0, lastAt: null }
