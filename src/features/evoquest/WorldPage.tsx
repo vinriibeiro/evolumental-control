@@ -28,6 +28,9 @@ import { Panels, type PanelTab } from './ui/Panels'
 import { BusBoarding, BusRide, CityChoice, TicketCounter } from './ui/Station'
 import { Terminal } from './ui/Terminal'
 import { FieldReport, FieldReview } from './ui/FieldReport'
+import { UnitHub } from './ui/UnitHub'
+import { CLASSIC_CONTENT } from './content/generatedCity'
+import { subjectMeta } from '@/game/catalog'
 import { useWorld } from './ui/useWorld'
 
 type Overlay =
@@ -46,6 +49,7 @@ type Overlay =
   | { kind: 'citychoice' }
   | { kind: 'debrief'; quest: string }
   | { kind: 'field'; template: string }
+  | { kind: 'unit'; subject: string; unit: string }
 
 const TEXT_KEY = 'evl-world-text'
 const IDLE_MS = 120_000
@@ -149,6 +153,8 @@ export default function WorldPage() {
           return setOverlay({ kind: 'debrief', quest: i.quest })
         case 'field':
           return setOverlay({ kind: 'field', template: i.template })
+        case 'unit':
+          return setOverlay({ kind: 'unit', subject: i.subject, unit: i.unit })
         case 'effects':
           w.apply(i.effects)
           if (i.text) w.toast(i.text)
@@ -524,6 +530,24 @@ export default function WorldPage() {
             />
           )}
           {overlay.kind === 'field' && <FieldReview template={overlay.template} sound={sound} onClose={close} />}
+          {overlay.kind === 'unit' && (() => {
+            const units = CLASSIC_CONTENT[overlay.subject]?.units ?? []
+            const index = units.findIndex((u) => u.id === overlay.unit)
+            if (index < 0) return null
+            return (
+              <UnitHub
+                subject={overlay.subject}
+                subjectName={subjectMeta(overlay.subject)?.name ?? overlay.subject}
+                unit={units[index]}
+                index={index}
+                onNavigate={(to) => {
+                  close()
+                  void w.save().then(() => flushTime()).then(() => navigate(to))
+                }}
+                onClose={close}
+              />
+            )
+          })()}
           {overlay.kind === 'terminal' && (
             <Terminal challenge={WORLD.challenges[overlay.id] as SqlChallenge} sound={sound} onSolved={(answer) => w.fire({ type: 'solve', challenge: overlay.id }, answer)} onClose={close} />
           )}

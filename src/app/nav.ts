@@ -116,6 +116,10 @@ export function titleFor(pathname: string, search = ''): string {
   if (pathname === '/') return 'Visão geral'
   const active = NAV.find((n) => isNavActive(n, pathname, search))
   if (active) return active.label
-  const match = NAV.filter((n) => split(n.to).path !== '/' && pathname.startsWith(split(n.to).path)).sort((a, b) => b.to.length - a.to.length)[0]
+  // Sem item ativo (ex.: /evoquest/jogar): o nome da categoria, nunca um item
+  // com parâmetros (antes caía em "Minha Cidade" por ter o endereço mais longo).
+  const group = groupForPath(pathname, search)
+  if (COLLAPSIBLE_GROUPS.some((g) => g.id === group)) return NAV_GROUPS.find((g) => g.id === group)!.label
+  const match = NAV.filter((n) => !split(n.to).query.size && split(n.to).path !== '/' && pathname.startsWith(split(n.to).path)).sort((a, b) => b.to.length - a.to.length)[0]
   return match?.label ?? 'EVoLuMentaL Control'
 }

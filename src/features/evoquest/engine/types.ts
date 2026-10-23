@@ -81,6 +81,8 @@ export type Interaction = { when?: Cond } & (
   | { do: 'debrief'; quest: string }
   /** Revisão de campo: exercício parametrizado (novo a cada vez), só evidência. */
   | { do: 'field'; template: string }
+  /** Prédio de cidade gerada: lição → guiada → sozinho → chefe, com o próximo passo. */
+  | { do: 'unit'; subject: string; unit: string }
 )
 
 export interface RegionDef {

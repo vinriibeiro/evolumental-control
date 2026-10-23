@@ -219,3 +219,14 @@ Pendências e próximos passos:
 - ~~Luzes da Minha Cidade~~ feito: janelas apagadas / meio acesas / acesas conforme o domínio.
 - Nova trava de domínio: prática só no EvoQuest não passa de 59% (uma missão sozinha chegava a 74%).
 - Atividades parametrizadas não têm gabarito no servidor (só semente + limite diário); a evidência da revisão de campo é, por isso, menos protegida que a das atividades fixas.
+
+### Modelo pedagógico nas 7 cidades geradas (23/10/2026)
+
+- Estágio pelo tipo do desafio clássico (`src/game/engine/stages.ts`): reconhecer = guiada (peso 1), produzir = independente (2), chefe/multietapas = desafio integrado (4); dica = crédito 0,8, nova tentativa = 0,6. O domínio do Control passou a usar esse peso também para as respostas do modo clássico (antes, toda resposta valia 1).
+- Guardião de cada prédio → painel da unidade (`ui/UnitHub.tsx`): lição, prática guiada, prática sozinho, chefe; próximo passo com motivo; relatório (estatística por estágio, acertos sem ajuda, tópicos com acerto < 60%).
+- `PlayPage` aceita `etapa=guiada|sozinho` (filtra os tipos da fila).
+- Diário: recuperação de tópicos fracos dos prédios e sugestões do Control para tópicos dessas cidades.
+- Corrigido: título do cabeçalho em `/evoquest/jogar` mostrava "Minha Cidade" (fallback pegava o item com parâmetros); agora mostra a categoria.
+- Novo teste de integridade: toda etapa de conversa termina num nó final do diálogo (pegou um erro meu ao acrescentar uma fala na Prefeitura).
+- Sem migração nova: as respostas clássicas já são corrigidas no servidor (`game_answers`).
+- Próximos passos: histórias próprias por cidade (como o Almoxarifado) e exercícios parametrizados por disciplina (hoje só GROUP BY).

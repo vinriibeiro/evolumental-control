@@ -57,6 +57,17 @@ describe('integridade do conteúdo', () => {
     for (const b of Object.values(WORLD.bosses)) for (const p of b.phases) expect(WORLD.challenges[p.challenge]).toBeTruthy()
   })
 
+  it('etapa de conversa termina num nó FINAL de um diálogo daquele NPC (senão a missão trava)', () => {
+    const dialoguesOf = (npc: string) => Object.values(WORLD.regions).flatMap((r) => r.entities.filter((e) => e.id === npc).flatMap((e) => e.on.flatMap((i) => (i.do === 'dialogue' ? [WORLD.dialogues[i.dialogue]] : []))))
+    for (const q of Object.values(WORLD.quests))
+      for (const s of q.steps) {
+        if (s.objective.type !== 'talk' || !s.objective.dialogueEnds) continue
+        const end = s.objective.dialogueEnds
+        const terminal = dialoguesOf(s.objective.npc).some((d) => d.nodes.some((n) => n.id === end && !n.next && !n.choices?.some((c) => c.next)))
+        expect(terminal, `${q.id}:${s.id} espera terminar em ${end}`).toBe(true)
+      }
+  })
+
   it('todas as entidades são alcançáveis a partir do ponto de entrada (com as portas abertas)', () => {
     const open = { door_security: true, power_on: true, power_access: true, sentinel_down: true, supply_gate: true, drone_down: true }
     for (const r of Object.values(WORLD.regions)) {

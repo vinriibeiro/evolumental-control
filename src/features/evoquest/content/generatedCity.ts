@@ -2,6 +2,11 @@
 // vira um prédio com um guardião; vencer o chefe da unidade (no modo clássico,
 // conferido no servidor) cumpre a etapa da missão da cidade. Assim toda
 // disciplina tem uma cidade jogável sem escrever uma história à mão.
+//
+// O guardião abre o painel da unidade (ui/UnitHub): a unidade vira uma
+// sequência pedagógica — lição → prática guiada (reconhecer) → prática
+// sozinho (produzir) → desafio integrado (chefe) — com o próximo passo
+// recomendado e o motivo (game/engine/stages.ts).
 import type { SubjectContent } from '@/game/types'
 import dax from '@/game/content/dax'
 import estatistica from '@/game/content/estatistica'
@@ -40,8 +45,6 @@ export const cityQuestId = (city: string) => `city_${city}`
 export function unitBoss(unit: SubjectContent['units'][number]): string {
   return (unit.challenges.find((c) => c.boss) ?? unit.challenges[unit.challenges.length - 1]).id
 }
-
-const back = '&volta=mundo'
 
 export function buildCity(city: CityDef, content: SubjectContent, subjectName: string): GeneratedCity {
   const units = content.units
@@ -87,25 +90,6 @@ export function buildCity(city: CityDef, content: SubjectContent, subjectName: s
     const npc = `${city.id}_u${i + 1}`
     const title = unit.title
     speakers.push({ id: npc, name: `Guardiã(o) de ${title}`, role: `${subjectName} · unidade ${i + 1}`, look: LOOKS[i % LOOKS.length] })
-    const base = `${unit.id}${back}`
-    dialogues.push({
-      id: npc,
-      start: 'g1',
-      nodes: [
-        { id: 'g1', speaker: npc, text: `Este prédio guarda "${title}". ${unit.summary}`, next: 'g2' },
-        {
-          id: 'g2',
-          speaker: npc,
-          text: 'Leia a lição, treine quanto quiser e, quando se sentir pronto(a), enfrente o chefe da unidade. Vencer o chefe é o que conta para a cidade.',
-          choices: [
-            { text: 'Ler a lição', effects: [{ type: 'navigate', to: `/evoquest/${city.subject}/licao/${unit.id}?volta=mundo` }] },
-            { text: 'Treinar esta unidade', effects: [{ type: 'navigate', to: `/evoquest/jogar?s=${city.subject}&m=trail&u=${base}&min=8` }] },
-            { text: 'Enfrentar o chefe', effects: [{ type: 'navigate', to: `/evoquest/jogar?s=${city.subject}&m=boss&u=${base}` }] },
-            { text: 'Depois.' },
-          ],
-        },
-      ],
-    })
     const s = spots[i]
     entities.push({
       id: npc,
@@ -120,7 +104,7 @@ export function buildCity(city: CityDef, content: SubjectContent, subjectName: s
       on: [
         { when: { notStep: `${quest}:mentor` }, do: 'say', text: 'A porta está fechada. Fale primeiro com a Prefeitura, na praça.' },
         ...(i > 0 ? [{ when: { notStep: stepKeyOf(i - 1) }, do: 'say' as const, text: `Ainda não. Ajude primeiro o prédio de "${units[i - 1].title}".` }] : []),
-        { do: 'dialogue', dialogue: npc },
+        { do: 'unit', subject: city.subject, unit: unit.id },
       ],
     })
   })
@@ -132,7 +116,9 @@ export function buildCity(city: CityDef, content: SubjectContent, subjectName: s
       start: 'm1',
       nodes: [
         { id: 'm1', speaker: mentor, text: `Bem-vindo(a) a ${city.name}, {name}! Aqui se vive de ${subjectName}.`, next: 'm2' },
-        { id: 'm2', speaker: mentor, text: `Cada prédio da cidade guarda uma unidade. São ${units.length}, e cada uma tem um guardião e um chefe.`, next: 'm3' },
+        { id: 'm2', speaker: mentor, text: `Cada prédio da cidade guarda uma unidade. São ${units.length}, e cada uma tem um guardião e um chefe.`, next: 'm2b' },
+        { id: 'm2b', speaker: mentor, text: 'Em cada prédio, o guardião mostra o caminho: lição, prática guiada, prática sozinho e o chefe. Ele também diz qual é o seu próximo passo e por quê.', next: 'm3' },
+        // m3 continua sendo o último nó: a etapa "mentor" termina nele.
         { id: 'm3', speaker: mentor, text: 'Vença os chefes, um prédio de cada vez. Cada vitória rende moedas, e com elas você compra passagens para outras cidades na Rodoviária.' },
       ],
     },

@@ -24,6 +24,7 @@ async function step(name, fn) {
   } catch (e) {
     results.push(['FALHOU', name, e.message.split('\n')[0]])
     await page.screenshot({ path: `${OUT}/mundo-falha-${results.length}.png` }).catch(() => {})
+    for (const pg of ctx.browser()?.contexts().flatMap((c) => c.pages()) ?? []) if (pg !== page) await pg.screenshot({ path: `${OUT}/mundo-falha-${results.length}-extra.png` }).catch(() => {})
   }
 }
 const place = (x, y, facing) => page.evaluate(([x, y, f]) => window.__eq.place(x, y, f), [x, y, facing])
@@ -335,6 +336,33 @@ await step('celular: apresentação guiada por toque, depois joystick e botão d
   const over = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   if (over) throw new Error('rolagem horizontal')
   await p.screenshot({ path: `${OUT}/mundo-celular.png` })
+
+  // Cidade gerada (Vernácula): Prefeitura → guardião abre o painel da unidade em etapas.
+  const act = async (x, y, facing) => {
+    await p.evaluate(([x, y, f]) => window.__eq.place(x, y, f), [x, y, facing])
+    await p.waitForTimeout(250)
+    await p.getByRole('button', { name: /^(Falar|Interagir|Visitar|Usar)/ }).last().click()
+  }
+  await act(14.5, 11.5, 'up') // Prefeitura (praça)
+  await p.getByRole('dialog').waitFor()
+  for (let i = 0; i < 10 && (await p.getByRole('dialog').count()); i++) {
+    await p.getByRole('dialog').getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo/ }).click()
+    await p.waitForTimeout(150)
+  }
+  await p.waitForFunction(() => window.__eq.state().steps.includes('city_archive:mentor'), null, { timeout: 15000 })
+  await act(6.5, 5.5, 'up') // guardião do 1º prédio
+  const hub = p.getByRole('dialog', { name: /^Prédio:/ })
+  await hub.waitFor()
+  for (const label of ['1. Lição', '2. Prática guiada', '3. Prática independente', '4. Desafio integrado']) await hub.getByText(label, { exact: false }).first().waitFor()
+  await hub.getByText(/Próximo passo:/).waitFor()
+  await hub.getByText('(recomendado)').waitFor()
+  if (await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)) throw new Error('rolagem horizontal no painel da unidade')
+  await p.waitForTimeout(500) // fim da animação de entrada
+  await p.screenshot({ path: `${OUT}/mundo-cidade-gerada-unidade.png` })
+  // A etapa guiada abre a trilha só com desafios de reconhecer.
+  await hub.getByRole('button', { name: /2\. Prática guiada/ }).click()
+  await p.waitForURL(/\/evoquest\/jogar\?sessao=/, { timeout: 20000 })
+  await p.screenshot({ path: `${OUT}/mundo-cidade-gerada-guiada.png` })
   await m.close()
 })
 

@@ -69,6 +69,54 @@ export function worldOpportunities(
 const ORDER: Record<Opportunity['kind'], number> = { recovery: 0, control: 1, spaced: 2, mission: 3 }
 export const sortOpportunities = (list: Opportunity[]) => [...list].sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
 
+/** Unidade de uma cidade gerada (modo clássico). */
+export interface CityUnitLike {
+  city: string
+  subject: string
+  cityName: string
+  unitTitle: string
+  topics: Array<{ id: string; name: string }>
+  challengeIds: Set<string>
+}
+
+/**
+ * Cidades geradas: tópico com dificuldade recorrente (2+ erros nos últimos
+ * 14 dias, acerto < 60%, sem acerto limpo depois do último erro) vira
+ * recuperação no prédio da unidade. No máximo `limit`, piores primeiro.
+ */
+export function cityRecoveries(
+  answers: Array<{ challenge_id: string; topic: string; correct: boolean; used_hint: boolean; attempt: number; answered_at: string }>,
+  units: CityUnitLike[],
+  now: number,
+  limit = 3,
+): Opportunity[] {
+  const out: Array<Opportunity & { acc: number }> = []
+  for (const u of units) {
+    const recent = answers.filter((a) => u.challengeIds.has(a.challenge_id) && now - Date.parse(a.answered_at) <= 14 * DAY)
+    for (const t of u.topics) {
+      const mine = recent.filter((a) => a.topic === t.id).sort((a, b) => b.answered_at.localeCompare(a.answered_at))
+      const wrong = mine.filter((a) => !a.correct)
+      if (wrong.length < 2) continue
+      const acc = mine.filter((a) => a.correct).length / mine.length
+      const lastWrong = wrong[0].answered_at
+      const cleanAfter = mine.some((a) => a.correct && !a.used_hint && a.attempt <= 1 && a.answered_at > lastWrong)
+      if (acc >= 0.6 || cleanAfter) continue
+      out.push({
+        id: `recovery:${u.city}|${t.id}`,
+        kind: 'recovery',
+        title: `Recuperar ${t.name}`,
+        reason: `${wrong.length} erros em ${mine.length} respostas nos últimos 14 dias (${Math.round(acc * 100)}% de acerto) e nenhum acerto limpo depois.`,
+        where: `${u.cityName} → prédio "${u.unitTitle}" (prática sozinho)`,
+        acc,
+      })
+    }
+  }
+  return out
+    .sort((a, b) => a.acc - b.acc)
+    .slice(0, limit)
+    .map(({ acc: _acc, ...o }) => o)
+}
+
 /** Recomendação do Control (motor de próxima ação), só o que importa aqui. */
 export interface ControlRec {
   topicId: string | null

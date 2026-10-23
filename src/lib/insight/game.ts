@@ -7,6 +7,8 @@
 // reduz o crédito do acerto (ver engine/pedagogy). XP não entra aqui.
 import { relatedGameSubject } from '@/features/explorer/insights'
 import { evidenceCredit, type HelpLevel } from '@/features/evoquest/engine/pedagogy'
+import { helpOf, stageOf } from '@/game/engine/stages'
+import type { Challenge } from '@/game/types'
 import type { GameAnswer, GameEvidence, Subject, Topic } from '@/types/db'
 
 const fold = (s: string) =>
@@ -40,6 +42,24 @@ export function worldEvidenceAnswers(rows: Array<Pick<GameEvidence, 'subject' | 
   return rows.map((r) => {
     const c = evidenceCredit(r.stage, Math.min(4, Math.max(0, r.help_level)) as HelpLevel, r.solved)
     return { subject_id: r.subject, topic: r.concept, answered_at: r.created_at, correct: c.correct, weight: c.weight }
+  })
+}
+
+/**
+ * Respostas do modo clássico (corrigidas no servidor) com o mesmo critério das
+ * missões: o tipo do desafio dá o estágio (reconhecer = guiada, produzir =
+ * independente, chefe = desafio integrado) e dica/nova tentativa reduzem o
+ * crédito. Desafio fora do catálogo carregado conta como antes (peso 1).
+ */
+export function classicAnswers(
+  rows: Array<Pick<GameAnswer, 'subject_id' | 'topic' | 'correct' | 'answered_at' | 'challenge_id' | 'used_hint' | 'attempt'>>,
+  challenges: Map<string, Pick<Challenge, 'type' | 'boss'>>,
+): WeightedGameAnswer[] {
+  return rows.map((a) => {
+    const c = challenges.get(a.challenge_id)
+    if (!c) return { subject_id: a.subject_id, topic: a.topic, answered_at: a.answered_at, correct: a.correct }
+    const e = evidenceCredit(stageOf(c), helpOf(a), a.correct)
+    return { subject_id: a.subject_id, topic: a.topic, answered_at: a.answered_at, correct: e.correct, weight: e.weight }
   })
 }
 

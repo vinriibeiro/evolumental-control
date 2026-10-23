@@ -7,7 +7,8 @@ import { useToday } from '@/hooks/useToday'
 import { gameSettings } from '@/game/useGame'
 import { gameTopicTargets, type GameTopicCatalog } from '@/lib/insight/game'
 import { LEARNING_PATHS, SQL_SKILLS, WORLD } from '../content'
-import { controlOpportunities, sortOpportunities, worldOpportunities } from '../engine/opportunities'
+import { CLASSIC_CONTENT } from '../content/generatedCity'
+import { cityRecoveries, controlOpportunities, sortOpportunities, worldOpportunities, type CityUnitLike } from '../engine/opportunities'
 import { CITIES } from '../content/cities'
 import { cityQuestId } from '../content/generatedCity'
 import { MY_CITY } from '../content/myCity'
@@ -122,21 +123,37 @@ function Opportunities({ state }: { state: WorldState }) {
   const missions = LEARNING_PATHS.filter((p) => state.steps.includes(p.unlockedBy) && !state.quests[p.quest]?.done).map((p) => ({ id: p.quest, title: WORLD.quests[p.quest].title, where: p.where }))
   const fromWorld = worldOpportunities(evidence.data ?? [], concepts, missions, Date.now())
 
-  // Control → mundo: tópico recomendado que corresponde ao conceito de uma missão liberada.
+  // Cidades geradas já visitadas: cada unidade é um prédio.
+  const cityUnits: CityUnitLike[] = CITIES.filter((c) => CLASSIC_CONTENT[c.subject] && state.flags[`visited_${c.id}`]).flatMap((c) =>
+    CLASSIC_CONTENT[c.subject].units.map((u) => ({ city: c.id, cityName: c.name, unitTitle: u.title, topics: u.topics, challengeIds: new Set(u.challenges.map((x) => x.id)), subject: c.subject })),
+  )
+  const answers = useAll('game_answers', {}, { enabled: cityUnits.length > 0 })
+  const fromCities = cityRecoveries(answers.data ?? [], cityUnits, Date.now())
+
+  // Control → mundo: tópico recomendado que corresponde ao conceito de uma
+  // missão liberada ou a um tópico de prédio de cidade visitada (chave "disciplina|tópico").
   const d = today.derived
   const open = LEARNING_PATHS.filter((p) => state.steps.includes(p.unlockedBy))
   const catalog: GameTopicCatalog = {}
+  const paths: Record<string, { name: string; where: string }> = {}
   for (const p of open) {
     const l = lessonOf(p.concept)
-    if (l) (catalog[l.subject] ??= []).push({ id: p.concept, name: l.conceptName })
+    if (!l) continue
+    ;(catalog[l.subject] ??= []).push({ id: p.concept, name: l.conceptName })
+    paths[`${l.subject}|${p.concept}`] = { name: l.conceptName, where: state.quests[p.quest]?.done ? p.practice : p.where }
   }
+  for (const u of cityUnits)
+    for (const t of u.topics) {
+      ;(catalog[u.subject] ??= []).push(t)
+      paths[`${u.subject}|${t.id}`] = { name: t.name, where: `${u.cityName} → prédio "${u.unitTitle}"` }
+    }
   const topicConcept = new Map<string, string>()
   if (d)
     for (const [key, ids] of gameTopicTargets(catalog, [...d.topicsById.values()], [...d.subjectsById.values()], gameSettings(settings).links))
-      for (const id of ids) topicConcept.set(id, key.split('|')[1])
-  const paths = Object.fromEntries(open.map((p) => [p.concept, { name: lessonOf(p.concept)?.conceptName ?? p.concept, where: state.quests[p.quest]?.done ? p.practice : p.where }]))
-  const fromControl = controlOpportunities(d?.recommendations ?? [], topicConcept, paths).filter((o) => !fromWorld.some((w) => w.id === `recovery:${o.id.slice(8)}`))
-  const list = sortOpportunities([...fromWorld, ...fromControl])
+      for (const id of ids) topicConcept.set(id, key)
+  const recovering = new Set([...fromWorld, ...fromCities].filter((o) => o.kind === 'recovery').map((o) => o.title.replace('Recuperar ', '')))
+  const fromControl = controlOpportunities(d?.recommendations ?? [], topicConcept, paths).filter((o) => !recovering.has(o.title.replace('Praticar ', '')))
+  const list = sortOpportunities([...fromWorld, ...fromCities, ...fromControl])
   if (!list.length) return null
   return (
     <section aria-label="Oportunidades" className="rounded-md border-2 border-[var(--eq-edge-dark)] bg-[#120e0b] p-3">

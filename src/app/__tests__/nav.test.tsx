@@ -59,6 +59,9 @@ describe('categorias e rota ativa (puro)', () => {
     expect(titleFor('/materias/x/topico/y')).toBe('Explorador de estudos')
     expect(titleFor('/questoes/caderno')).toBe('Caderno de erros')
     expect(titleFor('/evoquest/treino')).toBe('Treino')
+    // Partida e laboratório: categoria, não um item com parâmetros ("Minha Cidade").
+    expect(titleFor('/evoquest/jogar', '?s=portugues&m=trail&etapa=guiada')).toBe('EvoQuest')
+    expect(titleFor('/evoquest/laboratorio/sql.u1.lab1')).toBe('EvoQuest')
   })
 })
 

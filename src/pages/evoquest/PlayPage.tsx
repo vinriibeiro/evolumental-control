@@ -11,6 +11,7 @@ import type { GameMode, GameSession } from '@/types/db'
 import { findChallenge, subjectMeta } from '@/game/catalog'
 import { describeAnswer, grade } from '@/game/engine/grade'
 import { adaptNext, buildQueue, challengeStates, subjectMastery } from '@/game/engine/progress'
+import { GUIDED_TYPES, INDEPENDENT_TYPES } from '@/game/engine/stages'
 import { comboMultiplier, levelFromXp } from '@/game/engine/rules'
 import { playSfx } from '@/game/speech'
 import type { Challenge, Response, SubjectContent } from '@/game/types'
@@ -35,6 +36,9 @@ function Starter() {
   const unitId = params.get('u')
   const minutes = Math.min(120, Math.max(1, Number(params.get('min')) || 5))
   const listening = params.get('foco') === 'escuta'
+  // Etapa pedagógica (cidades do mundo): guiada = reconhecer; sozinho = produzir a resposta.
+  const etapa = params.get('etapa')
+  const stageTypes = etapa === 'guiada' ? GUIDED_TYPES : etapa === 'sozinho' ? INDEPENDENT_TYPES : undefined
   const content = useSubjectContent(subject)
   const data = useGameData()
   const start = useGameMutation(startGame)
@@ -45,7 +49,10 @@ function Starter() {
     if (started.current || !content.data || data.isPending || data.isError) return
     if (mode === 'cards') return
     started.current = true
-    const queue = buildQueue({ content: content.data, answers: data.answers, mode, minutes, unitId, now: Date.now(), types: listening ? ['listen', 'dictation'] : undefined })
+    const build = (types?: Parameters<typeof buildQueue>[0]['types']) => buildQueue({ content: content.data!, answers: data.answers, mode, minutes, unitId, now: Date.now(), types })
+    let queue = build(listening ? ['listen', 'dictation'] : stageTypes)
+    // Unidade sem desafios daquela etapa: usa a unidade inteira (melhor que tela vazia).
+    if (!queue.length && stageTypes) queue = build()
     if (queue.length === 0) return setEmpty(true)
     start
       .mutateAsync({ subjectId: subject, unitId, mode, queue: queue.map((c) => c.id), plannedSeconds: mode === 'time_attack' ? TIME_ATTACK_SECONDS : minutes * 60 })

@@ -10,9 +10,10 @@ import { useSettings } from '@/hooks/useSettings'
 import type { DataBackend } from '@/lib/data/types'
 import { eq, gte, inList } from '@/lib/data/types'
 import { masteryIndex, type InsightInput } from '@/lib/insight/evidence'
-import { gameEvidenceByTopic, worldEvidenceAnswers, type GameTopicCatalog } from '@/lib/insight/game'
+import { classicAnswers, gameEvidenceByTopic, worldEvidenceAnswers, type GameTopicCatalog } from '@/lib/insight/game'
 import { addDays, todayKey, zonedDayStart } from '@/lib/time'
 import { gameSettings } from '@/game/useGame'
+import type { Challenge } from '@/game/types'
 import type { UserSettings } from '@/types/db'
 
 export const INSIGHT_TABLES = ['subjects', 'topics', 'study_sessions', 'study_session_pauses', 'question_records', 'question_errors', 'reviews', 'flashcards', 'game_answers', 'game_evidence'] as const
@@ -34,19 +35,23 @@ export async function loadInsightInput(backend: DataBackend, settings: UserSetti
     // Evidências do mundo (missões de aprendizagem): ponderadas por estágio e ajuda.
     fetchAll(backend, 'game_evidence', { filters: [gte('created_at', fromIso)] }).catch(() => []),
   ])
-  const answers = [...quizAnswers, ...worldEvidenceAnswers(world)]
   // Caderno de erros: só dos registros da janela que têm erros (em lotes de ids).
   const withErrors = questions.filter((q) => q.wrong > 0).map((q) => q.id)
   const errors: NonNullable<InsightInput['errors']> = []
   for (let i = 0; i < withErrors.length; i += 100) errors.push(...(await fetchAll(backend, 'question_errors', { filters: [inList('record_id', withErrors.slice(i, i + 100))] })))
   let game: InsightInput['game']
-  if (answers.length) {
+  if (quizAnswers.length || world.length) {
     const { loadSubject } = await import('@/game/catalog')
     const catalog: GameTopicCatalog = {}
-    for (const id of [...new Set(answers.map((a) => a.subject_id))]) {
+    const challenges = new Map<string, Challenge>()
+    for (const id of [...new Set([...quizAnswers.map((a) => a.subject_id), ...world.map((w) => w.subject)])]) {
       const content = await loadSubject(id).catch(() => null)
-      if (content) catalog[id] = content.units.flatMap((u) => u.topics)
+      if (!content) continue
+      catalog[id] = content.units.flatMap((u) => u.topics)
+      for (const u of content.units) for (const c of u.challenges) challenges.set(c.id, c)
     }
+    // Respostas clássicas e evidências do mundo, ponderadas por estágio e ajuda.
+    const answers = [...classicAnswers(quizAnswers, challenges), ...worldEvidenceAnswers(world)]
     game = gameEvidenceByTopic(answers, catalog, topics, subjects, gameSettings(settings).links)
   }
   return { subjects, topics, sessions, questions, errors, reviews, cards, game, today, tz }
