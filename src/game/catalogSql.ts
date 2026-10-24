@@ -9,7 +9,7 @@ import { ALL_RULES, SHOP } from './engine/rewards'
  * versão já foi aplicada, aponte para um arquivo novo (as anteriores ficam
  * como histórico; todas são idempotentes).
  */
-export const CATALOG_MIGRATION = '20261022120000_evoquest_catalog_ditado.sql'
+export const CATALOG_MIGRATION = '20261029000000_evoquest_catalogo_ingles.sql'
 
 const q = (s: string) => `'${s.replace(/'/g, "''")}'`
 

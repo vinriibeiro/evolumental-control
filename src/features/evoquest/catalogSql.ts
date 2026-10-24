@@ -72,4 +72,4 @@ export function activityCatalogSql(): string {
 export const worldCatalogSql = () => `${questCatalogSql()}\n\n${ticketCatalogSql()}\n\n${activityCatalogSql()}`
 
 /** Migração que guarda o catálogo atual (as anteriores ficam como histórico). */
-export const WORLD_CATALOG_MIGRATION = '20261028000000_evoquest_aurora.sql'
+export const WORLD_CATALOG_MIGRATION = '20261029000100_evoquest_cidade_ingles.sql'

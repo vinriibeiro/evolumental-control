@@ -103,7 +103,7 @@ O modo local é explícito: uma faixa no topo de todas as telas avisa que não h
 
 ## Aplicar as migrações
 
-As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) `20261026000000_caderno_de_erros.sql` (tabela `question_errors`), `20261027000000_evoquest_evidencias.sql` (evidências de aprendizagem do EvoQuest: `game_activities`, `game_evidence`, RPC `game_record_evidence`) e `20261028000000_evoquest_aurora.sql` (só catálogo: etapas e atividades da missão em Python da Usina de Aurora). Em um projeto já existente, aplique **só as que ainda não rodou**.
+As migrações versionadas ficam em `supabase/migrations/` e devem ser aplicadas em ordem: `20261021000000_init.sql`, `20261021120000_reset_and_delete_account.sql`, `20261022000000_evoquest.sql`, `20261022000100_evoquest_catalog.sql`, `20261022120000_evoquest_catalog_ditado.sql` (catálogo atualizado, idempotente), `20261023000000_explorer.sql`, `20261023000100_evoquest_rpg.sql`, `20261024000000_evoquest_rodoviaria.sql` (Rodoviária, passagens e cidades por disciplina), `20261025000000_evoquest_apresentacao_guiada.sql` (catálogo da apresentação guiada) `20261026000000_caderno_de_erros.sql` (tabela `question_errors`), `20261027000000_evoquest_evidencias.sql` (evidências de aprendizagem do EvoQuest: `game_activities`, `game_evidence`, RPC `game_record_evidence`) `20261028000000_evoquest_aurora.sql` (só catálogo: etapas e atividades da missão em Python da Usina de Aurora), `20261029000000_evoquest_catalogo_ingles.sql` (catálogo de desafios com o inglês do zero ao C2) e `20261029000100_evoquest_cidade_ingles.sql` (etapas da cidade de Inglês com os 8 prédios; aplicar depois da anterior). Em um projeto já existente, aplique **só as que ainda não rodou**.
 
 - **Pelo painel:** abra *SQL Editor*, cole o conteúdo do arquivo e execute.
 - **Pela CLI:**
@@ -227,7 +227,7 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 
 | Disciplina | Desafios | Destaques |
 |---|---|---|
-| Inglês (A1→B1) | 49 | escuta com voz do navegador (normal/lenta), **ditado** (ouvir e escrever, correção palavra a palavra), treino só de escuta, tradução após responder, texto alternativo acessível |
+| Inglês (do zero → C2, 8 unidades) | 143 | escuta com voz do navegador (normal/lenta), **ditado** (ouvir e escrever, correção palavra a palavra), treino só de escuta, tradução após responder, texto alternativo acessível |
 | Português (concursos) | 33 | acentuação, concordância, regência, crase, pontuação, interpretação |
 | Raciocínio Lógico | 36 | equivalências, argumentos, diagramas, contagem, probabilidade |
 | Estatística | 36 | cálculos conferidos automaticamente pelos testes |
