@@ -8,7 +8,7 @@ const OUT = process.argv[3] ?? 'e2e/screens-evoquest'
 const SKIP_PY = process.env.SKIP_PYTHON === '1'
 mkdirSync(OUT, { recursive: true })
 
-const exe = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find(existsSync)
+const exe = [process.env.CHROME_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium', '/usr/bin/microsoft-edge'].find((p) => p && existsSync(p))
 const browser = await chromium.launch({ executablePath: exe, headless: true })
 const ctx = await browser.newContext({ viewport: { width: 1366, height: 860 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
 const page = await ctx.newPage()

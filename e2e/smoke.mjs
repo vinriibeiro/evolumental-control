@@ -7,7 +7,7 @@ const BASE = process.argv[2] ?? 'http://localhost:5173'
 const OUT = process.argv[3] ?? 'e2e/screens'
 mkdirSync(OUT, { recursive: true })
 
-const exe = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find(existsSync)
+const exe = [process.env.CHROME_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium', '/usr/bin/microsoft-edge'].find((p) => p && existsSync(p))
 const browser = await chromium.launch({ executablePath: exe, headless: true })
 const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1366, height: 860 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
 const page = await ctx.newPage()

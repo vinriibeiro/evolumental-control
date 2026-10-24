@@ -29,7 +29,7 @@ const targets = [
   ['apple-touch-icon.png', 180, 'maskable'],
 ]
 
-const exe = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find(existsSync)
+const exe = [process.env.CHROME_PATH, 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium', '/usr/bin/microsoft-edge'].find((p) => p && existsSync(p))
 const browser = await chromium.launch({ executablePath: exe, headless: true })
 for (const [file, size, kind] of targets) {
   const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 })
