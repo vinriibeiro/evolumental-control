@@ -494,6 +494,17 @@ export function drawObject(c: Ctx, sprite: string, x: number, y: number, t: numb
       }
       break
     }
+    case 'tree': {
+      // Árvore como cartaz (primeira pessoa): copa e tronco, sem o chão.
+      px(c, '#6b4a2b', ox + 7, oy + 10, 2, 6)
+      c.fillStyle = '#2f7a3a'
+      c.beginPath()
+      c.arc(ox + 8, oy + 7, 6, 0, Math.PI * 2)
+      c.fill()
+      px(c, '#3f9a48', ox + 5, oy + 3, 3, 2)
+      px(c, '#245f2c', ox + 9, oy + 9, 4, 2)
+      break
+    }
     case 'root': {
       const flick = Math.sin(t * 7) > 0.6
       c.save()

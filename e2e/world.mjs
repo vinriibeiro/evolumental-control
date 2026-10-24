@@ -98,13 +98,20 @@ await step('apresentação guiada: teclado não move; Iara → Quadro (escolha) 
   if (s.inventory.includes('vale_bilhete')) throw new Error('vale não foi usado')
 })
 
-await step('na cidade o controle é do jogador (anda com o teclado)', async () => {
+await step('na cidade o controle é do jogador (anda com o teclado, em primeira pessoa)', async () => {
   const a = await st()
   await page.keyboard.down('KeyW')
   await page.waitForTimeout(500)
   await page.keyboard.up('KeyW')
   const b = await st()
-  if (!(b.y < a.y - 0.5)) throw new Error(`não andou: ${a.y} → ${b.y}`)
+  if (Math.hypot(b.x - a.x, b.y - a.y) < 0.5) throw new Error(`não andou: (${a.x}, ${a.y}) → (${b.x}, ${b.y})`)
+  // Girar com D muda o facing salvo; a posição fica.
+  await page.keyboard.down('KeyD')
+  await page.waitForTimeout(400)
+  await page.keyboard.up('KeyD')
+  const c = await st()
+  if (c.facing === b.facing || Math.hypot(c.x - b.x, c.y - b.y) > 0.05) throw new Error(`girar não mudou o olhar: ${b.facing} → ${c.facing}`)
+  await page.screenshot({ path: `${OUT}/mundo-primeira-pessoa.png` })
 })
 
 await step('Cidade dos Dados: Maya; porta de segurança com SQL', async () => {

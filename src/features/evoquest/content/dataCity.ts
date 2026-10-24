@@ -30,6 +30,7 @@ export const DATA_CITY: RegionDef = {
   subtitle: 'Distrito Relacional',
   subject: 'sql',
   palette: 'data',
+  sky: 'night',
   spawn: { x: 6, y: 19 },
   onEnter: [{ type: 'startQuest', quest: 'sql_main' }, { type: 'flag', flag: 'city_visited' }],
   map: {

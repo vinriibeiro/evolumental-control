@@ -239,7 +239,7 @@ Módulo gamificado em `/evoquest` (menu lateral). Tudo roda dentro do app, com a
 
 **Apresentação guiada:** na primeira vez, o personagem anda sozinho (piloto automático) da Mestra Iara ao Quadro de Missões — onde o jogador escolhe a cidade —, à bilheteria e ao ônibus; o jogador só avança as falas. O controle do personagem começa na chegada à cidade escolhida. O antigo desafio SQL do quadro virou a missão opcional "O quadro que responde".
 
-**Mundo (`/evoquest`):** cada disciplina é uma cidade. Da **Rodoviária** da Vila Evolumental (ao sul da praça) sai um ônibus para cada cidade, e o bilhete é comprado no balcão com moedas:
+**Mundo (`/evoquest`):** jogado em **primeira pessoa** (raycasting sobre a grade de tiles, com a pixel art desenhada por código): **W/S** ou ↑/↓ andam, **A/D** ou ←/→ giram, **Shift + A/D** anda de lado, um clique no mundo prende o mouse para olhar em volta e **E** (Enter/Espaço) interage com o que está na mira; no celular, o joystick anda (vertical) e gira (horizontal) e o botão de ação fala. Um minimapa mostra a planta da região, as portas e quem está por perto. Cada disciplina é uma cidade. Da **Rodoviária** da Vila Evolumental (ao sul da praça) sai um ônibus para cada cidade, e o bilhete é comprado no balcão com moedas:
 - a primeira passagem é o vale da Guilda, entregue no fim do tutorial: é grátis e vale para a cidade que o jogador escolher;
 - as demais custam 80 moedas cada; comprada uma vez, a linha fica liberada para sempre, e a volta para a Vila é grátis;
 - a compra passa pela RPC `game_buy_ticket` (no modo local, pela mesma regra em `LocalBackend`); `game_buy` não vende passagens.

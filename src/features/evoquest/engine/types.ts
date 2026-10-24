@@ -92,6 +92,8 @@ export interface RegionDef {
   /** Disciplina do EvoQuest clássico a que a região pertence. */
   subject: string | null
   palette: string
+  /** Primeira pessoa: céu de dia, céu de noite ou teto (interiores). Padrão: pela paleta (town = dia, data = teto). */
+  sky?: 'day' | 'night' | 'none'
   map: MapDef
   spawn: { x: number; y: number }
   entities: EntityDef[]

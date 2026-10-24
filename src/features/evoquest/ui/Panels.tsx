@@ -346,7 +346,7 @@ function Prefs({ prefs, onPrefs }: { prefs: Props['prefs']; onPrefs: Props['onPr
       <div className="text-sm text-[var(--eq-muted)]">
         <p className="mb-1 font-semibold text-[var(--eq-ink)]">Controles</p>
         <p>
-          <span className="eq-kbd">W A S D</span> ou setas: andar · <span className="eq-kbd">E</span>/<span className="eq-kbd">Espaço</span>: interagir · <span className="eq-kbd">I J K M</span>: painéis ·{' '}
+          <span className="eq-kbd">W S</span> ou ↑ ↓: andar · <span className="eq-kbd">A D</span> ou ← →: girar · <span className="eq-kbd">Shift</span> + A D: andar de lado · clique no mundo + mouse: olhar · <span className="eq-kbd">E</span>/<span className="eq-kbd">Espaço</span>: interagir · <span className="eq-kbd">I J K M</span>: painéis ·{' '}
           <span className="eq-kbd">Esc</span>: fechar. No celular: joystick e botão de ação.
         </p>
       </div>

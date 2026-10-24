@@ -165,7 +165,7 @@ export default function WorldPage() {
 
   useEffect(() => {
     if (!canvasRef.current || !hasCharacter || !w.world.current) return
-    const rt = new GameRuntime(canvasRef.current, WORLD, w.world as { current: NonNullable<typeof w.world.current> }, { onFocus: setFocus, onInteract, onActivity: touchInput }, { reducedMotion })
+    const rt = new GameRuntime(canvasRef.current, WORLD, w.world as { current: NonNullable<typeof w.world.current> }, { onFocus: setFocus, onInteract, onActivity: touchInput }, { reducedMotion, touch })
     runtime.current = rt
     rt.start()
     return () => rt.stop()
@@ -182,6 +182,7 @@ export default function WorldPage() {
       place: (x: number, y: number, facing: 'up' | 'down' | 'left' | 'right') => {
         const s = w.world.current
         if (s) Object.assign(s, { x, y, facing })
+        runtime.current?.face(facing)
       },
     }
     return () => {
@@ -265,7 +266,7 @@ export default function WorldPage() {
       if (firstArrival) {
         guidedRef.current = false
         if (runtime.current) runtime.current.locked = false
-        w.toast(touch ? 'Agora é com você: use o joystick para andar e o botão de ação para falar.' : 'Agora é com você: ande com W A S D ou as setas e fale com E.')
+        w.toast(touch ? 'Agora é com você: joystick para andar e girar, botão de ação para falar.' : 'Agora é com você: W/S anda, A/D gira (ou clique no mundo e use o mouse) e E fala.')
       }
     },
     [w, touch],
@@ -470,7 +471,7 @@ export default function WorldPage() {
 
   return (
     <Shell textLarge={textLarge} reducedMotion={reducedMotion}>
-      <canvas ref={canvasRef} className="eq-pixel absolute inset-0 size-full" role="img" aria-label={`${region.name}. ${focus ? `À frente: ${focus.name}.` : ''}`} />
+      <canvas ref={canvasRef} className="eq-pixel absolute inset-0 size-full cursor-crosshair" role="img" aria-label={`${region.name}, em primeira pessoa. ${focus ? `Na mira: ${focus.name}.` : ''}`} />
       <Hud
         level={lvl.level}
         progress={lvl.progress}
