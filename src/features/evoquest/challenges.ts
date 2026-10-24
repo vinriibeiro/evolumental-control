@@ -1,8 +1,9 @@
 // Desafios de conhecimento usados pelo mundo: terminal SQL, terminal Python,
-// valor digitado e painel lógico. O gabarito NÃO vai para o navegador: cada
+// rádio em inglês (escuta), valor digitado e painel lógico. O gabarito NÃO vai para o navegador: cada
 // desafio guarda só o hash SHA-256 da resposta canônica (gerado pelos testes a
 // partir das soluções, que ficam fora do pacote do app). O servidor confere o
 // mesmo hash.
+import { dictationWords, diffWords } from '@/game/engine/dictation'
 import type { PyCollect } from '@/game/lab/runPython'
 import type { QueryResult } from '@/game/lab/sqlCore'
 import type { Stage } from './engine/pedagogy'
@@ -99,6 +100,65 @@ export interface PyChallenge extends PedagogyFields {
   skills: string[]
 }
 
+export interface EnFeedback {
+  when: {
+    /** Ditado: palavra esperada que faltou (forma normalizada, ex.: "seven"). */
+    missing?: string
+    /** Ditado: palavra a mais na resposta. */
+    extra?: string
+    /** Ditado: a resposta tem menos/mais palavras do que a transmissão. */
+    length?: 'fewer' | 'more'
+    /** Formulário: só este campo (id) não confere — os outros batem. */
+    onlyField?: string
+    /** Formulário: este campo (id) ficou vazio. */
+    emptyField?: string
+  }
+  say: string
+}
+
+/** Uma fala da transmissão, lida pelo navegador (Web Speech) em inglês. */
+export interface EnLine {
+  /** Quem fala (rótulo para o jogador: "Navio Blue Star", "Capitania"). */
+  who: string
+  say: string
+}
+
+export type EnNormalize = 'words' | 'digits' | 'letters'
+
+export interface EnField {
+  id: string
+  label: string
+  placeholder?: string
+  normalize: EnNormalize
+}
+
+/**
+ * Rádio do mundo (inglês): o jogador OUVE uma transmissão (voz do navegador,
+ * normal ou devagar) e responde — ditado (escrever o que ouviu) ou um
+ * formulário de registro (os números, nomes e horas que a transmissão trouxe).
+ * O navegador compara o hash da resposta canônica e o servidor confere o
+ * mesmo hash. Como a voz é sintetizada no navegador, o texto da transmissão
+ * precisa estar no pacote: a proteção aqui é a mesma do modo clássico.
+ */
+export interface EnChallenge extends PedagogyFields {
+  kind: 'english'
+  id: string
+  title: string
+  speaker: string
+  brief: string
+  lines: EnLine[]
+  /** Idioma da voz (padrão en-US). */
+  lang?: string
+  task: { type: 'dictation'; prompt: string } | { type: 'form'; fields: EnField[] }
+  /** Mostrada depois de resolver (ou com a transcrição): o que a transmissão quer dizer. */
+  translation: string
+  /** Hash da resposta inteira; um hash por campo (formulário) só para o retorno. */
+  expect: { hash: string; parts: string[] }
+  feedback: EnFeedback[]
+  success: string
+  skills: string[]
+}
+
 export interface InputChallenge {
   kind: 'input'
   id: string
@@ -119,11 +179,11 @@ export interface SwitchPuzzle {
   expect: { hash: string }
 }
 
-export type Challenge = SqlChallenge | PyChallenge | InputChallenge | SwitchPuzzle
+export type Challenge = SqlChallenge | PyChallenge | EnChallenge | InputChallenge | SwitchPuzzle
 
 /** Desafios que geram evidência de domínio (terminais com estágio). */
-export type PedagogicChallenge = SqlChallenge | PyChallenge
-export const isPedagogic = (c: Challenge | undefined): c is PedagogicChallenge => c?.kind === 'sql' || c?.kind === 'python'
+export type PedagogicChallenge = SqlChallenge | PyChallenge | EnChallenge
+export const isPedagogic = (c: Challenge | undefined): c is PedagogicChallenge => c?.kind === 'sql' || c?.kind === 'python' || c?.kind === 'english'
 
 const norm = (v: unknown) => (v == null ? null : typeof v === 'number' ? String(Number(v.toFixed(6))) : String(v))
 
@@ -246,4 +306,93 @@ export function pyFeedback(ch: PyChallenge, code: string, out: PyCollect, caseOk
   const i = failing[0] ?? 0
   const name = ch.caseNames?.[i] ? ` (${ch.caseNames[i]})` : ''
   return `${caseOk.filter(Boolean).length} de ${caseOk.length} casos conferem. O caso ${i + 1}${name} devolveu ${short(results[i]?.value)}, e não era isso que o controlador esperava.`
+}
+
+// ── Inglês (rádio): forma canônica e retorno ─────────────────────────────
+
+/** Números que o jogador pode escrever em algarismos ou por extenso: ambos valem. */
+export const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
+const TENS: Record<string, number> = { thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 }
+const WORD_TO_NUMBER = new Map<string, number>([...NUMBER_WORDS.map((w, i) => [w, i] as [string, number]), ...Object.entries(TENS)])
+const NUMBER_TO_WORD = new Map<number, string>([...NUMBER_WORDS.map((w, i) => [i, w] as [number, string]), ...Object.entries(TENS).map(([w, n]) => [n, w] as [number, string])])
+
+/** Palavras normalizadas de um texto em inglês, com algarismos por extenso ("7" → "seven"). */
+export function canonEnglishWords(text: string): string {
+  return dictationWords(text)
+    .map((w) => (/^\d+$/.test(w) ? (NUMBER_TO_WORD.get(Number(w)) ?? w) : w))
+    .join(' ')
+}
+
+/** Um campo do registro: só dígitos (por extenso vale), só letras A–Z (soletração) ou palavras. */
+export function canonEnField(value: string, mode: EnNormalize): string {
+  if (mode === 'digits') {
+    const d = value.replace(/\D+/g, '')
+    if (d) return String(Number(d))
+    const n = dictationWords(value)
+      .map((w) => WORD_TO_NUMBER.get(w))
+      .filter((x): x is number => x != null)
+    return n.length ? String(n.reduce((a, b) => a + b, 0)) : ''
+  }
+  if (mode === 'letters')
+    return value
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+  return canonEnglishWords(value)
+}
+
+export type EnInput = string | Record<string, string>
+
+/** Resposta canônica: o ditado inteiro normalizado, ou os campos do registro separados por "|". */
+export function canonEnAnswer(ch: Pick<EnChallenge, 'task'>, input: EnInput): string {
+  if (ch.task.type === 'dictation') return canonEnglishWords(typeof input === 'string' ? input : '')
+  const values = typeof input === 'string' ? {} : input
+  return ch.task.fields.map((f) => canonEnField(values[f.id] ?? '', f.normalize)).join('|')
+}
+
+/** Texto inteiro da transmissão (para o ditado). */
+export const enTranscript = (ch: Pick<EnChallenge, 'lines'>) => ch.lines.map((l) => l.say).join(' ')
+
+/**
+ * Retorno do rádio: consequência no mundo + pista contextual, sem revelar a
+ * resposta. No ditado, compara palavra a palavra (só conta quantas bateram);
+ * no formulário, `partOk` diz quais campos conferem (pelo hash de cada um).
+ */
+export function enFeedback(ch: EnChallenge, input: EnInput, partOk: boolean[]): string {
+  if (ch.task.type === 'dictation') {
+    const typed = typeof input === 'string' ? input : ''
+    const expected = canonEnglishWords(enTranscript(ch))
+    const d = diffWords(expected, canonEnglishWords(typed))
+    const missing = d.tokens.filter((t) => t.status === 'missing').map((t) => t.word)
+    const extra = d.tokens.filter((t) => t.status === 'extra').map((t) => t.word)
+    const typedCount = dictationWords(typed).length
+    if (typedCount === 0) return 'Nada foi anotado. Ouça a transmissão (normal ou devagar) e escreva o que o rádio disse.'
+    for (const f of ch.feedback) {
+      const w = f.when
+      if (w.missing !== undefined && !missing.includes(w.missing)) continue
+      if (w.extra !== undefined && !extra.includes(w.extra)) continue
+      if (w.length === 'fewer' && typedCount >= d.total) continue
+      if (w.length === 'more' && typedCount <= d.total) continue
+      if (w.onlyField !== undefined || w.emptyField !== undefined) continue
+      return f.say
+    }
+    const base = `${d.matched} de ${d.total} palavras conferem${extra.length ? ` e há ${extra.length} palavra(s) a mais` : ''}.`
+    return `${base} Ouça de novo, devagar, e confira palavra por palavra — pontuação e maiúsculas não importam.`
+  }
+  const values = typeof input === 'string' ? {} : input
+  const fields = ch.task.fields
+  const failing = fields.map((_, i) => (partOk[i] ? -1 : i)).filter((i) => i >= 0)
+  const empty = fields.filter((f) => !(values[f.id] ?? '').trim()).map((f) => f.id)
+  // Campo em branco não é resposta errada: pede o preenchimento antes de qualquer pista.
+  for (const f of ch.feedback) if (f.when.emptyField !== undefined && empty.includes(f.when.emptyField)) return f.say
+  if (empty.length) return `Preencha todos os campos: ${empty.map((id) => `"${fields.find((f) => f.id === id)!.label}"`).join(', ')} ficou em branco.`
+  for (const f of ch.feedback) {
+    const w = f.when
+    if (w.missing !== undefined || w.extra !== undefined || w.length !== undefined || w.emptyField !== undefined) continue
+    if (w.onlyField !== undefined && (failing.length !== 1 || fields[failing[0]].id !== w.onlyField)) continue
+    return f.say
+  }
+  if (failing.length === 1) return `O campo "${fields[failing[0]].label}" não confere. Ouça de novo, devagar, a parte da transmissão que fala disso.`
+  return `${failing.length} campos não conferem (${failing.map((i) => `"${fields[i].label}"`).join(', ')}). Ouça a transmissão de novo, devagar, e anote um número de cada vez.`
 }

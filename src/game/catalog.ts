@@ -7,7 +7,7 @@ import type { Challenge, SubjectContent, SubjectMeta, Unit } from './types'
 
 export const SUBJECTS: SubjectMeta[] = [
   {
-    id: 'ingles', name: 'Inglês', short: 'EN', icon: '🗣️', color: 'var(--series-1)', level: 'A1 → B1',
+    id: 'ingles', name: 'Inglês', short: 'EN', icon: '🗣️', color: 'var(--series-1)', level: 'Do zero → C2',
     description: 'Gramática, vocabulário e escuta com áudio do navegador, do básico ao intermediário.',
     capabilities: ['speech'], matchNames: ['inglês', 'ingles', 'english', 'língua inglesa'],
     load: () => import('./content/ingles').then((m) => m.default),

@@ -69,7 +69,7 @@ describe('integridade do conteúdo', () => {
   })
 
   it('todas as entidades são alcançáveis a partir do ponto de entrada (com as portas abertas)', () => {
-    const open = { door_security: true, power_on: true, power_access: true, sentinel_down: true, supply_gate: true, drone_down: true, line_gate: true, robot_down: true }
+    const open = { door_security: true, power_on: true, power_access: true, sentinel_down: true, supply_gate: true, drone_down: true, line_gate: true, robot_down: true, pier_gate: true, bot_down: true }
     for (const r of Object.values(WORLD.regions)) {
       const map = parseMap(r.map)
       const solid = new Set(r.entities.filter((e) => e.solid && e.kind !== 'enemy').map((e) => `${e.x},${e.y}`))

@@ -2,7 +2,7 @@
 // aprendizagem passa por estágios (guiado → independente → transferência →
 // chefe); cada atividade tem uma escada de pistas e, ao ser resolvida, vira
 // EVIDÊNCIA de domínio — separada de XP, moedas e progresso narrativo.
-// Adaptadores por disciplina (terminal SQL hoje; Python, inglês… depois)
+// Adaptadores por disciplina (terminal SQL, terminal Python, rádio em inglês)
 // só precisam informar estágio, nível de ajuda e tentativas.
 
 export type Stage = 'guided' | 'independent' | 'transfer' | 'boss'
@@ -31,9 +31,10 @@ export interface LessonDef {
   explanation: string[]
   /**
    * Exemplo resolvido que o jogador executa de verdade: SQL sobre um banco
-   * (`dataset` em content/datasets) ou Python (`lang: 'python'`, saída impressa).
+   * (`dataset` em content/datasets), Python (`lang: 'python'`, saída impressa)
+   * ou uma fala em inglês que o navegador lê em voz alta (`lang: 'speech'`).
    */
-  workedExample?: { caption: string; code: string; dataset?: string; lang?: 'sql' | 'python' }
+  workedExample?: { caption: string; code: string; dataset?: string; lang?: 'sql' | 'python' | 'speech' }
   commonMistakes: string[]
 }
 

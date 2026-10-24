@@ -12,6 +12,7 @@ import type { GameEvidence, Topic } from '@/types/db'
 import { isPedagogic, type PedagogicChallenge } from '../challenges'
 import { WORLD } from '../content'
 import { fieldChallenge } from '../content/fieldReview'
+import { enFieldChallenge } from '../content/fieldReviewEn'
 import { pyFieldChallenge } from '../content/fieldReviewPy'
 import { debrief, STAGE_LABELS, STAGE_WEIGHT, type ActivityResult, type Debrief, type HelpLevel } from '../engine/pedagogy'
 import { ChallengeTerminal } from './ChallengeTerminal'
@@ -211,8 +212,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * Revisão de campo: um exercício novo (semente aleatória) a cada abertura.
  * Gera evidência de domínio; não dá XP nem avança a história.
  */
-/** Geradores de revisão de campo por modelo (SQL e Python). */
-const FIELD_GENERATORS: Record<string, (seed: number) => Promise<PedagogicChallenge>> = { field_groupby: fieldChallenge, field_dict: pyFieldChallenge }
+/** Geradores de revisão de campo por modelo (SQL, Python e inglês). */
+const FIELD_GENERATORS: Record<string, (seed: number) => Promise<PedagogicChallenge>> = { field_groupby: fieldChallenge, field_dict: pyFieldChallenge, field_radio: enFieldChallenge }
 
 export function FieldReview({ template, sound, onClose }: { template: string; sound: boolean; onClose: () => void }) {
   const [ch, setCh] = useState<PedagogicChallenge | null>(null)

@@ -50,6 +50,8 @@ export const RAW_SOLUTIONS: Record<string, string> = {
   enc_sentinel: '4096|10.0.66.6',
   line_worst: 'M3',
   enc_robot: 'M3',
+  radio_officer: '19',
+  enc_atendente: '19',
   sup_worst: '2',
   enc_drone: '2',
 }
@@ -131,4 +133,43 @@ export const PY_WRONG: Array<{ challenge: string; code: string; expect: string }
     code: "def abaixo_da_meta(metas, producao):\n    produzido = {}\n    for p in producao:\n        produzido[p['maquina']] = produzido.get(p['maquina'], 0) + p['pecas']\n    return {m['maquina']: m['pecas'] - produzido.get(m['maquina'], 0) for m in metas if m['pecas'] >= produzido.get(m['maquina'], 0)}\n",
     expect: 'Meta batida exatamente',
   },
+]
+
+// ── Porto de Babel (inglês: números e soletração de ouvido) ────────────────
+// O que o jogador deve anotar de cada transmissão. O hash de content/expected.ts
+// sai da forma canônica destas respostas; o teste confere que cada valor está
+// de fato na transmissão (número por extenso ou letras soletradas).
+
+/** Ditado: o texto da transmissão; formulário: um valor por campo (como o jogador digitaria). */
+export const EN_SOLUTIONS: Record<string, string | Record<string, string>> = {
+  radio_guided: 'Hello, Babel. This is the Blue Star. Gate seven, please.',
+  radio_independent: { containers: '15', gate: '11', hour: '4' },
+  radio_menu: { gates: '3', hours: '12', officer: '19' },
+  radio_transfer: { name: 'KALINA', containers: '18', gate: '20' },
+}
+
+/** Outras formas de escrever a mesma resposta (o que é conferido é a forma canônica). */
+export const EN_ALTERNATIVES: Array<{ challenge: string; input: string | Record<string, string> }> = [
+  { challenge: 'radio_guided', input: 'hello babel this is the blue star gate 7 please' },
+  { challenge: 'radio_guided', input: 'HELLO, BABEL! THIS IS THE BLUE STAR... GATE SEVEN PLEASE' },
+  { challenge: 'radio_independent', input: { containers: 'fifteen', gate: 'eleven', hour: 'four' } },
+  { challenge: 'radio_independent', input: { containers: ' 15 ', gate: 'Gate 11', hour: '4h' } },
+  { challenge: 'radio_transfer', input: { name: 'k-a-l-i-n-a', containers: 'eighteen', gate: 'twenty' } },
+  { challenge: 'radio_transfer', input: { name: 'Kalina', containers: '18', gate: '20' } },
+]
+
+/** Erros típicos e o retorno que o rádio deve dar (trecho). */
+export const EN_WRONG: Array<{ challenge: string; input: string | Record<string, string>; expect: string }> = [
+  { challenge: 'radio_guided', input: 'Hello, Babel. This is the Blue Star. Gate eleven, please.', expect: 'número do portão não bateu' },
+  { challenge: 'radio_guided', input: 'Hello Babel this is the Blue Star', expect: 'Faltaram palavras' },
+  { challenge: 'radio_guided', input: 'Hello, Babel. This is the Blue Star. Gate seven, please. Thank you very much.', expect: 'Sobraram palavras' },
+  { challenge: 'radio_guided', input: 'Hello, Babel. This is the Blue Sky. Gate seven, please.', expect: '9 de 10 palavras conferem' },
+  { challenge: 'radio_guided', input: '', expect: 'Nada foi anotado' },
+  { challenge: 'radio_independent', input: { containers: '50', gate: '11', hour: '4' }, expect: 'fifteen ou fifty' },
+  { challenge: 'radio_independent', input: { containers: '15', gate: '7', hour: '4' }, expect: 'eleven (11) com seven (7)' },
+  { challenge: 'radio_independent', input: { containers: '15', gate: '11', hour: '' }, expect: 'Preencha todos os campos' },
+  { challenge: 'radio_independent', input: { containers: '5', gate: '7', hour: '4' }, expect: '2 campos não conferem' },
+  { challenge: 'radio_menu', input: { gates: '3', hours: '12', officer: '90' }, expect: 'nineteen (19) ou ninety (90)' },
+  { challenge: 'radio_transfer', input: { name: 'KALYNA', containers: '18', gate: '20' }, expect: 'O nome não bateu' },
+  { challenge: 'radio_transfer', input: { name: 'KALINA', containers: '8', gate: '20' }, expect: 'eighteen (18) ou eight (8)' },
 ]

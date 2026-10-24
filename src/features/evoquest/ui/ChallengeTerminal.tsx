@@ -1,4 +1,5 @@
 import type { PedagogicChallenge } from '../challenges'
+import { EnTerminal } from './EnTerminal'
 import { PyTerminal } from './PyTerminal'
 import { Terminal } from './Terminal'
 
@@ -10,7 +11,9 @@ interface Props {
   onClose: () => void
 }
 
-/** Abre o terminal da disciplina do desafio (SQL ou Python). */
+/** Abre o adaptador da disciplina do desafio: terminal SQL, terminal Python ou rádio (inglês). */
 export function ChallengeTerminal({ challenge, ...rest }: Props) {
-  return challenge.kind === 'python' ? <PyTerminal challenge={challenge} {...rest} /> : <Terminal challenge={challenge} {...rest} />
+  if (challenge.kind === 'python') return <PyTerminal challenge={challenge} {...rest} />
+  if (challenge.kind === 'english') return <EnTerminal challenge={challenge} {...rest} />
+  return <Terminal challenge={challenge} {...rest} />
 }

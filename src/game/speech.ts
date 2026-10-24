@@ -23,6 +23,21 @@ export function speak(text: string, lang = 'en-US', rate = 1) {
   synth.speak(u)
 }
 
+/** Lê várias falas em sequência (uma transmissão de rádio), sem cortar a anterior. */
+export function speakAll(texts: string[], lang = 'en-US', rate = 1) {
+  if (!speechAvailable()) return
+  const synth = window.speechSynthesis
+  synth.cancel()
+  const voice = pickVoice(lang)
+  for (const text of texts) {
+    const u = new SpeechSynthesisUtterance(text)
+    u.lang = lang
+    u.rate = rate
+    if (voice) u.voice = voice
+    synth.speak(u)
+  }
+}
+
 let ctx: AudioContext | null = null
 
 /** Bipes curtos para acerto/erro/subida de nível (respeita a preferência de som). */

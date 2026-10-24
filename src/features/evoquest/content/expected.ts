@@ -146,6 +146,47 @@ export const EXPECTED: Record<string, { hash: string; columns: number; rows: num
     "columns": 0,
     "rows": 0
   },
+  "radio_guided": {
+    "hash": "ad688c3ef20ac5a997e1666a94622107c19a197987db830e357f7ccc785053bc",
+    "columns": 0,
+    "rows": 0,
+    "cases": []
+  },
+  "radio_independent": {
+    "hash": "cde4900abd9a5344a23e3fa95c2efc3ea7fa98111f40e19d3dbbf3ac540fc3eb",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "e629fa6598d732768f7c726b4b621285f9c3b85303900aa912017db7617d8bdb",
+      "4fc82b26aecb47d2868c4efbe3581732a3e7cbcc6c2efb32062c08170a05eeb8",
+      "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
+    ]
+  },
+  "radio_menu": {
+    "hash": "23d8fd6f3ce8edece6c418c8bd15f72ac4ad1d9c2f6c678c3b387d4c98c037c4",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+      "6b51d431df5d7f141cbececcf79edf3dd861c3b4069f0b11661a3eefacbba918",
+      "9400f1b21cb527d7fa3d3eabba93557a18ebe7a2ca4e471cfe5e4c5b4ca7f767"
+    ]
+  },
+  "radio_transfer": {
+    "hash": "df74b7c858f021d69a288f1daf5a3a7e0d5663e9fd840faaf0dccc12e3be4aac",
+    "columns": 0,
+    "rows": 3,
+    "cases": [
+      "e4ebfc87943aae1389feaf51993c15208712562b1ea5eb12c79c9d52e7436523",
+      "4ec9599fc203d176a301536c2e091a19bc852759b255bd6818810a42c5fed14a",
+      "f5ca38f748a1d6eaf726b8a42fb575c3c71f1864a8143301782de13da2d9202b"
+    ]
+  },
+  "radio_officer": {
+    "hash": "9400f1b21cb527d7fa3d3eabba93557a18ebe7a2ca4e471cfe5e4c5b4ca7f767",
+    "columns": 0,
+    "rows": 0
+  },
   "enc_sentinel": {
     "hash": "b61eb51eb7cfabb4e182bed833f9a8e633068e91fcb75bf63c9214659e2f9adf",
     "columns": 0,
@@ -158,6 +199,11 @@ export const EXPECTED: Record<string, { hash: string; columns: number; rows: num
   },
   "enc_robot": {
     "hash": "67629a19d082ed3a6a50d4e4ff97d02f6208b8706aeef961e0d6a438604211df",
+    "columns": 0,
+    "rows": 0
+  },
+  "enc_atendente": {
+    "hash": "9400f1b21cb527d7fa3d3eabba93557a18ebe7a2ca4e471cfe5e4c5b4ca7f767",
     "columns": 0,
     "rows": 0
   }

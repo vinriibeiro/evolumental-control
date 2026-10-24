@@ -55,7 +55,8 @@ export function activityCatalogRows() {
   for (const ch of Object.values(WORLD.challenges)) {
     if (!isPedagogic(ch) || !ch.stage || !ch.concept) continue
     const lesson = ch.lesson ? WORLD.lessons[ch.lesson] : null
-    rows.push({ id: ch.id, subject: lesson?.subject ?? (ch.kind === 'python' ? 'python' : 'sql'), concept: ch.concept, stage: ch.stage, hash: EXPECTED[ch.id]?.hash ?? null, parametric: false, dailyLimit: 20 })
+    const subject = lesson?.subject ?? (ch.kind === 'python' ? 'python' : ch.kind === 'english' ? 'ingles' : 'sql')
+    rows.push({ id: ch.id, subject, concept: ch.concept, stage: ch.stage, hash: EXPECTED[ch.id]?.hash ?? null, parametric: false, dailyLimit: 20 })
   }
   for (const t of FIELD_TEMPLATES) rows.push({ id: t.id, subject: t.subject, concept: t.concept, stage: t.stage, hash: null, parametric: true, dailyLimit: t.dailyLimit })
   return rows
@@ -72,4 +73,4 @@ export function activityCatalogSql(): string {
 export const worldCatalogSql = () => `${questCatalogSql()}\n\n${ticketCatalogSql()}\n\n${activityCatalogSql()}`
 
 /** Migração que guarda o catálogo atual (as anteriores ficam como histórico). */
-export const WORLD_CATALOG_MIGRATION = '20261029000100_evoquest_cidade_ingles.sql'
+export const WORLD_CATALOG_MIGRATION = '20261030000000_evoquest_babel.sql'

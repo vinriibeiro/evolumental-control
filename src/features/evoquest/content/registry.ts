@@ -47,6 +47,12 @@ export function expPy(id: string): { hash: string; cases: string[] } {
   return { hash: e?.hash ?? 'pendente', cases: e?.cases ?? [] }
 }
 
+/** Rádio (inglês): hash da resposta inteira e um hash por campo do registro (só para o retorno). */
+export function expEn(id: string): { hash: string; parts: string[] } {
+  const e = EXPECTED[id]
+  return { hash: e?.hash ?? 'pendente', parts: e?.cases ?? [] }
+}
+
 export function byId<T extends { id: string }>(list: T[]): Record<string, T> {
   return Object.fromEntries(list.map((x) => [x.id, x]))
 }

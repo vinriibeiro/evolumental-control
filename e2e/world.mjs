@@ -1,6 +1,7 @@
 // E2E do Mundo Evolumental (modo local): primeira experiência, apresentação
 // guiada (piloto automático da Vila até a cidade escolhida), as primeiras
-// etapas da Cidade dos Dados, a bilheteria e a Minha Cidade.
+// etapas da Cidade dos Dados, a bilheteria, a Minha Cidade e as histórias
+// próprias de Aurora (Python) e Babel (inglês).
 // Uso: npm run dev (em outro terminal) e `node e2e/world.mjs [url] [pasta]`.
 import { chromium } from 'playwright-core'
 import { existsSync, mkdirSync } from 'node:fs'
@@ -449,6 +450,156 @@ await step('Aurora (Python): Prefeitura apresenta a Usina; Nadir; guiada com pis
   await p.waitForTimeout(500)
   if ((await stP()).region !== 'lab_aurora') throw new Error('não voltou a Aurora')
   await a.close()
+})
+
+await step('Babel (Inglês): Prefeitura apresenta o Porto; Marisa; ditado guiado com pista; registro; atendente; navio soletrado; relatório; revisão de campo', async () => {
+  // Novo contexto (novo IndexedDB): o vale da Guilda leva direto a Babel.
+  const b = await browser.newContext({ viewport: { width: 1366, height: 820 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
+  const p = await b.newPage()
+  p.on('pageerror', (e) => errors.push(`babel pageerror: ${e.message}`))
+  // O navegador sem áudio "fala" num registro: o teste confere o que seria lido.
+  await p.addInitScript(() => {
+    window.__spoken = []
+    const fake = { speak: (u) => window.__spoken.push(u.text), cancel: () => {}, getVoices: () => [] }
+    if (!('speechSynthesis' in window)) {
+      window.speechSynthesis = fake
+      window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text } }
+    } else {
+      window.speechSynthesis.speak = fake.speak
+    }
+  })
+  const stP = () => p.evaluate(() => window.__eq.state())
+  const spoken = () => p.evaluate(() => window.__spoken)
+  const useP = async (x, y, facing, name) => {
+    await p.evaluate(([x, y, f]) => window.__eq.place(x, y, f), [x, y, facing])
+    await p.locator('p.eq-panel', { hasText: name }).filter({ has: p.locator('strong') }).first().waitFor({ timeout: 5000 })
+    await p.keyboard.press('e')
+  }
+  const talkP = async () => {
+    for (let i = 0; i < 20; i++) {
+      const dlg = p.getByRole('dialog')
+      if (!(await dlg.count())) return
+      await dlg.getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo|OK/ }).click()
+      await p.waitForTimeout(120)
+    }
+  }
+  const send = () => p.getByRole('button', { name: /^Transmitir resposta/ }).click()
+
+  await p.goto(`${BASE}/evoquest`)
+  await p.getByRole('button', { name: 'Pular' }).click()
+  await p.getByLabel('Nome do personagem').fill('En')
+  await p.getByRole('button', { name: 'Entrar na Vila' }).click()
+  await p.getByText('Vila Evolumental').first().waitFor()
+  await runGuide(p, 'Babel')
+  await p.getByText('Agora é com você').first().waitFor()
+  await p.waitForFunction(() => window.__eq.state().region === 'language_tower', null, { timeout: 20000 })
+  // Babel tem 8 prédios (3 fileiras): a praça começa na linha 22; portão em (24, 24), Prefeitura em (14, 24).
+  await useP(24.5, 25.5, 'up', 'Portão do Porto')
+  await p.getByText('está trancado').waitFor()
+  await p.keyboard.press('Escape')
+  await useP(14.5, 25.5, 'up', 'Prefeitura de Babel')
+  let sawHint = false
+  for (let i = 0; i < 20; i++) {
+    const dlg = p.getByRole('dialog')
+    if (!(await dlg.count())) break
+    if (await dlg.getByText(/Marisa/).count()) sawHint = true
+    await dlg.getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo|OK/ }).click()
+    await p.waitForTimeout(120)
+  }
+  if (!sawHint) throw new Error('a Prefeitura não apresentou o Porto')
+  await p.waitForFunction(() => window.__eq.state().steps.includes('city_language_tower:mentor'), null, { timeout: 15000 })
+  await useP(24.5, 25.5, 'up', 'Portão do Porto')
+  await p.waitForTimeout(500)
+  if ((await stP()).region !== 'babel_port') throw new Error('portão não levou ao Porto')
+  await p.screenshot({ path: `${OUT}/mundo-porto.png` })
+  await useP(6.5, 11.5, 'up', 'Marisa')
+  await talkP()
+  if (!(await stP()).inventory.includes('ficha_numeros')) throw new Error('ficha de campo não foi entregue')
+  // Guiada: ficha com exemplo falado; a transmissão só por voz; errar o portão libera a 1ª pista.
+  await useP(11.5, 10.5, 'up', 'Rádio da Capitania')
+  await p.getByText('Objetivo:').first().waitFor()
+  await p.getByRole('button', { name: 'Ouvir o exemplo' }).click()
+  if (!(await spoken()).some((t) => t.includes('Gate number fourteen'))) throw new Error('exemplo falado não foi lido')
+  await p.getByRole('button', { name: 'Ouvir', exact: true }).click()
+  if (!(await spoken()).some((t) => t.includes('Hello, Babel'))) throw new Error('transmissão não foi lida')
+  if (await p.getByText('This is the Blue Star').count()) throw new Error('transcrição visível antes de resolver')
+  if (!(await p.getByRole('button', { name: /Pedir pista 1/ }).isDisabled())) throw new Error('pista liberada antes de tentar')
+  const box = p.getByLabel('Escreva aqui o que o navio disse, em inglês')
+  await box.fill('Hello Babel this is the Blue Star gate eleven please')
+  await send()
+  await p.getByText(/número do portão não bateu/).waitFor()
+  await p.getByRole('button', { name: /Pedir pista 1/ }).click()
+  await p.getByText('Pista 1:').waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-porto-guiada.png` })
+  await box.fill('Hello, Babel. This is the Blue Star. Gate 7, please.')
+  await send()
+  await p.getByText(/prática guiada resolvida com 1 pista/).waitFor()
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(400)
+  // Independente: registro de atracação; por extenso vale; hora errada aponta só o campo.
+  await useP(11.5, 10.5, 'up', 'Rádio da Capitania')
+  await p.getByLabel('Contêineres').fill('fifteen')
+  await p.getByLabel('Portão').fill('11')
+  await p.getByLabel(/Hora/).fill('9')
+  await send()
+  await p.getByText(/hora não bateu/).waitFor()
+  await p.getByLabel(/Hora/).fill('four')
+  await send()
+  await p.getByText(/prática independente resolvida/).waitFor()
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(500)
+  if (!(await stP()).flags.pier_gate) throw new Error('portão do cais não abriu')
+  // Combate: ouvir o menu inteiro e teclar a opção do agente.
+  await useP(12.5, 4.5, 'right', 'Atendente')
+  const combat = p.getByRole('dialog', { name: /Confronto/ })
+  await combat.waitFor()
+  await combat.getByRole('button', { name: /^Examinar/ }).click()
+  await combat.getByRole('button', { name: /^Ouvir o menu/ }).click()
+  await p.getByLabel(/Lista de portões/).fill('3')
+  await p.getByLabel(/Horários/).fill('12')
+  await p.getByLabel(/Falar com um agente/).fill('nineteen')
+  await send()
+  await p.getByText(/Menu anotado/).waitFor()
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await combat.getByRole('button', { name: /^Teclar/ }).click()
+  await p.getByLabel('Teclar a opção').fill('19')
+  await p.getByRole('button', { name: 'Executar', exact: true }).click()
+  await combat.getByText('Vitória.').waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-porto-atendente.png` })
+  await combat.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(600)
+  if (!(await stP()).flags.bot_down) throw new Error('atendente não saiu da porta')
+  // Transferência: nome soletrado + números, sem pistas.
+  await useP(17.5, 3.5, 'up', 'Livro de atracação')
+  await p.getByLabel(/Nome do navio/).fill('k-a-l-i-n-a')
+  await p.getByLabel('Contêineres').fill('eighteen')
+  await p.getByLabel('Portão').fill('20')
+  await send()
+  await p.getByText(/transferência resolvida sem pistas/).waitFor()
+  await p.getByRole('button', { name: 'Continuar' }).click()
+  await p.waitForTimeout(500)
+  // Debrief: relatório de campo; revisão de campo em inglês.
+  await useP(6.5, 11.5, 'up', 'Marisa')
+  const report = p.getByRole('dialog', { name: /Relatório de campo/ })
+  for (let i = 0; i < 10 && !(await report.count()); i++) {
+    await p.getByRole('dialog').getByRole('button', { name: /Continuar|Encerrar|Mostrar tudo/ }).click()
+    await p.waitForTimeout(200)
+  }
+  await report.getByText('Aplicou com pouca ou nenhuma ajuda').waitFor()
+  await report.getByText(/Rádio — registro de atracação/).first().waitFor()
+  await report.getByText(/Nenhum tópico do Control corresponde a/).waitFor()
+  await report.getByText(/matéria de Inglês/).waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-porto-relatorio.png` })
+  if (!(await stP()).quests.en_radio?.done) throw new Error('missão do Porto não concluída')
+  await report.getByRole('button', { name: 'Fazer uma revisão de campo' }).click()
+  await p.getByRole('dialog', { name: 'Revisão de campo — Rádio do Porto' }).waitFor()
+  await p.getByText('Transmissão').waitFor()
+  await p.screenshot({ path: `${OUT}/mundo-porto-revisao.png` })
+  await p.getByRole('button', { name: 'Fechar rádio' }).click()
+  await useP(1.5, 11.5, 'left', 'Portão do Porto')
+  await p.waitForTimeout(500)
+  if ((await stP()).region !== 'language_tower') throw new Error('não voltou a Babel')
+  await b.close()
 })
 
 await step('celular: apresentação guiada por toque, depois joystick e botão de ação, sem rolagem', async () => {

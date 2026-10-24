@@ -9,10 +9,12 @@ import { buildMyCity, emptyLots } from './myCity'
 import { byId, type WorldContent } from './registry'
 import { DRONE, LESSON_GROUPBY, SUPPLY_PATH, SUPPLY_QUEST, WAREHOUSE, WAREHOUSE_CHALLENGES, WAREHOUSE_DIALOGUES, WAREHOUSE_INPUTS, WAREHOUSE_ITEMS, WAREHOUSE_SPEAKERS } from './warehouse'
 import { LESSON_DICT, LINE_PATH, LINE_QUEST, PLANT, PLANT_CHALLENGES, PLANT_DIALOGUES, PLANT_GATE, PLANT_INPUTS, PLANT_ITEMS, PLANT_MENTOR_HINT, PLANT_SPEAKERS, ROBOT } from './aurora'
+import { ATTENDANT, LESSON_NUMBERS, LESSON_SPELL, PORT, PORT_CHALLENGES, PORT_DIALOGUES, PORT_GATE, PORT_INPUTS, PORT_ITEMS, PORT_MENTOR_HINT, PORT_SPEAKERS, RADIO_PATH, RADIO_QUEST } from './babel'
 
 /** Histórias próprias acrescentadas às cidades geradas (portais e falas da Prefeitura). */
 const CITY_EXTRAS: Record<string, CityExtras> = {
   lab_aurora: { entities: [PLANT_GATE], mentorHint: PLANT_MENTOR_HINT },
+  language_tower: { entities: [PORT_GATE], mentorHint: PORT_MENTOR_HINT },
 }
 
 /** Cidades geradas das unidades do modo clássico (com os acréscimos escritos à mão). */
@@ -47,6 +49,11 @@ const REWARDS: Record<string, { xp: number; coins: number }> = {
   'py_line:independent': { xp: 40, coins: 10 },
   'py_line:robot': { xp: 60, coins: 10 },
   'py_line:transfer': { xp: 100, coins: 25 },
+  // Porto de Babel (números e soletração de ouvido): mesma régua.
+  'en_radio:guided': { xp: 20, coins: 5 },
+  'en_radio:independent': { xp: 40, coins: 10 },
+  'en_radio:bot': { xp: 60, coins: 10 },
+  'en_radio:transfer': { xp: 100, coins: 25 },
 }
 for (const g of GENERATED)
   for (const s of g.quest.steps) {
@@ -54,21 +61,21 @@ for (const g of GENERATED)
     if (s.id === 'finale') REWARDS[stepKey(g.quest.id, s.id)] = GENERATED_REWARDS.finale
   }
 
-const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, SUPPLY_QUEST, LINE_QUEST, ...GENERATED.map((g) => g.quest)])
+const quests = byId([TUTORIAL, SIDE_BOARD, ...DATA_CITY_QUESTS, SUPPLY_QUEST, LINE_QUEST, RADIO_QUEST, ...GENERATED.map((g) => g.quest)])
 const rewards: WorldContent['rewards'] = {}
 for (const q of Object.values(quests)) for (const s of q.steps) rewards[stepKey(q.id, s.id)] = REWARDS[stepKey(q.id, s.id)] ?? { xp: 0, coins: 0 }
 
 export const WORLD: WorldContent = {
   // my_city é trocada em tempo de execução pela versão com as matérias do jogador.
-  regions: byId([HUB, DATA_CITY, WAREHOUSE, PLANT, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
-  speakers: byId([...SPEAKERS, ...WAREHOUSE_SPEAKERS, ...PLANT_SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
-  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...WAREHOUSE_DIALOGUES, ...PLANT_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
-  items: byId([...ITEMS, ...WAREHOUSE_ITEMS, ...PLANT_ITEMS, ...GENERATED.flatMap((g) => g.items)]),
+  regions: byId([HUB, DATA_CITY, WAREHOUSE, PLANT, PORT, ...GENERATED.map((g) => g.region), buildMyCity(emptyLots())]),
+  speakers: byId([...SPEAKERS, ...WAREHOUSE_SPEAKERS, ...PLANT_SPEAKERS, ...PORT_SPEAKERS, ...GENERATED.flatMap((g) => g.speakers)]),
+  dialogues: byId([...HUB_DIALOGUES, ...DATA_CITY_DIALOGUES, ...WAREHOUSE_DIALOGUES, ...PLANT_DIALOGUES, ...PORT_DIALOGUES, ...GENERATED.flatMap((g) => g.dialogues)]),
+  items: byId([...ITEMS, ...WAREHOUSE_ITEMS, ...PLANT_ITEMS, ...PORT_ITEMS, ...GENERATED.flatMap((g) => g.items)]),
   quests,
-  challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE, ...WAREHOUSE_CHALLENGES, ...WAREHOUSE_INPUTS, ...PLANT_CHALLENGES, ...PLANT_INPUTS]),
-  encounters: byId([SENTINEL, DRONE, ROBOT]),
+  challenges: byId([GUILD_BOARD, ...DATA_CITY_CHALLENGES, ...DATA_CITY_INPUTS, POWER_PUZZLE, ...WAREHOUSE_CHALLENGES, ...WAREHOUSE_INPUTS, ...PLANT_CHALLENGES, ...PLANT_INPUTS, ...PORT_CHALLENGES, ...PORT_INPUTS]),
+  encounters: byId([SENTINEL, DRONE, ROBOT, ATTENDANT]),
   bosses: byId([ROOT_BOSS]),
-  lessons: byId([LESSON_GROUPBY, LESSON_DICT]),
+  lessons: byId([LESSON_GROUPBY, LESSON_DICT, LESSON_NUMBERS, LESSON_SPELL]),
   rewards,
 }
 
@@ -84,7 +91,7 @@ export const SQL_SKILLS: Array<{ id: string; name: string; requires: string[]; c
 ]
 
 /** Caminhos de aprendizagem (uma missão por conceito; outras cidades entram aqui). */
-export const LEARNING_PATHS: Array<{ quest: string; concept: string; unlockedBy: string; where: string; practice: string; fieldTemplate: string }> = [SUPPLY_PATH, LINE_PATH]
+export const LEARNING_PATHS: Array<{ quest: string; concept: string; unlockedBy: string; where: string; practice: string; fieldTemplate: string }> = [SUPPLY_PATH, LINE_PATH, RADIO_PATH]
 
 /** Modelo de revisão de campo da missão (ou null, se ela não tiver um). */
 export const fieldTemplateOf = (quest: string) => LEARNING_PATHS.find((p) => p.quest === quest)?.fieldTemplate ?? null

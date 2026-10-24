@@ -250,6 +250,24 @@ Object.assign(TILES, {
       px(c, '#a9d4e8', x + 1, y + 1, 3, 3)
     }
   },
+  // ── Porto de Babel ──
+  dock: (c: Ctx) => {
+    // Tábuas do cais: pranchas horizontais com frestas escuras e nós.
+    px(c, '#8a6239', 0, 0, TILE, TILE)
+    for (let y = 0; y < TILE; y += 4) {
+      px(c, '#5e3f22', 0, y, TILE, 1)
+      px(c, '#a07446', 0, y + 1, TILE, 1)
+      if (hash(y, 0, 11) < 0.5) px(c, '#5e3f22', Math.floor(hash(y, 1, 11) * 14), y + 2, 2, 1)
+    }
+  },
+  brick: (c: Ctx) => {
+    px(c, '#b4584a', 0, 0, TILE, TILE)
+    for (let y = 0; y < TILE; y += 4) {
+      px(c, '#e0c9b0', 0, y + 3, TILE, 1)
+      const off = (y / 4) % 2 ? 4 : 0
+      for (let x = off; x < TILE; x += 8) px(c, '#e0c9b0', x, y, 1, 3)
+    }
+  },
 })
 
 // Minha Cidade: o funcionamento (domínio) aparece nas janelas — apagadas,
@@ -447,6 +465,33 @@ export function drawObject(c: Ctx, sprite: string, x: number, y: number, t: numb
       px(c, '#eda100', ox + 14, oy + 6 + arm, 1, 2)
       px(c, '#4a5568', ox + 7, oy + 2, 2, 3)
       px(c, '#38ff9c', ox + 7, oy + 1, 2, 1)
+      break
+    }
+    case 'radio': {
+      // Rádio da Capitania: caixa com dial, alto-falante, antena e luz que pisca ao transmitir.
+      px(c, '#2a313d', ox + 2, oy + 5, 12, 10)
+      px(c, '#11151c', ox + 3, oy + 6, 5, 6)
+      for (let i = 0; i < 3; i++) px(c, '#59606b', ox + 4, oy + 7 + i * 2, 3, 1)
+      px(c, '#f5deb3', ox + 10, oy + 7, 3, 3)
+      px(c, '#eda100', ox + 11, oy + 8, 1, 1)
+      px(c, '#c9d1d9', ox + 12, oy + 1, 1, 5)
+      px(c, Math.floor(t * 3) % 2 ? '#38ff9c' : '#1f5a52', ox + 9, oy + 12, 2, 1)
+      px(c, '#4a5568', ox + 4, oy + 13, 8, 1)
+      break
+    }
+    case 'speaker_bot': {
+      // Atendente automático: caixa de som sobre um poste, com ondas que saem em ritmo.
+      const wave = Math.floor(t * 3) % 3
+      px(c, '#3b3f46', ox + 7, oy + 10, 2, 6)
+      px(c, '#2a313d', ox + 3, oy + 2, 10, 9)
+      px(c, '#11151c', ox + 5, oy + 4, 6, 5)
+      px(c, '#59606b', ox + 6, oy + 5, 4, 3)
+      px(c, '#ff3d3d', ox + 4, oy + 3, 1, 1)
+      for (let i = 0; i <= wave; i++) {
+        px(c, '#38d0ff', ox + 13 + i, oy + 4 - i, 1, 1)
+        px(c, '#38d0ff', ox + 13 + i, oy + 8 + i, 1, 1)
+        px(c, '#38d0ff', ox + 14 + i, oy + 6, 1, 1)
+      }
       break
     }
     case 'root': {

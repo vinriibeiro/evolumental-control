@@ -9,14 +9,15 @@
 import type { SqlChallenge } from '../challenges'
 import { canonResult, sha256 } from '../challenges'
 import { rng, type FieldTemplate } from './fieldCommon'
+import { FIELD_RADIO } from './fieldReviewEn'
 import { FIELD_DICT } from './fieldReviewPy'
 
 export type { FieldTemplate } from './fieldCommon'
 export { rng } from './fieldCommon'
 
 export const FIELD_GROUPBY: FieldTemplate = { id: 'field_groupby', subject: 'sql', concept: 'groupby', stage: 'independent', title: 'Revisão de campo — GROUP BY', dailyLimit: 5 }
-/** Todos os modelos parametrizados (SQL e Python): vão para o catálogo do servidor. */
-export const FIELD_TEMPLATES: FieldTemplate[] = [FIELD_GROUPBY, FIELD_DICT]
+/** Todos os modelos parametrizados (SQL, Python e inglês): vão para o catálogo do servidor. */
+export const FIELD_TEMPLATES: FieldTemplate[] = [FIELD_GROUPBY, FIELD_DICT, FIELD_RADIO]
 
 const DEPOTS = ['Norte', 'Sul', 'Leste', 'Oeste', 'Centro', 'Porto', 'Serra']
 const PRODUCTS = ['cabo', 'placa', 'sensor', 'bateria', 'filtro']

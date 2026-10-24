@@ -4,9 +4,11 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { runQuery } from '@/game/lab/sqlCore'
 import { LocalBackend } from '@/lib/data/local'
 import { activityCatalogRows } from '../catalogSql'
-import { canonCases, canonResult, canonValue, pyFeedback, sha256, type PyChallenge } from '../challenges'
+import { canonCases, canonEnField, canonEnglishWords, canonResult, canonValue, enTranscript, pyFeedback, sha256, type PyChallenge } from '../challenges'
 import { fieldTemplateOf, LEARNING_PATHS, WORLD } from '../content'
 import { PLANT_ENTRY, PLANT_EXIT } from '../content/aurora'
+import { PORT_ENTRY, PORT_EXIT } from '../content/babel'
+import { enFieldChallenge, FIELD_RADIO, generateEnField } from '../content/fieldReviewEn'
 import { DATASETS } from '../content/datasets'
 import { FIELD_GROUPBY, fieldChallenge, generateField } from '../content/fieldReview'
 import { FIELD_DICT, generatePyField, pyFieldChallenge } from '../content/fieldReviewPy'
@@ -129,7 +131,7 @@ describe('revisão de campo parametrizada', () => {
   it('no catálogo do servidor é parametrizada e tem limite diário', () => {
     expect(activityCatalogRows().find((r) => r.id === FIELD_GROUPBY.id)).toMatchObject({ parametric: true, hash: null, dailyLimit: 5 })
     const fixed = activityCatalogRows().filter((r) => !r.parametric)
-    expect(fixed.map((r) => r.id).sort()).toEqual(['line_guided', 'line_independent', 'line_robot', 'line_transfer', 'sup_drone', 'sup_guided', 'sup_independent', 'sup_transfer'])
+    expect(fixed.map((r) => r.id).sort()).toEqual(['line_guided', 'line_independent', 'line_robot', 'line_transfer', 'radio_guided', 'radio_independent', 'radio_menu', 'radio_transfer', 'sup_drone', 'sup_guided', 'sup_independent', 'sup_transfer'])
     expect(fixed.every((r) => /^[0-9a-f]{64}$/.test(r.hash!))).toBe(true)
   })
 })
@@ -282,7 +284,7 @@ describe('missão da Usina de Aurora (Python)', () => {
       ['python', 'line_robot', 'independent'],
       ['python', 'line_transfer', 'transfer'],
     ])
-    expect(LEARNING_PATHS.map((p) => p.quest)).toEqual(['sql_supply', 'py_line'])
+    expect(LEARNING_PATHS.map((p) => p.quest)).toEqual(['sql_supply', 'py_line', 'en_radio'])
     expect(fieldTemplateOf('py_line')).toBe('field_dict')
     expect(fieldTemplateOf('sql_supply')).toBe('field_groupby')
     expect(fieldTemplateOf('sql_main')).toBeNull()
@@ -355,6 +357,100 @@ describe('revisão de campo em Python (parametrizada)', () => {
       const out = collectLocal(reference(f), ch.entry, ch.cases)
       expect(out.error, `semente ${seed}: ${out.error}`).toBeUndefined()
       expect(await sha256(canonCases(out.results!)), `semente ${seed}`).toBe(ch.expect.hash)
+    }
+  })
+})
+
+describe('missão do Porto de Babel (inglês: escuta)', () => {
+  it('tem a cadeia completa: conversa → guiada → independente → combate → transferência → debrief', () => {
+    const q = WORLD.quests.en_radio
+    expect(q.kind).toBe('mastery')
+    expect(q.steps.map((s) => s.id)).toEqual(['talk', 'guided', 'independent', 'bot', 'transfer', 'debrief'])
+    expect(WORLD.dialogues.marisa_debrief.debrief).toBe('en_radio')
+    expect(questActivities('en_radio').map((c) => [c.kind, c.id, c.stage])).toEqual([
+      ['english', 'radio_guided', 'guided'],
+      ['english', 'radio_independent', 'independent'],
+      ['english', 'radio_menu', 'independent'],
+      ['english', 'radio_transfer', 'transfer'],
+    ])
+    expect(fieldTemplateOf('en_radio')).toBe('field_radio')
+  })
+
+  it('o portão do Porto fica em Babel (chão livre, saída livre) e a Prefeitura apresenta o Porto', () => {
+    const babel = WORLD.regions.language_tower
+    const port = WORLD.regions.babel_port
+    const gate = babel.entities.find((e) => e.id === 'portao_porto')!
+    expect(gate.kind).toBe('portal')
+    expect(babel.map.legend[babel.map.rows[gate.y][gate.x]].solid).toBe(false)
+    expect(babel.map.legend[babel.map.rows[Math.floor(PORT_EXIT.y)][Math.floor(PORT_EXIT.x)]].solid).toBe(false)
+    expect(port.map.legend[port.map.rows[Math.floor(PORT_ENTRY.y)][Math.floor(PORT_ENTRY.x)]].solid).toBe(false)
+    // O portão não cai em cima de nenhuma outra entidade da cidade gerada.
+    expect(babel.entities.filter((e) => e.x === gate.x && e.y === gate.y)).toHaveLength(1)
+    const intro = WORLD.dialogues.language_tower_mentor_intro
+    expect(intro.nodes.some((n) => n.text.includes('Marisa'))).toBe(true)
+    expect(intro.nodes[intro.nodes.length - 1].id).toBe('m3')
+    expect(WORLD.dialogues.logic_temple_mentor_intro.nodes.some((n) => n.text.includes('Porto'))).toBe(false)
+  })
+
+  it('as lições têm exemplo falado e as atividades entram no catálogo como ingles, com dois conceitos', () => {
+    for (const id of ['lesson_numbers', 'lesson_spell']) {
+      const l = WORLD.lessons[id]
+      expect(l.subject).toBe('ingles')
+      expect(l.workedExample?.lang).toBe('speech')
+      expect(l.explanation.length).toBeLessThanOrEqual(3)
+    }
+    const rows = activityCatalogRows().filter((r) => r.subject === 'ingles')
+    expect(rows.map((r) => r.id).sort()).toEqual(['field_radio', 'radio_guided', 'radio_independent', 'radio_menu', 'radio_transfer'])
+    expect(rows.find((r) => r.id === 'radio_transfer')?.concept).toBe('spell')
+    expect(rows.find((r) => r.id === 'field_radio')).toMatchObject({ parametric: true, hash: null, dailyLimit: 5, concept: 'numbers' })
+    expect(rows.filter((r) => !r.parametric).every((r) => /^[0-9a-f]{64}$/.test(r.hash!))).toBe(true)
+    // Os conceitos existem como tópicos do inglês clássico (é por eles que o Control recebe a evidência).
+    const topics = new Set(Object.values(WORLD.regions).length ? ['numbers', 'spell'] : [])
+    for (const r of rows) expect(topics.has(r.concept), r.id).toBe(true)
+  })
+
+  it('o atendente exige ouvir o menu antes de teclar; o hash do combate é a opção do agente', async () => {
+    const enc = WORLD.encounters.enc_atendente
+    expect(enc.actions.find((a) => a.id === 'teclar')?.requires).toEqual(['menu'])
+    expect(enc.actions.find((a) => a.id === 'ouvir')?.challenge).toBe('radio_menu')
+    expect(await sha256('19')).toBe(WORLD.challenges.radio_officer.expect.hash)
+  })
+
+  it('forma canônica do inglês: algarismos e por extenso valem o mesmo; letras ignoram hifens e acentos', () => {
+    expect(canonEnglishWords('Gate 7, please!')).toBe('gate seven please')
+    expect(canonEnglishWords("I'm at gate fifteen")).toBe('i am at gate fifteen')
+    expect(canonEnField('fifteen', 'digits')).toBe('15')
+    expect(canonEnField(' Gate 11 ', 'digits')).toBe('11')
+    expect(canonEnField('07', 'digits')).toBe('7')
+    expect(canonEnField('k-a-l-i-n-a', 'letters')).toBe('KALINA')
+    expect(canonEnField('Kalína', 'letters')).toBe('KALINA')
+    expect(canonEnField('', 'digits')).toBe('')
+  })
+})
+
+describe('revisão de campo em inglês (parametrizada)', () => {
+  it('a mesma semente gera o mesmo exercício; sementes diferentes variam a situação e os números', () => {
+    expect(generateEnField(42)).toEqual(generateEnField(42))
+    expect(new Set([1, 2, 3].map((s) => generateEnField(s).variant)).size).toBe(3)
+    expect(generateEnField(10).lines).not.toEqual(generateEnField(13).lines)
+  })
+
+  it('o valor esperado de cada campo está na transmissão e os hashes saem dele (várias sementes)', async () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const f = generateEnField(seed)
+      const ch = await enFieldChallenge(seed)
+      expect(ch).toMatchObject({ id: FIELD_RADIO.id, kind: 'english', stage: 'independent', seed })
+      expect(ch.task.type).toBe('form')
+      expect(ch.expect.parts).toHaveLength(f.fields.length)
+      const spoken = canonEnglishWords(enTranscript(ch))
+      f.fields.forEach((field, i) => {
+        if (field.normalize === 'letters') expect(spoken.replace(/ /g, ''), `semente ${seed}: ${field.id}`).toContain(f.expected[i].toLowerCase())
+        else expect(spoken.split(' '), `semente ${seed}: ${field.id}=${f.expected[i]}`).toContain(canonEnglishWords(f.expected[i]))
+      })
+      const canon = f.expected.map((v, i) => canonEnField(v, f.fields[i].normalize)).join('|')
+      expect(await sha256(canon), `semente ${seed}`).toBe(ch.expect.hash)
+      expect(ch.ladder).toHaveLength(3)
+      expect(WORLD.lessons[ch.lesson!]).toBeTruthy()
     }
   })
 })

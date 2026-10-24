@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { BookOpen, Play } from 'lucide-react'
+import { BookOpen, Play, Turtle, Volume2 } from 'lucide-react'
 import { execPython, type PyStatus } from '@/game/lab/runPython'
 import { runSql } from '@/game/lab/runSql'
 import type { QueryResult } from '@/game/lab/sqlCore'
+import { speakAll, speechAvailable } from '@/game/speech'
 import { DATASETS } from '../content/datasets'
 import type { LessonDef } from '../engine/pedagogy'
 
 /**
  * Ficha de campo: o mínimo para quem nunca viu o conceito, com exemplo
- * executável — SQL sobre um banco de exemplo ou Python (saída impressa).
- * Compartilhada pelos terminais SQL e Python.
+ * executável — SQL sobre um banco de exemplo, Python (saída impressa) ou uma
+ * fala em inglês que o navegador lê em voz alta. Compartilhada pelos
+ * terminais SQL e Python e pelo rádio.
  */
 export function LessonCard({ lesson, defaultOpen, showMistakes }: { lesson: LessonDef; defaultOpen: boolean; showMistakes: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -18,6 +20,7 @@ export function LessonCard({ lesson, defaultOpen, showMistakes }: { lesson: Less
   const [status, setStatus] = useState<PyStatus | null>(null)
   const ex = lesson.workedExample
   const isPython = ex?.lang === 'python'
+  const isSpeech = ex?.lang === 'speech'
 
   const run = async () => {
     if (!ex) return
@@ -51,7 +54,27 @@ export function LessonCard({ lesson, defaultOpen, showMistakes }: { lesson: Less
               <li key={e}>{e}</li>
             ))}
           </ol>
-          {ex && (
+          {ex && isSpeech && (
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--eq-muted)]">{ex.caption}</p>
+              <p className="rounded bg-[#0c2230] p-2 text-sm text-[#d7f3ff]" lang="en">
+                “{ex.code}”
+              </p>
+              {speechAvailable() ? (
+                <div className="flex flex-wrap gap-2">
+                  <button className="eq-btn" onClick={() => speakAll([ex.code], 'en-US', 1)}>
+                    <Volume2 className="size-4" /> Ouvir o exemplo
+                  </button>
+                  <button className="eq-btn" onClick={() => speakAll([ex.code], 'en-US', 0.6)}>
+                    <Turtle className="size-4" /> Devagar
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--eq-muted)]">Seu navegador não oferece leitura em voz alta; acompanhe pelo texto.</p>
+              )}
+            </div>
+          )}
+          {ex && !isSpeech && (
             <div className="space-y-2">
               <p className="text-xs text-[var(--eq-muted)]">{ex.caption}</p>
               <pre className="overflow-x-auto rounded bg-[#07130e] p-2 font-mono text-xs text-[#b8ffd9]">{ex.code}</pre>
