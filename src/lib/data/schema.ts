@@ -13,8 +13,6 @@ export interface Relation {
 }
 
 export const RELATIONS: Relation[] = [
-  { child: 'study_folders', column: 'parent_id', parent: 'study_folders', onDelete: 'cascade' },
-  { child: 'subjects', column: 'folder_id', parent: 'study_folders', onDelete: 'set null' },
   { child: 'topics', column: 'subject_id', parent: 'subjects', onDelete: 'cascade' },
   { child: 'topics', column: 'parent_id', parent: 'topics', onDelete: 'cascade' },
   { child: 'study_materials', column: 'subject_id', parent: 'subjects', onDelete: 'cascade' },
@@ -40,7 +38,6 @@ export const RELATIONS: Relation[] = [
   { child: 'study_goals', column: 'previous_goal_id', parent: 'study_goals', onDelete: 'set null' },
   { child: 'question_records', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
   { child: 'question_records', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
-  { child: 'question_errors', column: 'record_id', parent: 'question_records', onDelete: 'cascade' },
   { child: 'flashcard_decks', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
   { child: 'flashcard_decks', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
   { child: 'flashcards', column: 'deck_id', parent: 'flashcard_decks', onDelete: 'cascade' },
@@ -49,13 +46,10 @@ export const RELATIONS: Relation[] = [
   { child: 'flashcard_reviews', column: 'card_id', parent: 'flashcards', onDelete: 'cascade' },
   { child: 'mind_maps', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
   { child: 'mind_maps', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
-  { child: 'game_answers', column: 'session_id', parent: 'game_sessions', onDelete: 'cascade' },
-  { child: 'game_sessions', column: 'study_session_id', parent: 'study_sessions', onDelete: 'set null' },
 ]
 
 export const TABLES: TableName[] = [
   'profiles',
-  'study_folders',
   'subjects',
   'topics',
   'study_materials',
@@ -73,14 +67,6 @@ export const TABLES: TableName[] = [
   'mind_maps',
   'study_goals',
   'question_records',
-  'question_errors',
-  'game_sessions',
-  'game_answers',
-  'game_rewards',
-  'game_purchases',
-  'game_quest_progress',
-  'game_saves',
-  'game_evidence',
 ]
 
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
@@ -113,10 +99,7 @@ type Defaults = { [K in TableName]: Partial<Tables[K]> }
 /** Valores padrão das colunas (equivalentes aos DEFAULT do SQL). */
 export const DEFAULTS: Defaults = {
   profiles: { display_name: null, settings: {} },
-  study_folders: { parent_id: null, kind: 'folder', color: null, icon: null, sort_order: 0, favorite: false, archived_at: null },
   subjects: {
-    folder_id: null,
-    favorite: false,
     description: null,
     color: '#DEB887',
     icon: null,
@@ -133,8 +116,6 @@ export const DEFAULTS: Defaults = {
   },
   topics: {
     parent_id: null,
-    kind: 'topic',
-    favorite: false,
     description: null,
     sort_order: 0,
     status: 'not_started',
@@ -186,33 +167,10 @@ export const DEFAULTS: Defaults = {
   mind_maps: { description: null, folder: null, subject_id: null, topic_id: null, data: { nodes: [], edges: [] } },
   study_goals: { title: null, subject_id: null, status: 'active', end_date: null, previous_goal_id: null },
   question_records: { subject_id: null, topic_id: null, board: null, exam: null, source: null, notes: null },
-  question_errors: { count: 1, note: null, resolved: false, resolved_at: null },
-  game_sessions: {
-    unit_id: null,
-    status: 'active',
-    queue: [],
-    planned_seconds: null,
-    finished_at: null,
-    answered: 0,
-    correct: 0,
-    xp: 0,
-    coins: 0,
-    combo: 0,
-    best_combo: 0,
-    active_seconds: 0,
-    study_session_id: null,
-  },
-  game_answers: { challenge_version: 1, score: 0, used_hint: false, attempt: 1, xp: 0, coins: 0, combo: 0 },
-  game_rewards: { xp: 0, coins: 0 },
-  game_purchases: {},
-  game_quest_progress: {},
-  game_saves: { slot: 'main', data: {} },
-  game_evidence: { seed: null },
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
   profiles: 'perfis',
-  study_folders: 'pastas',
   subjects: 'matérias',
   topics: 'tópicos',
   study_materials: 'materiais',
@@ -230,12 +188,4 @@ export const TABLE_LABELS: Record<TableName, string> = {
   mind_maps: 'mapas mentais',
   study_goals: 'metas',
   question_records: 'registros de questões',
-  question_errors: 'erros classificados',
-  game_sessions: 'partidas do EvoQuest',
-  game_answers: 'respostas do EvoQuest',
-  game_rewards: 'recompensas do EvoQuest',
-  game_purchases: 'itens do EvoQuest',
-  game_quest_progress: 'etapas de missões do EvoQuest',
-  game_saves: 'salvamentos do EvoQuest',
-  game_evidence: 'evidências de aprendizagem do EvoQuest',
 }

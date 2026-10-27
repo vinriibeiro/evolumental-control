@@ -77,43 +77,11 @@ export interface UserSettings {
   autoReviews: boolean
   reviewIntervals: number[]
   srs: SrsParams
-  /** Bloco de notas rápido da tela "Hoje". */
+  /** Bloco de notas rápido do "Meu espaço de estudos". */
   scratchpad?: string
-  evoquest?: EvoQuestSettings
-  /** Visualização preferida do Explorador de Estudos. */
-  explorerView?: 'tree' | 'list' | 'cards'
-  /** Indicador mostrado na árvore e nas listas do Explorador. */
-  explorerMetric?: 'progress' | 'mastery' | 'time' | 'questions' | 'accuracy' | 'priority'
-}
-
-export interface EvoQuestSettings {
-  /** Disciplina do jogo → matéria do planejamento (para registrar o tempo). */
-  links: Record<string, UUID | null>
-  /** Registrar o tempo jogado como sessão de estudo. */
-  registerTime: boolean
-  dailyMinutes: number
-  sound: boolean
-  avatar: string | null
-  title: string | null
-  reducedMotion: boolean
-}
-
-/** Área de estudo (raiz) ou pasta do Explorador. */
-export interface StudyFolder extends Owned {
-  parent_id: UUID | null
-  kind: 'area' | 'folder'
-  name: string
-  color: string | null
-  icon: string | null
-  sort_order: number
-  favorite: boolean
-  archived_at: ISODateTime | null
 }
 
 export interface Subject extends Owned {
-  /** Pasta/área do Explorador (null = raiz). */
-  folder_id: UUID | null
-  favorite: boolean
   name: string
   description: string | null
   color: string
@@ -130,14 +98,9 @@ export interface Subject extends Owned {
   archived_at: ISODateTime | null
 }
 
-export type TopicKind = 'topic' | 'folder'
-
 export interface Topic extends Owned {
   subject_id: UUID
   parent_id: UUID | null
-  /** 'folder' organiza tópicos dentro da matéria e não entra no progresso. */
-  kind: TopicKind
-  favorite: boolean
   name: string
   description: string | null
   sort_order: number
@@ -379,105 +342,8 @@ export interface QuestionRecord extends Owned {
   notes: string | null
 }
 
-export type ErrorReason = 'nao_sabia' | 'esqueci' | 'interpretacao' | 'distracao' | 'calculo' | 'confundiu' | 'chute' | 'outro'
-
-/** Caderno de erros: erros de um registro de questões classificados por motivo. */
-export interface QuestionError extends Owned {
-  record_id: UUID
-  reason: ErrorReason
-  /** Quantas questões erradas do registro têm este motivo. */
-  count: number
-  note: string | null
-  resolved: boolean
-  resolved_at: ISODateTime | null
-}
-
-// ── EvoQuest ──────────────────────────────────────────────────────────────
-export type GameMode = 'quick' | 'trail' | 'review' | 'time_attack' | 'boss' | 'lab' | 'cards'
-export type GameSessionStatus = 'active' | 'finished' | 'abandoned'
-
-export interface GameSession extends Owned {
-  subject_id: string
-  unit_id: string | null
-  mode: GameMode
-  status: GameSessionStatus
-  /** Fila planejada de desafios (permite retomar a partida). */
-  queue: string[]
-  planned_seconds: number | null
-  started_at: ISODateTime
-  finished_at: ISODateTime | null
-  answered: number
-  correct: number
-  xp: number
-  coins: number
-  combo: number
-  best_combo: number
-  active_seconds: number
-  study_session_id: UUID | null
-}
-
-export interface GameAnswer extends Owned {
-  session_id: UUID
-  challenge_id: string
-  challenge_version: number
-  subject_id: string
-  topic: string
-  correct: boolean
-  score: number
-  used_hint: boolean
-  attempt: number
-  seconds: number
-  xp: number
-  coins: number
-  combo: number
-  answered_at: ISODateTime
-}
-
-/** Livro-razão de recompensas: saldo = soma das linhas. Único por (usuário, origem). */
-export interface GameReward extends Owned {
-  source: string
-  kind: 'answer' | 'mission' | 'achievement' | 'purchase'
-  xp: number
-  coins: number
-}
-
-export interface GamePurchase extends Owned {
-  item_id: string
-  price: number
-}
-
-/** Etapa de missão do RPG confirmada pelo servidor (gravada só pela RPC). */
-export interface GameQuestProgress extends Owned {
-  step_key: string
-  completed_at: ISODateTime
-}
-
-/**
- * Evidência de aprendizagem do mundo (gravada só pela RPC game_record_evidence):
- * COMO o jogador resolveu uma atividade — estágio, nível de ajuda e tentativas.
- * Alimenta o domínio do Control; não tem relação com XP.
- */
-export interface GameEvidence extends Owned {
-  activity_id: string
-  subject: string
-  concept: string
-  stage: 'guided' | 'independent' | 'transfer' | 'boss'
-  /** 0 = sozinho; 1–3 = pistas; 4 = explicação completa. */
-  help_level: number
-  attempts: number
-  solved: boolean
-  seed: number | null
-}
-
-/** Salvamento do mundo do RPG (posição, inventário, escolhas). */
-export interface GameSave extends Owned {
-  slot: string
-  data: Record<string, unknown>
-}
-
 export interface Tables {
   profiles: Profile
-  study_folders: StudyFolder
   subjects: Subject
   topics: Topic
   study_materials: StudyMaterial
@@ -495,14 +361,6 @@ export interface Tables {
   mind_maps: MindMap
   study_goals: StudyGoal
   question_records: QuestionRecord
-  question_errors: QuestionError
-  game_sessions: GameSession
-  game_answers: GameAnswer
-  game_rewards: GameReward
-  game_purchases: GamePurchase
-  game_quest_progress: GameQuestProgress
-  game_saves: GameSave
-  game_evidence: GameEvidence
 }
 
 export type TableName = keyof Tables

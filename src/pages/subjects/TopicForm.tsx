@@ -15,8 +15,6 @@ interface Props {
   parent?: Topic | null
   topic?: Topic | null
   nextOrder?: number
-  /** Ao criar: tópico comum ou pasta organizadora dentro da matéria. */
-  kind?: Topic['kind']
 }
 
 function initial(t?: Topic | null) {
@@ -32,8 +30,7 @@ function initial(t?: Topic | null) {
   }
 }
 
-export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder = 0, kind = 'topic' }: Props) {
-  const isFolder = (topic?.kind ?? kind) === 'folder'
+export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder = 0 }: Props) {
   const [form, setForm] = useState(() => initial(topic))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [addAnother, setAddAnother] = useState(false)
@@ -55,8 +52,8 @@ export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder =
     if (!r.data) return setErrors(r.errors)
     try {
       if (topic) await update.mutateAsync({ id: topic.id, patch: r.data })
-      else await insert.mutateAsync({ ...r.data, kind, subject_id: subjectId, parent_id: parent?.id ?? null, sort_order: nextOrder })
-      toast.success(isFolder ? (topic ? 'Pasta atualizada.' : 'Pasta criada.') : topic ? 'Tópico atualizado.' : 'Tópico criado.')
+      else await insert.mutateAsync({ ...r.data, subject_id: subjectId, parent_id: parent?.id ?? null, sort_order: nextOrder })
+      toast.success(topic ? 'Tópico atualizado.' : 'Tópico criado.')
       if (again) {
         setForm(initial(null))
         setAddAnother(true)
@@ -70,7 +67,7 @@ export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder =
     <Modal
       open={open}
       onClose={onClose}
-      title={isFolder ? (topic ? 'Editar pasta' : parent ? `Nova pasta em "${parent.name}"` : 'Nova pasta na matéria') : topic ? 'Editar tópico' : parent ? `Novo subtópico de "${parent.name}"` : 'Novo tópico'}
+      title={topic ? 'Editar tópico' : parent ? `Novo subtópico de "${parent.name}"` : 'Novo tópico'}
       description={addAnother ? 'Salvo! Continue adicionando.' : undefined}
       size="lg"
       footer={
@@ -97,8 +94,6 @@ export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder =
         <Field label="Nome" required error={errors.name} className="sm:col-span-2">
           {(id, d) => <Input id={id} aria-describedby={d} autoFocus value={form.name} invalid={Boolean(errors.name)} onChange={(e) => set('name', e.target.value)} />}
         </Field>
-        {!isFolder && (
-          <>
         <Field label="Status">
           {(id) => (
             <Select id={id} value={form.status} onChange={(e) => set('status', e.target.value as Topic['status'])}>
@@ -138,8 +133,6 @@ export function TopicForm({ open, onClose, subjectId, parent, topic, nextOrder =
         <Field label="Estimativa de tempo (min)" error={errors.estimated_minutes}>
           {(id, d) => <Input id={id} aria-describedby={d} inputMode="numeric" value={form.estimated_minutes} onChange={(e) => set('estimated_minutes', e.target.value)} />}
         </Field>
-          </>
-        )}
         <Field label="Descrição" className="sm:col-span-2" error={errors.description}>
           {(id) => <Textarea id={id} rows={2} value={form.description} onChange={(e) => set('description', e.target.value)} />}
         </Field>

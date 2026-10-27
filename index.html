@@ -10,7 +10,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="EVoLuMentaL" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#3B2B20" />
     <meta name="description" content="EVoLuMentaL Control — controle de estudos: concursos, faculdade, carreira em tecnologia, idiomas e o que mais você estudar." />
     <title>EVoLuMentaL Control</title>
@@ -20,8 +20,6 @@
         var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
       } catch (e) {}
-      // Aberto como aplicativo instalado (ícone na tela inicial) ou no navegador.
-      if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) document.documentElement.dataset.app = 'standalone';
     </script>
   </head>
   <body>

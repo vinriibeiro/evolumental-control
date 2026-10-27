@@ -96,8 +96,7 @@ export default function CalendarPage() {
   const [hours, setHours] = useState(() => readPref('evl:cal-hours', { start: 6, end: 24 }))
   const [itemForm, setItemForm] = useState<{ item: StudyPlanItem | null; date: string; time?: string } | null>(null)
   const [details, setDetails] = useState<StudyPlanItem | null>(null)
-  // ?novo=tarefa (atalho da paleta de comandos) abre o formulário de tarefa.
-  const [taskForm, setTaskForm] = useState<{ task: CalendarTask | null; date: string; time?: string } | null>(() => (new URLSearchParams(window.location.search).get('novo') === 'tarefa' ? { task: null, date: todayKey(settings.timezone) } : null))
+  const [taskForm, setTaskForm] = useState<{ task: CalendarTask | null; date: string; time?: string } | null>(null)
   const [proposalPlan, setProposalPlan] = useState<StudyPlan | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -509,7 +508,7 @@ function TimeGrid(props: {
       </div>
 
       {/* Grade de 30 em 30 minutos */}
-      <div ref={scrollRef} className="scroll-thin max-h-[calc(100dvh-var(--app-top,4rem)-var(--app-bottom)-13rem)] min-h-80 overflow-y-auto">
+      <div ref={scrollRef} className="scroll-thin max-h-[calc(100dvh-var(--app-top,4rem)-13rem)] min-h-80 overflow-y-auto">
         <div className="relative flex" style={{ height: rows * SLOT }}>
           <div className="w-14 shrink-0">
             {Array.from({ length: rows }, (_, i) => (

@@ -21,8 +21,7 @@ export default function DecksPage() {
   const [archived, setArchived] = useState<'active' | 'archived'>('active')
   const [term, setTerm] = useState('')
   const [form, setForm] = useState<{ deck: FlashcardDeck | null } | null>(null)
-  // ?novo=cartao (paleta de comandos) abre o formulário de cartão.
-  const [cardOpen, setCardOpen] = useState(() => new URLSearchParams(window.location.search).get('novo') === 'cartao')
+  const [cardOpen, setCardOpen] = useState(false)
   const decks = useAll('flashcard_decks', { filters: [eq('archived', archived === 'archived')], order: [{ column: 'folder' }, { column: 'name' }] })
   const nowIso = useMemo(() => new Date().toISOString(), [])
   const totalDue = useCount('flashcards', [inList('status', ACTIVE), lte('due_at', nowIso)])

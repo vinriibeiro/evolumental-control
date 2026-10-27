@@ -1,8 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronsLeft, ChevronsRight, CloudOff, Gamepad2, Layers, LogOut, Menu, Pause, Play, Search, Settings, Sun, Timer, X } from 'lucide-react'
-import { titleFor } from './nav'
-import { SidebarFooter, SidebarNav } from './SidebarNav'
+import { ChevronsLeft, ChevronsRight, CloudOff, LogOut, Menu, Pause, Play, Search, Settings, X } from 'lucide-react'
+import { NAV, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { IconButton } from '@/components/ui/Button'
@@ -76,9 +75,9 @@ export function AppShell() {
           'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200 lg:flex',
           collapsed ? 'w-[72px]' : 'w-64',
         )}
-        aria-label="Barra lateral"
+        aria-label="Navegação principal"
       >
-        <SidebarContent collapsed={collapsed} onSearch={() => setSearchOpen(true)} />
+        <SidebarContent collapsed={collapsed} />
         <div className="border-t border-line p-3">
           <IconButton label={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => setCollapsed((c) => !c)} className="w-full">
             {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
@@ -90,33 +89,27 @@ export function AppShell() {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-[var(--overlay)]" onClick={() => setMobileOpen(false)} aria-hidden />
-          <aside className="animate-fade-in app-safe-top absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface pb-[env(safe-area-inset-bottom,0px)] shadow-xl" aria-label="Menu">
+          <aside className="animate-fade-in absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface shadow-xl" aria-label="Navegação principal">
             <div className="absolute top-3 right-3">
               <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>
                 <X className="size-5" />
               </IconButton>
             </div>
-            <SidebarContent
-              collapsed={false}
-              large
-              onSearch={() => {
-                setMobileOpen(false)
-                setSearchOpen(true)
-              }}
-            />
+            <SidebarContent collapsed={false} large />
           </aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div ref={topRef} className="sticky top-0 z-30">
-        <header className="app-safe-top border-b border-line bg-bg/95 backdrop-blur">
-        <div className="flex h-14 items-center gap-2 px-4 sm:px-6 lg:h-16">
-          {/* Celular: o menu completo fica na aba "Mais" da barra inferior. */}
+        <header className="flex h-16 items-center gap-2 border-b border-line bg-bg/95 px-4 backdrop-blur sm:px-6">
+          <IconButton label="Abrir menu" className="lg:hidden" onClick={() => setMobileOpen(true)}>
+            <Menu className="size-5" />
+          </IconButton>
           <Link to="/" className="lg:hidden" aria-label="Início">
             <LogoMark className="size-8" />
           </Link>
-          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink">{titleFor(location.pathname, location.search)}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink">{titleFor(location.pathname)}</h1>
           <LiveTimerChip />
           <button
             onClick={() => setSearchOpen(true)}
@@ -131,81 +124,33 @@ export function AppShell() {
           </IconButton>
           <Notifications />
           <ProfileMenu />
-        </div>
         </header>
 
         {auth.mode === 'local' && (
           <div className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-ink sm:px-6">
             <CloudOff className="mt-0.5 size-3.5 shrink-0 text-warning" />
             <span>
-              <strong>Modo local:</strong>{' '}
-              <span className="hidden lg:inline">
-                os dados ficam apenas neste navegador (IndexedDB), sem login real e sem sincronização com a nuvem. Configure o Supabase para usar contas e
-                sincronizar (veja o README).
-              </span>
-              <span className="lg:hidden">dados só neste aparelho, sem sincronizar.</span>
+              <strong>Modo local:</strong> os dados ficam apenas neste navegador (IndexedDB), sem login real e sem sincronização com a nuvem. Configure o Supabase
+              para usar contas e sincronizar (veja o README).
             </span>
           </div>
         )}
         </div>
 
-        <main id="conteudo" className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-4 pt-4 pb-[calc(var(--app-bottom)+1.5rem)] sm:px-6 lg:px-8 lg:pt-6">
+        <main id="conteudo" className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
           <Suspense fallback={<Spinner />}>
             <Outlet />
           </Suspense>
         </main>
       </div>
 
-      <AppTabBar onMore={() => setMobileOpen(true)} moreOpen={mobileOpen} />
       <TimerAlerts />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }
 
-const TABS = [
-  { to: '/espaco', label: 'Hoje', icon: Sun },
-  { to: '/cronometro', label: 'Cronômetro', icon: Timer },
-  { to: '/flashcards', label: 'Flashcards', icon: Layers },
-  { to: '/evoquest', label: 'EvoQuest', icon: Gamepad2 },
-]
-
-/** Barra de abas do aplicativo (celular). No computador, a barra lateral faz esse papel. */
-function AppTabBar({ onMore, moreOpen }: { onMore: () => void; moreOpen: boolean }) {
-  const location = useLocation()
-  const inTabs = TABS.some((t) => (t.to === '/' ? location.pathname === '/' : location.pathname.startsWith(t.to)))
-  const item = 'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium'
-  return (
-    <nav className="app-tabbar fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/95 backdrop-blur lg:hidden" aria-label="Atalhos do aplicativo">
-      <ul className="flex h-16">
-        {TABS.map((t) => (
-          <li key={t.to} className="flex flex-1">
-            <NavLink to={t.to} end={t.to === '/' || t.to === '/evoquest'} className={({ isActive }) => cn(item, isActive ? 'text-ink' : 'text-muted')}>
-              {({ isActive }) => (
-                <>
-                  <span className={cn('flex h-7 w-12 items-center justify-center rounded-full transition-colors', isActive && 'bg-accent/40')}>
-                    <t.icon className="size-5" aria-hidden />
-                  </span>
-                  <span className="truncate">{t.label}</span>
-                </>
-              )}
-            </NavLink>
-          </li>
-        ))}
-        <li className="flex flex-1">
-          <button type="button" onClick={onMore} aria-expanded={moreOpen} className={cn(item, !inTabs || moreOpen ? 'text-ink' : 'text-muted')}>
-            <span className={cn('flex h-7 w-12 items-center justify-center rounded-full', (!inTabs || moreOpen) && 'bg-accent/40')}>
-              <Menu className="size-5" aria-hidden />
-            </span>
-            Mais
-          </button>
-        </li>
-      </ul>
-    </nav>
-  )
-}
-
-function SidebarContent({ collapsed, large, onSearch }: { collapsed: boolean; large?: boolean; onSearch: () => void }) {
+function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: boolean }) {
   return (
     <>
       <div className={cn('flex h-16 shrink-0 items-center', collapsed ? 'justify-center px-2' : 'px-4')}>
@@ -213,8 +158,34 @@ function SidebarContent({ collapsed, large, onSearch }: { collapsed: boolean; la
           <Logo collapsed={collapsed} />
         </Link>
       </div>
-      <SidebarNav collapsed={collapsed} large={large} />
-      <SidebarFooter collapsed={collapsed} large={large} onSearch={onSearch} />
+      <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-2">
+        <ul className="flex flex-col gap-0.5">
+          {NAV.map((item) => (
+            <li key={item.to}>
+              <NavLink
+                to={item.to}
+                end={item.to === '/'}
+                title={collapsed ? item.label : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-lg font-medium transition-colors',
+                    large ? 'px-3 py-3 text-[15px]' : 'px-3 py-2 text-sm',
+                    collapsed && 'justify-center px-0',
+                    isActive ? 'bg-accent/35 text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink',
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
+                    {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+                  </>
+                )}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </>
   )
 }

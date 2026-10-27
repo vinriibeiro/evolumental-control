@@ -12,12 +12,10 @@ interface Props {
   topicLabel?: string
   className?: string
   error?: string | null
-  /** Rótulo da opção vazia de matéria (em filtros: "Todas"). */
-  emptyLabel?: string
 }
 
 /** Seletor de matéria e tópico/subtópico (hierarquia indentada). */
-export function SubjectTopicSelect({ subjectId, topicId, onChange, subjectRequired, subjectLabel = 'Matéria', topicLabel = 'Tópico (opcional)', className, error, emptyLabel }: Props) {
+export function SubjectTopicSelect({ subjectId, topicId, onChange, subjectRequired, subjectLabel = 'Matéria', topicLabel = 'Tópico (opcional)', className, error }: Props) {
   const subjects = useSubjects()
   const topics = useTopics(subjectId ?? null)
   const options = useMemo(() => flattenTree(buildTree(topics.data ?? [])), [topics.data])
@@ -32,7 +30,7 @@ export function SubjectTopicSelect({ subjectId, topicId, onChange, subjectRequir
             invalid={Boolean(error)}
             onChange={(e) => onChange({ subjectId: e.target.value || null, topicId: null })}
           >
-            <option value="">{subjects.isPending ? 'Carregando…' : subjectRequired ? 'Selecione…' : (emptyLabel ?? 'Sem matéria')}</option>
+            <option value="">{subjects.isPending ? 'Carregando…' : subjectRequired ? 'Selecione…' : 'Sem matéria'}</option>
             {(subjects.data ?? []).map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}

@@ -40,20 +40,7 @@ function initial(s?: Subject | null, slot = 0): FormState {
   }
 }
 
-export function SubjectForm({
-  open,
-  onClose,
-  subject,
-  nextOrder = 0,
-  folderId = null,
-}: {
-  open: boolean
-  onClose: () => void
-  subject?: Subject | null
-  nextOrder?: number
-  /** Pasta do Explorador onde a nova matéria será criada. */
-  folderId?: string | null
-}) {
+export function SubjectForm({ open, onClose, subject, nextOrder = 0 }: { open: boolean; onClose: () => void; subject?: Subject | null; nextOrder?: number }) {
   const [form, setForm] = useState<FormState>(() => initial(subject))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const insert = useInsert('subjects')
@@ -75,7 +62,7 @@ export function SubjectForm({
     const data = { ...r.data, archived_at: r.data.status === 'archived' ? (subject?.archived_at ?? new Date().toISOString()) : null }
     try {
       if (subject) await update.mutateAsync({ id: subject.id, patch: data })
-      else await insert.mutateAsync({ ...data, sort_order: nextOrder, folder_id: folderId })
+      else await insert.mutateAsync({ ...data, sort_order: nextOrder })
       toast.success(subject ? 'Matéria atualizada.' : 'Matéria criada.')
       onClose()
     } catch (e) {
