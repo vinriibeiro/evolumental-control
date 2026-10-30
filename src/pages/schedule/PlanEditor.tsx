@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Copy, Plus, Trash2 } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/Field'
+import { ActionMenu, MenuItem } from '@/components/ui/Menu'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/feedback'
 import { useInsert, useUpdate } from '@/hooks/data'
 import { useSubjects } from '@/hooks/domain'
 import { useSettings } from '@/hooks/useSettings'
 import { ACTIVITY_LABELS, ACTIVITY_TYPES, WEEKDAY_LABELS } from '@/lib/labels'
-import { defaultPlanConfig } from '@/lib/planner'
-import { addDays, diffDays, hhmmToMinutes, todayKey } from '@/lib/time'
+import { copyDayWindows, DAY_GROUPS, defaultPlanConfig } from '@/lib/planner'
+import { addDays, diffDays, todayKey, windowRange, windowsTotalMinutes } from '@/lib/time'
 import type { ActivityType, PlanConfig, StudyPlan, TimeWindow } from '@/types/db'
 
 const ORDER = [1, 2, 3, 4, 5, 6, 0]
@@ -40,6 +41,7 @@ export function PlanEditor({ open, onClose, plan, onSaved }: { open: boolean; on
   }, [open, plan]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const setWindows = (kind: 'availability' | 'commitments', day: number, list: TimeWindow[]) => setConfig((c) => ({ ...c, [kind]: { ...c[kind], [day]: list } }))
+  const copyWindows = (kind: 'availability' | 'commitments', from: number, targets: readonly number[]) => setConfig((c) => ({ ...c, [kind]: copyDayWindows(c[kind], from, targets) }))
 
   const validateAll = (): string | null => {
     if (!name.trim()) return 'Informe o nome do cronograma.'
@@ -50,8 +52,8 @@ export function PlanEditor({ open, onClose, plan, onSaved }: { open: boolean; on
     for (const kind of ['availability', 'commitments'] as const) {
       for (const d of ORDER) {
         for (const w of config[kind][d] ?? []) {
-          if (!/^\d{2}:\d{2}$/.test(w.start) || !/^\d{2}:\d{2}$/.test(w.end) || hhmmToMinutes(w.end) <= hhmmToMinutes(w.start))
-            return `Horário inválido em ${WEEKDAY_LABELS[d]}: o fim deve ser depois do início.`
+          if (!/^\d{2}:\d{2}$/.test(w.start) || !/^\d{2}:\d{2}$/.test(w.end) || windowRange(w)[1] <= windowRange(w)[0])
+            return `Horário inválido em ${WEEKDAY_LABELS[d]}: o fim deve ser depois do início (para ir até a meia-noite, use 00:00 no fim).`
         }
       }
     }
@@ -132,8 +134,8 @@ export function PlanEditor({ open, onClose, plan, onSaved }: { open: boolean; on
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <WindowsEditor title="Dias e horários disponíveis" value={config.availability} onChange={(d, l) => setWindows('availability', d, l)} />
-          <WindowsEditor title="Compromissos e intervalos (bloqueados)" value={config.commitments} onChange={(d, l) => setWindows('commitments', d, l)} />
+          <WindowsEditor title="Dias e horários disponíveis" value={config.availability} onChange={(d, l) => setWindows('availability', d, l)} onCopy={(d, t) => copyWindows('availability', d, t)} showTotal />
+          <WindowsEditor title="Compromissos e intervalos (bloqueados)" value={config.commitments} onChange={(d, l) => setWindows('commitments', d, l)} onCopy={(d, t) => copyWindows('commitments', d, t)} />
         </div>
 
         <div>
@@ -162,16 +164,48 @@ export function PlanEditor({ open, onClose, plan, onSaved }: { open: boolean; on
   )
 }
 
-function WindowsEditor({ title, value, onChange }: { title: string; value: Record<number, TimeWindow[]>; onChange: (day: number, list: TimeWindow[]) => void }) {
+function formatTotal(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (!h) return `${m}min`
+  return m ? `${h}h ${String(m).padStart(2, '0')}min` : `${h}h`
+}
+
+function WindowsEditor({
+  title,
+  value,
+  onChange,
+  onCopy,
+  showTotal = false,
+}: {
+  title: string
+  value: Record<number, TimeWindow[]>
+  onChange: (day: number, list: TimeWindow[]) => void
+  onCopy: (day: number, targets: readonly number[]) => void
+  showTotal?: boolean
+}) {
+  const weekMinutes = ORDER.reduce((sum, d) => sum + windowsTotalMinutes(value[d]), 0)
   return (
     <div>
-      <p className="mb-2 text-sm font-medium text-ink">{title}</p>
+      <p className="mb-1 text-sm font-medium text-ink">{title}</p>
+      <p className="mb-2 text-xs text-muted">
+        Monte um dia e use <Copy className="inline size-3" aria-hidden /> para repetir os horários na semana. Para ir até a meia-noite, use 00:00 no fim.
+        {showTotal && weekMinutes > 0 && (
+          <>
+            {' '}
+            Total na semana: <strong className="text-ink">{formatTotal(weekMinutes)}</strong>.
+          </>
+        )}
+      </p>
       <div className="space-y-2">
         {ORDER.map((d) => {
           const list = value[d] ?? []
           return (
             <div key={d} className="flex flex-wrap items-start gap-2 rounded-lg border border-line px-3 py-2">
-              <span className="w-16 shrink-0 pt-1.5 text-sm text-ink">{WEEKDAY_LABELS[d].slice(0, 3)}</span>
+              <span className="w-16 shrink-0 pt-1.5 text-sm text-ink">
+                {WEEKDAY_LABELS[d].slice(0, 3)}
+                {showTotal && list.length > 0 && <span className="block text-xs text-muted">{formatTotal(windowsTotalMinutes(list))}</span>}
+              </span>
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 {list.length === 0 && <span className="pt-1.5 text-xs text-muted">—</span>}
                 {list.map((w, i) => (
@@ -188,6 +222,42 @@ function WindowsEditor({ title, value, onChange }: { title: string; value: Recor
               <IconButton size="sm" label={`Adicionar horário em ${WEEKDAY_LABELS[d]}`} onClick={() => onChange(d, [...list, { start: '19:00', end: '21:00' }])}>
                 <Plus className="size-4" />
               </IconButton>
+              {list.length > 0 && (
+                <ActionMenu label={`Copiar os horários de ${WEEKDAY_LABELS[d]} para outros dias`} icon={<Copy className="size-4" />}>
+                  {(close) => (
+                    <>
+                      <p className="px-2.5 pb-1 pt-1.5 text-xs text-muted">Copiar os horários de {WEEKDAY_LABELS[d]} para:</p>
+                      <MenuItem
+                        icon={<Copy className="size-3.5" />}
+                        onClick={() => {
+                          onCopy(d, DAY_GROUPS.all)
+                          close()
+                        }}
+                      >
+                        Todos os dias
+                      </MenuItem>
+                      <MenuItem
+                        icon={<Copy className="size-3.5" />}
+                        onClick={() => {
+                          onCopy(d, DAY_GROUPS.weekdays)
+                          close()
+                        }}
+                      >
+                        Segunda a sexta
+                      </MenuItem>
+                      <MenuItem
+                        icon={<Copy className="size-3.5" />}
+                        onClick={() => {
+                          onCopy(d, DAY_GROUPS.weekend)
+                          close()
+                        }}
+                      >
+                        Sábado e domingo
+                      </MenuItem>
+                    </>
+                  )}
+                </ActionMenu>
+              )}
             </div>
           )
         })}

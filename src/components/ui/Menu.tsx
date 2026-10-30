@@ -4,13 +4,13 @@ import { IconButton } from './Button'
 import { cn } from '@/lib/cn'
 
 /** Menu de ações "…" acessível. Cada item fecha o menu ao ser acionado. */
-export function ActionMenu({ label = 'Mais ações', children, align = 'right' }: { label?: string; children: (close: () => void) => ReactNode; align?: 'left' | 'right' }) {
+export function ActionMenu({ label = 'Mais ações', children, align = 'right', icon }: { label?: string; children: (close: () => void) => ReactNode; align?: 'left' | 'right'; icon?: ReactNode }) {
   const [open, setOpen] = useState(false)
   const close = () => setOpen(false)
   return (
     <div className="relative" onKeyDown={(e) => e.key === 'Escape' && close()}>
       <IconButton label={label} size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="menu">
-        <MoreHorizontal className="size-4" />
+        {icon ?? <MoreHorizontal className="size-4" />}
       </IconButton>
       {open && (
         <>

@@ -5,7 +5,7 @@
 import type { ActivityType, PlanConfig, Subject, TimeWindow } from '@/types/db'
 import { distributeByWeight } from '@/lib/cycle'
 import { generatePlan, subtractIntervals } from '@/lib/planner'
-import { addDays, diffDays, hhmmToMinutes, minutesToHhmm, weekday, type DayKey } from '@/lib/time'
+import { addDays, diffDays, hhmmToMinutes, minutesToHhmm, weekday, windowRange, type DayKey } from '@/lib/time'
 
 export const ROUTINE_RULES = [
   'Pilares diários ganham um bloco fixo em todos os dias disponíveis, no primeiro horário livre do dia.',
@@ -115,7 +115,7 @@ const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]
 
 function toIntervals(ws: TimeWindow[] = []): Interval[] {
   return ws
-    .map((w): Interval => [hhmmToMinutes(w.start), hhmmToMinutes(w.end)])
+    .map((w): Interval => windowRange(w))
     .filter(([a, b]) => b > a)
     .sort((a, b) => a[0] - b[0])
 }
