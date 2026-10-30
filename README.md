@@ -1,6 +1,6 @@
 # EVoLuMentaL Control
 
-Plataforma de controle de estudos em geral — concursos, faculdade, carreira em tecnologia, idiomas ou qualquer outro objetivo: matérias e tópicos, cronômetro com tempo líquido confiável, cronograma automático, ciclo de estudos, calendário, flashcards com repetição espaçada e leitura em voz alta, mapas mentais editáveis, revisões, registro de questões, metas e relatórios.
+Plataforma de controle de estudos em geral — concursos, faculdade, carreira em tecnologia, idiomas ou qualquer outro objetivo: matérias e tópicos, cronômetro com tempo líquido confiável, rotinas automáticas ou manuais por regras (sem IA), cronograma automático, ciclo de estudos, prática diária de inglês, calendário, flashcards com repetição espaçada e leitura em voz alta, mapas mentais editáveis, revisões, registro de questões, metas e relatórios.
 
 ![Logo](public/brand/logo-full.svg)
 
@@ -25,8 +25,10 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 
 | Módulo | O que faz |
 |---|---|
-| Visão geral | Tempo líquido de hoje/semana/mês/total, metas, sequência de dias, revisões e flashcards pendentes, conteúdos concluídos, gráficos (evolução, por matéria, planejado × realizado, por atividade, constância) com filtro de período e alternativa em tabela. |
-| Meu espaço de estudos | O dia em uma tela: sessão em andamento, próximo bloco do ciclo, blocos e revisões de hoje, tarefas e bloco de notas com salvamento automático. |
+| Visão geral | "Rotina de hoje", tempo líquido de hoje/semana/mês/total, metas, sequência de dias, revisões e flashcards pendentes, conteúdos concluídos, gráficos (evolução, por matéria, planejado × realizado, por atividade, constância) com filtro de período e alternativa em tabela. |
+| Meu espaço de estudos | O dia em uma tela: sessão em andamento, "Rotina de hoje" (blocos do dia por pilar e se o inglês do dia já foi feito), próximo bloco do ciclo, blocos e revisões de hoje, tarefas e bloco de notas com salvamento automático. |
+| Rotinas | Assistente em passos — modelo → pilares, pesos e frequências → disponibilidade → prévia → Aplicar — que monta ciclo, cronograma, blocos fixos diários, tarefas recorrentes e marcos por regras determinísticas (sem IA), com a lista de regras e o motivo de cada bloco. Modelos prontos: **"Transição: Analista → Cientista de Dados"** (estudo de ciência de dados, manter a análise de dados afiada, resolver problemas de ciência de dados, LinkedIn e carreira, certificações e inglês diário, ligados às trilhas Cientista de Dados e Analista de Dados) e **"Rotina em branco"** para o modo manual. Modo manual: editar a rotina aplicada e regerar com prévia das diferenças. |
+| Inglês | Prática diária sem material: registro rápido em minutos por habilidade (ouvir, falar, ler, escrever, vocabulário), meta diária (padrão 20 min, configurável), sequência de dias praticados, calendário do mês e totais por habilidade. O bloco diário de inglês da rotina abre esta aba. |
 | Trilhas | Trilhas prontas por carreira (Auditor Fiscal, Policial Federal, Professor SEEDF de Português, Professor de Português, Programador, Front-end, Back-end, Mobile, DevOps/SRE, Cloud, Cibersegurança, Engenharia de Dados, Analista e Cientista de Dados, Engenheiro de IA, QA, UX/UI, Product Manager, Suporte) e por matéria, com tópicos na ordem de estudo, pesos, fontes e criação automática do ciclo. Cada tópico tem atalhos de pesquisa (Google, YouTube, questões). |
 | Matérias e tópicos | Matérias com cor, ícone, prioridade, dificuldade, meta semanal, datas, edital e status; tópicos/subtópicos em profundidade ilimitada; arrastar para reordenar, mover, duplicar subárvore, colar a estrutura do edital como texto indentado, pesquisa em todos os níveis, progresso ponderado, materiais/links, arquivamento. |
 | Cronômetro | Cronômetro, temporizador, Pomodoro e intervalos personalizados; pausar/continuar/finalizar/cancelar/reiniciar; alertas visuais e sonoros; resumo antes de salvar; lançamento manual sem sobreposição. |
@@ -86,6 +88,11 @@ Nunca use a chave `service_role` em variáveis `VITE_*`: tudo que começa com `V
 
 O modo local é explícito: uma faixa no topo de todas as telas avisa que não há sincronização. Ele reproduz as regras do banco (padrões, restrições únicas, cascatas e a revisão atômica de flashcards) para que o comportamento seja o mesmo nos dois modos. Limpar os dados do navegador apaga os dados do modo local — exporte antes em Configurações → Seus dados.
 
+**Rotinas e Inglês não exigem migração nova** — usam as tabelas existentes, iguais nos dois modos:
+
+- **Rotina:** matérias e tópicos (instalados pelas trilhas), um ciclo ativo, um cronograma (`study_plans`, com a configuração completa da rotina em `config.routine`, usada pelo modo manual) e seus blocos, tarefas de calendário marcadas com `Rotina: <nome>` na descrição e uma meta semanal.
+- **Inglês:** a matéria "Inglês" com um tópico por habilidade; cada prática é uma sessão de estudo manual. A meta diária fica nas configurações do perfil (`englishGoalMinutes`, no mesmo JSON das demais configurações).
+
 ## Configurar o backend (Supabase)
 
 1. Crie um projeto no Supabase.
@@ -125,6 +132,8 @@ npm run check        # tudo acima + build de produção
 - **Tempo líquido e cronômetro** (`src/lib/__tests__/engine.test.ts`): desconto de pausas abertas/fechadas, tempo congelado durante a pausa (inclusive o arredondamento), reconstrução só a partir de timestamps (equivale a recarregar a página), sessões que cruzam a meia-noite no fuso do usuário, fases de Pomodoro.
 - **Serviço de sessões no backend local** (`src/services/__tests__/sessions.test.ts`): iniciar/pausar/continuar/finalizar, cliques repetidos sem duplicar sessão ou pausa, confirmação idempotente, sessão cancelada não contabilizada, avanço do ciclo, revisões automáticas, lançamento manual sem sobreposição, cascata de exclusão, persistência idempotente da revisão de flashcard.
 - **Ciclo, repetição espaçada, planejador, datas** (`rules.test.ts`) e **CSV, estrutura do edital, árvore, metas e voz** (`parsers-goals.test.ts`).
+- **Rotinas** (`routine.test.ts`, `routineTemplates.test.ts`, `src/pages/routines/__tests__/`): motor determinístico, modelos (incluindo a transição Analista → Cientista de Dados), aplicação idempotente e edição manual com regerar.
+- **Inglês** (`english.test.ts`, `src/pages/english/__tests__/`): minutos por dia, meta, sequência, calendário do mês e totais por habilidade.
 - **Migração real + RLS** (`supabase/tests/rls.test.ts`): executa o SQL em PostgreSQL (PGlite) com um stub do esquema `auth` e verifica que um usuário não lê, altera, exclui nem referencia dados de outro; que `anon` não acessa tabelas; restrições de questões; sessão ativa única; a view de tempo líquido; e a RPC atômica de flashcards.
 
 Testes de ponta a ponta no navegador (modo local; requer `npm run dev` em outro terminal):
@@ -145,9 +154,10 @@ src/
   lib/
     data/           camada de dados: interface comum, backend Supabase, backend local (Dexie), metadados do esquema
     timer/          motor do cronômetro (timestamps) e som
-    cycle.ts srs.ts planner.ts goals.ts stats.ts time.ts tree.ts validation.ts
+    cycle.ts srs.ts planner.ts routine.ts english.ts goals.ts stats.ts time.ts tree.ts validation.ts
+  content/          trilhas prontas (trails.ts) e modelos de rotina (routines.ts)
   pages/            uma pasta por módulo
-  services/         operações compostas (sessões, flashcards, mapas)
+  services/         operações compostas (sessões, flashcards, mapas, trilhas, rotinas, inglês)
   types/db.ts       tipos do modelo de dados
 supabase/
   migrations/       SQL versionado
@@ -167,6 +177,15 @@ Desempenho: consultas filtradas no banco e paginadas ("Carregar mais"), cache co
 - **Cancelar** descarta a sessão (não conta) ou, por escolha explícita, salva o tempo aproveitado.
 - **Ciclo**: avança apenas quando um bloco é concluído por sessões vinculadas; execução parcial pergunta se mantém a posição (retomar) ou avança; dias sem estudo não alteram a posição.
 - **Cronograma automático**: regras determinísticas listadas na própria tela (sem IA). A proposta só substitui blocos *pendentes* a partir de hoje — concluídos, parciais e não realizados ficam como histórico.
+- **Rotinas** (`src/lib/routine.ts`, lista `ROUTINE_RULES` mostrada na tela; sem IA e sem serviços externos — as mesmas entradas geram sempre a mesma rotina):
+  - pilares **diários** (ex.: inglês) ganham um bloco fixo em todos os dias disponíveis, no primeiro horário livre;
+  - pilares **semanais** (ex.: LinkedIn, resolver problemas) viram uma tarefa recorrente no dia com mais tempo livre;
+  - pilares de **alguns dias por semana** entram no ciclo de estudos (duração proporcional ao peso, em múltiplos de 5 min, via `distributeByWeight`) e no cronograma automático (`generatePlan`);
+  - os limites diário e semanal são respeitados; blocos fixos e tarefas viram compromissos para o cronograma não sobrepor horários;
+  - marcos (ex.: certificações) a menos de 30 dias aumentam a prioridade das matérias do pilar ligado; o modelo sugere exemplos sem inventar datas;
+  - empates: maior peso e, depois, ordem alfabética do pilar.
+- **Aplicar uma rotina** é idempotente: reaproveita matérias e tópicos existentes (via trilhas), reconcilia ciclo, cronograma, tarefas e meta pelo nome/marcador da rotina, mostra a diferença antes (`diffPlan`) e só altera o necessário. Nunca apaga sessões de estudo, nem blocos ou itens já usados por alguma sessão.
+- **Inglês**: cada prática é uma sessão manual da matéria "Inglês" (um tópico por habilidade) e respeita a regra de não sobreposição; o dia conta para a sequência quando há prática registrada nele, e a meta diária é cumprida quando os minutos do dia alcançam o valor configurado.
 - **Revisões**: só são marcadas como feitas por ação explícita (botão ou caixa marcada no resumo da sessão).
 - **Repetição espaçada**: SM-2 com quatro respostas; parâmetros ajustáveis em Configurações; cada resposta é gravada junto com o novo agendamento em uma transação idempotente.
 - **Exclusões**: organização/planejamento em cascata; históricos (sessões, questões, cartões, mapas) apenas perdem o vínculo e continuam nos relatórios. A confirmação mostra quantos registros serão excluídos ou desvinculados, e matérias podem ser arquivadas em vez de excluídas.
