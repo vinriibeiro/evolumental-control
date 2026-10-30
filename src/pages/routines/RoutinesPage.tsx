@@ -1,18 +1,33 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, Info, ListChecks, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Info, ListChecks, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { useBackend } from '@/app/data'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select } from '@/components/ui/Field'
 import { Badge, Card, PageHeader } from '@/components/ui/layout'
-import { useToast } from '@/components/ui/feedback'
-import { useTransaction } from '@/hooks/data'
+import { Modal } from '@/components/ui/Modal'
+import { Spinner, useToast } from '@/components/ui/feedback'
+import { useAll, useTransaction } from '@/hooks/data'
 import { useSettings } from '@/hooks/useSettings'
 import { ROUTINE_TEMPLATES, cloneRoutineTemplate, routineTemplateById, type RoutineTemplatePillar } from '@/content/routines'
+import { eq } from '@/lib/data/types'
 import type { PillarFrequency } from '@/lib/routine'
 import { ACTIVITY_LABELS, WEEKDAY_LABELS, WEEKDAY_SHORT } from '@/lib/labels'
 import { addDays, formatDayKey, todayKey, weekday } from '@/lib/time'
 import { cn } from '@/lib/cn'
-import { applyRoutine, pillarSubjectDefs, previewRoutine, previewSubjectId, type ApplyRoutineResult, type RoutineDraft, type RoutineDraftMilestone } from '@/services/routines'
+import {
+  applyRoutine,
+  appliedRoutineFrom,
+  diffRoutine,
+  loadAppliedRoutine,
+  pillarSubjectDefs,
+  previewRoutine,
+  previewSubjectId,
+  type ApplyRoutineResult,
+  type RoutineDiff,
+  type RoutineDraft,
+  type RoutineDraftMilestone,
+} from '@/services/routines'
 import type { ActivityType } from '@/types/db'
 
 const STEPS = ['Modelo', 'Pilares', 'Disponibilidade', 'Prévia'] as const
@@ -33,6 +48,17 @@ function defaultDays(): Record<number, DayForm> {
   return out
 }
 
+/** O formulário tem uma janela por dia: usa a primeira de cada dia da rotina aplicada. */
+function daysFromAvailability(av: RoutineDraft['availability']): Record<number, DayForm> {
+  const base = defaultDays()
+  const out: Record<number, DayForm> = {}
+  for (let d = 0; d < 7; d++) {
+    const w = av.days[d]?.[0]
+    out[d] = w ? { on: true, start: w.start, end: w.end } : { ...base[d], on: false }
+  }
+  return out
+}
+
 export default function RoutinesPage() {
   const settings = useSettings()
   const toast = useToast()
@@ -50,13 +76,68 @@ export default function RoutinesPage() {
   const [weeks, setWeeks] = useState('4')
   const [done, setDone] = useState<ApplyRoutineResult | null>(null)
   const [progress, setProgress] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [diff, setDiff] = useState<RoutineDiff | 'loading' | null>(null)
+  const [legacyNotes, setLegacyNotes] = useState<string[]>([])
   const headingRef = useRef<HTMLHeadingElement>(null)
   const firstRender = useRef(true)
+  const backend = useBackend()
+  const activePlans = useAll('study_plans', { filters: [eq('status', 'active')] })
+  const applied = useMemo(() => appliedRoutineFrom(activePlans.data ?? []), [activePlans.data])
 
   const apply = useTransaction(
     ['subjects', 'topics', 'study_materials', 'study_cycles', 'study_cycle_items', 'study_plans', 'study_plan_items', 'calendar_tasks', 'study_goals'],
     (b, d: RoutineDraft) => applyRoutine(b, d, { onProgress: setProgress }),
   )
+
+  const loadApplied = async () => {
+    if (!applied) return
+    let source = applied
+    if (applied.legacy) {
+      // Versão anterior: completa pesos e marcos com o que está gravado.
+      try {
+        source = (await loadAppliedRoutine(backend)) ?? applied
+      } catch (e) {
+        toast.error(e)
+      }
+    }
+    setLegacyNotes(source.legacy?.missing ?? [])
+    const d = source.draft
+    const av = d.availability
+    setTemplateId(d.templateId)
+    setName(d.name)
+    setPillars(d.pillars.map((p) => ({ ...p })))
+    setMilestones(d.milestones.map((m) => ({ ...m })))
+    setDays(daysFromAvailability(av))
+    setDailyLimit(av.dailyLimitMinutes == null ? '' : String(av.dailyLimitMinutes))
+    setWeeklyLimit(av.weeklyLimitMinutes == null ? '' : String(av.weeklyLimitMinutes))
+    setBreakMin(String(av.breakMinutes ?? 10))
+    setStartDate(d.startDate)
+    setWeeks(String(d.weeks))
+    setEditing(true)
+    setDone(null)
+    setStep(1)
+  }
+
+  const startOver = () => {
+    setEditing(false)
+    setLegacyNotes([])
+    chooseTemplate(ROUTINE_TEMPLATES[0].id)
+    setDays(defaultDays())
+    setStartDate(todayKey(settings.timezone))
+    setStep(0)
+  }
+
+  /** Só lê os dados: cancelar a prévia não grava nada. */
+  const openDiff = async () => {
+    setDiff('loading')
+    try {
+      setDiff(await diffRoutine(backend, draft))
+    } catch (e) {
+      setDiff(null)
+      toast.error(e)
+    }
+  }
 
   useEffect(() => {
     if (firstRender.current) {
@@ -109,6 +190,8 @@ export default function RoutinesPage() {
   const run = async () => {
     try {
       setDone(await apply.mutateAsync(draft))
+      setDiff(null)
+      setLegacyNotes([])
     } catch (e) {
       toast.error(e)
     }
@@ -122,6 +205,38 @@ export default function RoutinesPage() {
         title="Rotinas"
         description="Monte uma rotina por regras claras (sem IA): escolha um modelo, ajuste os pilares e sua disponibilidade, confira a prévia e aplique. Aplicar de novo não duplica nada."
       />
+
+      {editing ? (
+        <Card className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4" role="status">
+          <p className="text-sm text-ink">
+            Editando a rotina aplicada <strong>{name}</strong>. Ajuste pilares, pesos, frequências e horários; ao regerar, você vê o que entra, sai e muda antes de confirmar.
+          </p>
+          <Button size="sm" variant="ghost" onClick={startOver}>
+            Começar do zero
+          </Button>
+          {legacyNotes.length > 0 && (
+            <div className="w-full text-xs text-muted">
+              <p className="font-medium text-ink">Esta rotina foi aplicada por uma versão anterior, que não salvava a configuração. Revise antes de regerar:</p>
+              <ul className="list-disc pl-5">
+                {legacyNotes.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      ) : (
+        applied && (
+          <Card className="mb-5 flex flex-wrap items-center justify-between gap-3 p-4">
+            <p className="text-sm text-ink">
+              Rotina aplicada: <strong>{applied.draft.name}</strong> ({applied.draft.pillars.length} pilares, desde {formatDayKey(applied.draft.startDate)}).
+            </p>
+            <Button size="sm" icon={<Pencil className="size-3.5" />} onClick={loadApplied}>
+              Editar rotina aplicada
+            </Button>
+          </Card>
+        )
+      )}
 
       <nav aria-label="Passos do assistente" className="mb-5">
         <ol className="flex flex-wrap gap-2" onKeyDown={onStepperKey}>
@@ -154,7 +269,8 @@ export default function RoutinesPage() {
 
         {step === 0 && (
           <div className="space-y-4">
-            <fieldset className="grid gap-3 sm:grid-cols-2">
+            {editing && <p className="text-sm text-muted">Na edição, o modelo e o nome ficam fixos para atualizar a mesma rotina. Para trocar de modelo, use "Começar do zero".</p>}
+            <fieldset className="grid gap-3 sm:grid-cols-2" disabled={editing} hidden={editing}>
               <legend className="sr-only">Modelo de rotina</legend>
               {ROUTINE_TEMPLATES.map((t) => (
                 <label
@@ -171,7 +287,7 @@ export default function RoutinesPage() {
               ))}
             </fieldset>
             <Field label="Nome da rotina" hint="O ciclo, o cronograma e a meta criados levam este nome; aplicar de novo com o mesmo nome atualiza a mesma rotina.">
-              {(id, d) => <Input id={id} aria-describedby={d} value={name} maxLength={120} onChange={(e) => setName(e.target.value)} className="max-w-md" />}
+              {(id, d) => <Input id={id} aria-describedby={d} value={name} maxLength={120} readOnly={editing} onChange={(e) => setName(e.target.value)} className="max-w-md" />}
             </Field>
           </div>
         )}
@@ -340,12 +456,72 @@ export default function RoutinesPage() {
           <Button variant="primary" onClick={() => go(step + 1)}>
             Próximo: {STEPS[step + 1]} <ArrowRight className="size-4" />
           </Button>
+        ) : editing ? (
+          <Button variant="primary" icon={<RefreshCw className="size-4" />} onClick={openDiff} loading={diff === 'loading'} disabled={problems.length > 0}>
+            Regerar rotina
+          </Button>
         ) : (
           <Button variant="primary" icon={<ListChecks className="size-4" />} onClick={run} loading={apply.isPending} disabled={problems.length > 0}>
             {apply.isPending ? progress || 'Aplicando…' : 'Aplicar rotina'}
           </Button>
         )}
       </div>
+
+      <Modal
+        open={diff !== null}
+        onClose={() => !apply.isPending && setDiff(null)}
+        size="lg"
+        title="Prévia das diferenças"
+        description="Nada foi gravado ainda. Confirme para alterar só o que está listado; sessões de estudo e blocos já realizados ficam como estão."
+        footer={
+          <>
+            <Button onClick={() => setDiff(null)} disabled={apply.isPending}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={run} loading={apply.isPending} disabled={diff === null || diff === 'loading' || diff.unchanged}>
+              {apply.isPending ? progress || 'Aplicando…' : 'Confirmar e regerar'}
+            </Button>
+          </>
+        }
+      >
+        {diff === 'loading' || diff === null ? <Spinner /> : <DiffView diff={diff} />}
+      </Modal>
+    </div>
+  )
+}
+
+function DiffView({ diff }: { diff: RoutineDiff }) {
+  if (diff.unchanged) return <p className="text-sm text-muted">Nenhuma diferença: a rotina aplicada já corresponde a esta configuração.</p>
+  const groups: Array<[string, string[], string]> = [
+    ['Entra', diff.entering, 'text-success'],
+    ['Sai', diff.leaving, 'text-danger'],
+    ['Muda', diff.changing, 'text-ink'],
+  ]
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">
+        Cronograma: {diff.plan.added} bloco(s) novo(s), {diff.plan.removed} pendente(s) removido(s), {diff.plan.kept} mantido(s). Ciclo: {diff.cycle.added} novo(s), {diff.cycle.updated} ajustado(s),{' '}
+        {diff.cycle.removed} removido(s). Calendário: {diff.tasks.added} nova(s), {diff.tasks.updated} atualizada(s), {diff.tasks.removed} removida(s).
+      </p>
+      {diff.configChanged && diff.entering.length === 0 && diff.leaving.length === 0 && diff.changing.every((l) => !/^(Ciclo|Cronograma|Calendário|Meta|Período)/.test(l)) && (
+        <p className="text-sm text-muted">Os itens gerados continuam os mesmos; confirmar só salva a configuração editada.</p>
+      )}
+      {groups.map(([title, lines, color]) => (
+        <section key={title} aria-label={title}>
+          <h3 className={cn('mb-1 text-sm font-semibold', color)}>
+            {title} ({lines.length})
+          </h3>
+          {lines.length === 0 ? (
+            <p className="text-xs text-muted">Nada.</p>
+          ) : (
+            <ul className="list-disc space-y-0.5 pl-5 text-sm text-ink">
+              {lines.map((l) => (
+                <li key={l}>{l}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
     </div>
   )
 }
