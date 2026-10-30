@@ -4,7 +4,7 @@
 // fixos diários, tarefas recorrentes e marcos. Veja ROUTINE_RULES.
 import type { ActivityType, PlanConfig, Subject, TimeWindow } from '@/types/db'
 import { distributeByWeight } from '@/lib/cycle'
-import { subtractIntervals } from '@/lib/planner'
+import { generatePlan, subtractIntervals } from '@/lib/planner'
 import { addDays, diffDays, hhmmToMinutes, minutesToHhmm, weekday, type DayKey } from '@/lib/time'
 
 export const ROUTINE_RULES = [
@@ -341,4 +341,76 @@ export function generateRoutine(input: RoutineInput): RoutineOutput {
 
 function clampDays(n: number | undefined): number {
   return Math.min(7, Math.max(1, Math.floor(n ?? 1)))
+}
+
+/** Rotina aplicada (compatível com o rascunho salvo); marcos sem data são ignorados. */
+export interface RoutineDaySource {
+  pillars: Array<RoutinePillar & { subjectKeys?: string[] }>
+  availability: RoutineAvailability
+  startDate: DayKey
+  weeks?: number
+  milestones?: Array<{ title: string; date: DayKey | null; pillarId?: string | null }>
+}
+
+export interface RoutineDayBlock {
+  /** daily = bloco fixo; weekly = tarefa recorrente; cycle = bloco do cronograma automático. */
+  kind: 'daily' | 'weekly' | 'cycle'
+  start_time: string
+  duration_minutes: number
+  activity_type: ActivityType
+}
+
+export interface RoutineDayPillar {
+  pillarId: string
+  name: string
+  frequency: PillarFrequency
+  /** Pilar de inglês diário: o bloco leva à aba Inglês. */
+  english: boolean
+  minutes: number
+  blocks: RoutineDayBlock[]
+}
+
+const plain = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+export function isEnglishPillar(p: Pick<RoutinePillar, 'id' | 'name'>): boolean {
+  return p.id === 'ingles' || /\b(ingles|english)\b/.test(plain(p.name))
+}
+
+/**
+ * Blocos de um dia da rotina aplicada, agrupados por pilar (na ordem dos pilares).
+ * Fora do período da rotina (antes do início ou depois das semanas planejadas) não há blocos.
+ */
+export function routineDayBlocks(routine: RoutineDaySource, date: DayKey): RoutineDayPillar[] {
+  const weeks = Math.max(1, Math.floor(routine.weeks ?? 4))
+  if (date < routine.startDate || date > addDays(routine.startDate, weeks * 7 - 1)) return []
+  // Matérias provisórias por pilar, só para o cronograma devolver blocos ligáveis ao pilar.
+  const pillarOfSubject = new Map<string, string>()
+  const pillars = routine.pillars.map((p) => {
+    if (p.frequency !== 'days_per_week') return p
+    const ids = p.subjectIds.length ? p.subjectIds : p.subjectKeys?.length ? p.subjectKeys.map((k) => `key:${k}`) : [`pillar:${p.id}`]
+    for (const id of ids) if (!pillarOfSubject.has(id)) pillarOfSubject.set(id, p.id)
+    return { ...p, subjectIds: ids }
+  })
+  const milestones = (routine.milestones ?? []).filter((m): m is RoutineMilestone => Boolean(m.date))
+  const out = generateRoutine({ pillars, availability: routine.availability, startDate: routine.startDate, weeks, milestones })
+
+  const byPillar = new Map<string, RoutineDayBlock[]>()
+  const push = (pid: string, b: RoutineDayBlock) => byPillar.set(pid, [...(byPillar.get(pid) ?? []), b])
+  const wd = weekday(date)
+  for (const b of out.dailyBlocks) if (b.weekday === wd) push(b.pillarId, { kind: 'daily', start_time: b.start_time, duration_minutes: b.duration_minutes, activity_type: b.activity_type })
+  for (const t of out.recurringTasks) {
+    const p = pillars.find((x) => x.id === t.pillarId)!
+    if (t.dates.includes(date)) push(t.pillarId, { kind: 'weekly', start_time: t.start_time, duration_minutes: t.duration_minutes, activity_type: p.activityType })
+  }
+  for (const b of generatePlan(out.planConfig, out.planSubjects, out.range, routine.startDate)) {
+    const pid = pillarOfSubject.get(b.subject_id)
+    if (b.date === date && pid) push(pid, { kind: 'cycle', start_time: b.start_time, duration_minutes: b.duration_minutes, activity_type: b.activity_type })
+  }
+
+  return pillars
+    .filter((p) => byPillar.has(p.id))
+    .map((p) => {
+      const blocks = byPillar.get(p.id)!.sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
+      return { pillarId: p.id, name: p.name, frequency: p.frequency, english: isEnglishPillar(p), minutes: blocks.reduce((a, b) => a + b.duration_minutes, 0), blocks }
+    })
 }

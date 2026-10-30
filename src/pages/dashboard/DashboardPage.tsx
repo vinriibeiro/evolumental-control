@@ -6,6 +6,7 @@ import { Card, CardHeader, ColorDot, PageHeader, Progress, StatCard } from '@/co
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui/feedback'
 import { ChartCard, ColumnChart, ConsistencyGrid, RankBars } from '@/components/charts/Charts'
 import { PeriodPicker, usePeriod } from '@/components/PeriodPicker'
+import { TodayRoutine } from '@/components/TodayRoutine'
 import { useAll, useCount, useList, useSessions } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
 import { useSettings } from '@/hooks/useSettings'
@@ -108,6 +109,10 @@ export default function DashboardPage() {
           icon={<BookCheck className="size-4" />}
           hint={topicsTotal.data ? `${(topicsTotal.data ?? 0) - (topicsDone.data ?? 0)} pendente(s)` : 'Cadastre tópicos'}
         />
+      </div>
+
+      <div className="mt-4">
+        <TodayRoutine />
       </div>
 
       <div className="mt-8 mb-4 flex flex-wrap items-center justify-between gap-3">

@@ -4,6 +4,15 @@ import { distributeByWeight } from '@/lib/cycle'
 import { generatePlan, PLANNER_RULES } from '@/lib/planner'
 import { hhmmToMinutes, startOfWeek, weekday } from '@/lib/time'
 import routineSource from '@/lib/routine.ts?raw'
+import { createElement } from 'react'
+import { MemoryRouter } from 'react-router-dom'
+import { render, screen } from '@testing-library/react'
+import { isEnglishPillar, routineDayBlocks } from '@/lib/routine'
+import { addDays, eachDay } from '@/lib/time'
+import { ROUTINE_TEMPLATES, cloneRoutineTemplate } from '@/content/routines'
+import { TodayRoutineView } from '@/components/TodayRoutine'
+import dashboardSource from '@/pages/dashboard/DashboardPage.tsx?raw'
+import workspaceSource from '@/pages/workspace/WorkspacePage.tsx?raw'
 
 const evening = [{ start: '19:00', end: '22:00' }]
 
@@ -213,5 +222,122 @@ describe('generateRoutine', () => {
     expect(r.cycleItems).toEqual([])
     expect(r.planConfig.subjectIds).toEqual([])
     expect(generatePlan(r.planConfig, r.planSubjects, r.range)).toEqual([])
+  })
+})
+
+describe('routineDayBlocks', () => {
+  const monday = '2026-11-02'
+
+  it('devolve os blocos do dia agrupados por pilar, em horário crescente', () => {
+    const day = routineDayBlocks(input(), monday)
+    const en = day.find((p) => p.pillarId === 'en')!
+    const fixed = generateRoutine(input()).dailyBlocks.find((b) => b.pillarId === 'en' && b.weekday === 1)!
+    expect(en.english).toBe(true)
+    expect(en.blocks).toEqual([{ kind: 'daily', start_time: fixed.start_time, duration_minutes: 30, activity_type: 'other' }])
+    for (const p of day) {
+      expect(p.minutes).toBe(p.blocks.reduce((a, b) => a + b.duration_minutes, 0))
+      const starts = p.blocks.map((b) => hhmmToMinutes(b.start_time))
+      expect(starts).toEqual([...starts].sort((a, b) => a - b))
+    }
+    // Ordem dos pilares da rotina.
+    const order = input().pillars.map((p) => p.id)
+    expect(day.map((p) => order.indexOf(p.pillarId))).toEqual(day.map((p) => order.indexOf(p.pillarId)).sort((a, b) => a - b))
+  })
+
+  it('inclui a tarefa semanal só nas datas dela', () => {
+    const task = generateRoutine(input()).recurringTasks.find((t) => t.pillarId === 'li')!
+    const on = routineDayBlocks(input(), task.dates[0]).find((p) => p.pillarId === 'li')
+    expect(on?.blocks).toEqual([{ kind: 'weekly', start_time: task.start_time, duration_minutes: 30, activity_type: 'other' }])
+    expect(routineDayBlocks(input(), addDays(task.dates[0], 1)).find((p) => p.pillarId === 'li')).toBeUndefined()
+  })
+
+  it('blocos do ciclo batem com o cronograma automático em todo o período', () => {
+    const r = generateRoutine(input())
+    const planned = generatePlan(r.planConfig, r.planSubjects, r.range, monday)
+    const pillarOf: Record<string, string> = { 's-ds': 'ds', 's-an': 'an', 's-pb': 'pb', 's-ce': 'ce' }
+    for (const date of eachDay(r.range.from, r.range.to)) {
+      const expected = planned.filter((b) => b.date === date)
+      const got = routineDayBlocks(input(), date).flatMap((p) => p.blocks.filter((b) => b.kind === 'cycle').map((b) => ({ ...b, pillarId: p.pillarId })))
+      expect(got.length).toBe(expected.length)
+      for (const b of expected) expect(got).toContainEqual({ kind: 'cycle', start_time: b.start_time, duration_minutes: b.duration_minutes, activity_type: b.activity_type, pillarId: pillarOf[b.subject_id] })
+    }
+    expect(planned.length).toBeGreaterThan(0)
+  })
+
+  it('fora do período ou em dia sem disponibilidade não há blocos', () => {
+    expect(routineDayBlocks(input(), '2026-11-01')).toEqual([])
+    expect(routineDayBlocks(input(), addDays(monday, 21))).toEqual([])
+    expect(routineDayBlocks(input(), '2026-11-08')).toEqual([]) // domingo sem horário
+  })
+
+  it('é determinística e não altera a rotina recebida', () => {
+    const src = input()
+    const copy = JSON.parse(JSON.stringify(src))
+    expect(routineDayBlocks(src, monday)).toEqual(routineDayBlocks(input(), monday))
+    expect(src).toEqual(copy)
+  })
+
+  it('funciona com o modelo de transição aplicado (pilares sem matérias ligadas)', () => {
+    const t = cloneRoutineTemplate(ROUTINE_TEMPLATES.find((x) => x.id === 'transicao_analista_cientista')!)
+    const routine = {
+      pillars: t.pillars,
+      availability: { days: { 1: evening, 2: evening, 3: evening, 4: evening, 5: evening, 6: [{ start: '09:00', end: '12:00' }] }, dailyLimitMinutes: 150, weeklyLimitMinutes: 720, breakMinutes: 10 },
+      startDate: monday,
+      weeks: 2,
+      milestones: t.milestones,
+    }
+    const week = eachDay(monday, addDays(monday, 6)).map((d) => routineDayBlocks(routine, d))
+    const ingles = week.slice(0, 6).map((day) => day.find((p) => p.pillarId === 'ingles'))
+    expect(ingles.every((p) => p?.english && p.blocks[0].kind === 'daily')).toBe(true)
+    expect(week.flat().some((p) => p.pillarId === 'ciencia_dados' && p.blocks.some((b) => b.kind === 'cycle'))).toBe(true)
+    expect(week.flat().filter((p) => p.english).every((p) => p.pillarId === 'ingles')).toBe(true)
+  })
+
+  it('reconhece o pilar de inglês pelo id ou pelo nome', () => {
+    expect(isEnglishPillar({ id: 'ingles', name: 'Qualquer' })).toBe(true)
+    expect(isEnglishPillar({ id: 'x', name: 'Inglês diário' })).toBe(true)
+    expect(isEnglishPillar({ id: 'x', name: 'English practice' })).toBe(true)
+    expect(isEnglishPillar({ id: 'x', name: 'LinkedIn' })).toBe(false)
+  })
+})
+
+describe('cartão "Rotina de hoje"', () => {
+  const view = (props: Partial<Parameters<typeof TodayRoutineView>[0]> = {}) =>
+    render(
+      createElement(
+        MemoryRouter,
+        null,
+        createElement(TodayRoutineView, { routineName: 'Minha rotina', pillars: routineDayBlocks(input(), '2026-11-02'), englishMinutes: 0, englishGoal: 20, ...props }),
+      ),
+    )
+
+  it('mostra os blocos por pilar e o bloco de inglês leva à aba Inglês', () => {
+    view()
+    expect(screen.getByText('Rotina de hoje')).toBeInTheDocument()
+    expect(screen.getByText('Inglês diário')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Inglês diário: abrir a aba Inglês' })).toHaveAttribute('href', '/ingles')
+  })
+
+  it('mostra o inglês do dia como pendente ou feito conforme a meta', () => {
+    const { unmount } = view({ englishMinutes: 5 })
+    expect(screen.getByText(/Inglês de hoje: pendente \(5\/20 min\)/)).toBeInTheDocument()
+    unmount()
+    view({ englishMinutes: 20 })
+    expect(screen.getByText(/Inglês de hoje: feito/)).toBeInTheDocument()
+    expect(screen.getByText('Feito')).toBeInTheDocument()
+  })
+
+  it('sem rotina aplicada, convida a criar e leva à página Rotinas', () => {
+    view({ routineName: null, pillars: [] })
+    expect(screen.getByText(/ainda não tem uma rotina aplicada/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Criar minha rotina' })).toHaveAttribute('href', '/rotinas')
+    expect(screen.queryByText(/Inglês de hoje/)).not.toBeInTheDocument()
+  })
+
+  it('aparece na Visão geral e no Meu espaço', () => {
+    for (const src of [dashboardSource, workspaceSource]) {
+      expect(src).toMatch(/import \{ TodayRoutine \} from '@\/components\/TodayRoutine'/)
+      expect(src).toContain('<TodayRoutine />')
+    }
   })
 })
