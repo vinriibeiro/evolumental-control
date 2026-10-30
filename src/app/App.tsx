@@ -25,6 +25,7 @@ const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
 const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
+const EnglishPage = lazy(() => import('@/pages/english/EnglishPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -67,6 +68,7 @@ export function App() {
                   <Route path="cronograma" element={<SchedulePage />} />
                   <Route path="ciclos" element={<CyclesPage />} />
                   <Route path="calendario" element={<CalendarPage />} />
+                  <Route path="ingles" element={<EnglishPage />} />
                   <Route path="flashcards" element={<DecksPage />} />
                   <Route path="flashcards/revisar" element={<StudyCardsPage />} />
                   <Route path="flashcards/:id" element={<DeckDetailPage />} />

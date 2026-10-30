@@ -4,9 +4,13 @@ import { useBackend } from '@/app/data'
 import type { UserSettings } from '@/types/db'
 import { browserTimeZone, isValidTimeZone } from '@/lib/time'
 import { DEFAULT_SRS } from '@/lib/srs'
+import { DEFAULT_ENGLISH_GOAL_MINUTES, normalizeEnglishGoal } from '@/lib/english'
 import { invalidateTables } from './data'
 
-export const DEFAULT_SETTINGS: UserSettings = {
+/** Configurações do app: as do perfil mais a meta diária de inglês (gravada no mesmo JSON). */
+export type AppSettings = UserSettings & { englishGoalMinutes: number }
+
+export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
   sound: true,
   voiceURI: null,
@@ -20,13 +24,15 @@ export const DEFAULT_SETTINGS: UserSettings = {
   autoReviews: true,
   reviewIntervals: [1, 7, 30],
   srs: DEFAULT_SRS,
+  englishGoalMinutes: DEFAULT_ENGLISH_GOAL_MINUTES,
 }
 
-export function mergeSettings(raw: Partial<UserSettings> | undefined): UserSettings {
+export function mergeSettings(raw: Partial<AppSettings> | undefined): AppSettings {
   const s = { ...DEFAULT_SETTINGS, ...(raw ?? {}) }
   s.pomodoro = { ...DEFAULT_SETTINGS.pomodoro, ...(raw?.pomodoro ?? {}) }
   s.srs = { ...DEFAULT_SRS, ...(raw?.srs ?? {}) }
   if (!isValidTimeZone(s.timezone)) s.timezone = DEFAULT_SETTINGS.timezone
+  s.englishGoalMinutes = normalizeEnglishGoal(s.englishGoalMinutes)
   return s
 }
 
@@ -48,7 +54,7 @@ export function useUpdateSettings() {
   const backend = useBackend()
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (patch: Partial<UserSettings> & { display_name?: string }) => {
+    mutationFn: async (patch: Partial<AppSettings> & { display_name?: string }) => {
       const current = await backend.getProfile()
       const { display_name, ...rest } = patch
       return backend.updateProfile({
