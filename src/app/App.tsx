@@ -25,6 +25,7 @@ const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
 const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
+const RoutinesPage = lazy(() => import('@/pages/routines/RoutinesPage'))
 const EnglishPage = lazy(() => import('@/pages/english/EnglishPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
@@ -64,7 +65,8 @@ export function App() {
                   <Route path="materias" element={<SubjectsPage />} />
                   <Route path="materias/:id" element={<SubjectDetailPage />} />
                   <Route path="trilhas" element={<TrailsPage />} />
-                  <Route path="cronometro" element={<TimerPage />} />
+                  <Route path="rotinas" element={<RoutinesPage />} />
+                  <Route path="cronometro"element={<TimerPage />} />
                   <Route path="cronograma" element={<SchedulePage />} />
                   <Route path="ciclos" element={<CyclesPage />} />
                   <Route path="calendario" element={<CalendarPage />} />
