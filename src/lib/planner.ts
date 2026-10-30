@@ -1,7 +1,7 @@
 // Planejamento automático do cronograma — regras determinísticas e
 // transparentes (sem IA). Veja PLANNER_RULES para o texto exibido na tela.
 import type { ActivityType, PlanConfig, StudyPlanItem, Subject, TimeWindow } from '@/types/db'
-import { addDays, diffDays, eachDay, hhmmToMinutes, minutesToHhmm, startOfWeek, weekday, type DayKey } from '@/lib/time'
+import { addDays, diffDays, eachDay, hhmmToMinutes, minutesToHhmm, startOfWeek, weekday, windowRange, type DayKey } from '@/lib/time'
 
 export const PLANNER_RULES = [
   'Usa apenas os dias e horários disponíveis, descontando compromissos e intervalos.',
@@ -25,7 +25,7 @@ type Interval = [number, number]
 
 function windowsToIntervals(ws: TimeWindow[] = []): Interval[] {
   return ws
-    .map((w): Interval => [hhmmToMinutes(w.start), hhmmToMinutes(w.end)])
+    .map((w): Interval => windowRange(w))
     .filter(([a, b]) => b > a)
     .sort((a, b) => a[0] - b[0])
 }
@@ -262,4 +262,19 @@ export function replanLate<T extends ReplanBlock>(
     }
   }
   return out
+}
+
+/** Grupos de dias para repetir horários (0 = domingo … 6 = sábado). */
+export const DAY_GROUPS = {
+  all: [1, 2, 3, 4, 5, 6, 0],
+  weekdays: [1, 2, 3, 4, 5],
+  weekend: [6, 0],
+} as const
+
+/** Copia as janelas de um dia para os dias de destino, substituindo o que eles tinham (cópias independentes). */
+export function copyDayWindows(windows: Record<number, TimeWindow[]>, from: number, targets: readonly number[]): Record<number, TimeWindow[]> {
+  const source = windows[from] ?? []
+  const next: Record<number, TimeWindow[]> = { ...windows }
+  for (const day of targets) if (day !== from) next[day] = source.map((w) => ({ ...w }))
+  return next
 }

@@ -169,6 +169,24 @@ export function hhmmToMinutes(hhmm: string): number {
   return h * 60 + m
 }
 
+/**
+ * Início e fim (em minutos) de uma janela de horário do dia. Um fim "00:00" depois de um início
+ * maior que zero significa a meia-noite que encerra o dia (24:00), ex.: 22:00 às 00:00 = 2 h.
+ */
+export function windowRange(w: { start: string; end: string }): [number, number] {
+  const start = hhmmToMinutes(w.start)
+  const end = hhmmToMinutes(w.end)
+  return [start, end === 0 && start > 0 ? 1440 : end]
+}
+
+/** Total de minutos válidos de uma lista de janelas (janelas inválidas contam zero). */
+export function windowsTotalMinutes(list: Array<{ start: string; end: string }> = []): number {
+  return list.reduce((sum, w) => {
+    const [a, b] = windowRange(w)
+    return sum + Math.max(0, b - a)
+  }, 0)
+}
+
 export function minutesToHhmm(min: number): string {
   const m = ((min % 1440) + 1440) % 1440
   return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`
