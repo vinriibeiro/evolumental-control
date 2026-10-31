@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseStart, parseYoutube, youtubeEmbedUrl } from '../video'
+import { nextInQueue, parseStart, parseYoutube, youtubeEmbedUrl } from '../video'
 
 const ID = 'dQw4w9WgXcQ'
 
@@ -61,5 +61,21 @@ describe('youtubeEmbedUrl', () => {
     expect(youtubeEmbedUrl({ videoId: ID, playlistId: null, start: 0 })).toBe(`https://www.youtube-nocookie.com/embed/${ID}?rel=0`)
     expect(youtubeEmbedUrl({ videoId: ID, playlistId: null, start: 90 })).toBe(`https://www.youtube-nocookie.com/embed/${ID}?rel=0&start=90`)
     expect(youtubeEmbedUrl({ videoId: null, playlistId: 'PLabcdefghij123', start: 0 })).toBe('https://www.youtube-nocookie.com/embed/videoseries?rel=0&list=PLabcdefghij123')
+  })
+})
+
+describe('youtubeEmbedUrl com início automático', () => {
+  it('só liga o autoplay quando pedido', () => {
+    expect(youtubeEmbedUrl({ videoId: ID, playlistId: null, start: 0 }, { autoplay: true })).toBe(`https://www.youtube-nocookie.com/embed/${ID}?rel=0&autoplay=1`)
+  })
+})
+
+describe('nextInQueue', () => {
+  const queue = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+  it('devolve o próximo da fila, ou null no último e quando o atual não existe', () => {
+    expect(nextInQueue(queue, 'a')).toEqual({ id: 'b' })
+    expect(nextInQueue(queue, 'c')).toBeNull()
+    expect(nextInQueue(queue, 'x')).toBeNull()
+    expect(nextInQueue(queue, null)).toBeNull()
   })
 })

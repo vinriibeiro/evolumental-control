@@ -28,7 +28,7 @@ describe('menu lateral agrupado', () => {
 
   it('mostra as abas só nas páginas principais do grupo', () => {
     expect(tabsFor('/calendario').map((t) => t.label)).toEqual(['Calendário', 'Rotinas'])
-    expect(tabsFor('/biblioteca').map((t) => t.label)).toEqual(['Matérias', 'Trilhas', 'Inglês', 'Livros', 'Áudios', 'Flashcards', 'Revisões', 'Banco de questões', 'Desempenho'])
+    expect(tabsFor('/biblioteca').map((t) => t.label)).toEqual(['Matérias', 'Trilhas', 'Inglês', 'Livros', 'Áudios', 'Vídeos', 'Flashcards', 'Revisões', 'Banco de questões', 'Desempenho'])
     expect(tabsFor('/biblioteca/abc')).toEqual([])
     expect(tabsFor('/materias/123')).toEqual([])
     expect(tabsFor('/cronometro')).toEqual([])

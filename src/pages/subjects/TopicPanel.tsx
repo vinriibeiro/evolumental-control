@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Brain, ExternalLink, Layers, Link2, Pencil, Play, PlayCircle, Plus, Search, Trash2 } from 'lucide-react'
 import { searchLinks } from '@/lib/search'
 import { Button, IconButton } from '@/components/ui/Button'
@@ -15,7 +15,6 @@ import { addDays, formatDateTime, formatDayKey, formatDuration, todayKey, minute
 import { topicPath } from '@/lib/tree'
 import { urlSchema } from '@/lib/validation'
 import { parseYoutube } from '@/lib/video'
-import { VideoPlayer } from '@/components/VideoPlayer'
 import { StudiedButton } from '@/components/StudiedButton'
 import { TopicScheduling } from './TopicScheduling'
 import type { Subject, Topic } from '@/types/db'
@@ -197,7 +196,6 @@ export function Materials({ subjectId, topicId }: { subjectId: string; topicId: 
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [watching, setWatching] = useState<string | null>(null)
   const toast = useToast()
 
   const add = async () => {
@@ -225,16 +223,15 @@ export function Materials({ subjectId, topicId }: { subjectId: string; topicId: 
             <div className="flex items-center gap-2">
               {m.url && parseYoutube(m.url) ? (
                 <>
-                  <button
-                    type="button"
-                    aria-expanded={watching === m.id}
+                  <Link
+                    to={`/videos?video=${m.id}`}
                     aria-label={`Assistir ${m.title}`}
-                    onClick={() => setWatching(watching === m.id ? null : m.id)}
+                    title="Abrir na tela de Vídeos"
                     className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-ink hover:underline"
                   >
                     <PlayCircle className="size-4 shrink-0 text-accent-strong" aria-hidden />
                     <span className="truncate">{m.title}</span>
-                  </button>
+                  </Link>
                   <a href={m.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${m.title} no YouTube`} title="Abrir no YouTube" className="shrink-0 text-muted hover:text-ink">
                     <ExternalLink className="size-3.5" />
                   </a>
@@ -251,7 +248,6 @@ export function Materials({ subjectId, topicId }: { subjectId: string; topicId: 
                 <Trash2 className="size-3.5" />
               </IconButton>
             </div>
-            {watching === m.id && m.url && <VideoPlayer url={m.url} title={m.title} onClose={() => setWatching(null)} />}
           </li>
         ))}
       </ul>

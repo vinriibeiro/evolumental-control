@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '@/components/ui/feedback'
 
 const materials = [
@@ -21,21 +22,19 @@ afterEach(cleanup)
 const renderMaterials = () =>
   render(
     <ToastProvider>
-      <Materials subjectId="s1" topicId="t1" />
+      <MemoryRouter>
+        <Materials subjectId="s1" topicId="t1" />
+      </MemoryRouter>
     </ToastProvider>,
   )
 
 describe('materiais com vídeo do YouTube', () => {
-  it('toca o vídeo dentro do app ao clicar no título, no player sem cookies, e fecha', () => {
+  it('o título do vídeo leva para a tela de Vídeos, sem player dentro do tópico', () => {
     renderMaterials()
     expect(document.querySelector('iframe')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Assistir Git e GitHub — aula 1' }))
-    const frame = document.querySelector('iframe')
-    expect(frame?.getAttribute('src')).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0&start=30')
-    expect(frame?.getAttribute('title')).toBe('Vídeo: Git e GitHub — aula 1')
-    expect(screen.getByRole('link', { name: /Abrir no YouTube/ }).getAttribute('href')).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30')
-    fireEvent.click(screen.getByRole('button', { name: 'Fechar vídeo' }))
-    expect(document.querySelector('iframe')).toBeNull()
+    const link = screen.getByRole('link', { name: 'Assistir Git e GitHub — aula 1' })
+    expect(link.getAttribute('href')).toBe('/videos?video=m1')
+    expect(screen.getByRole('link', { name: /Abrir .* no YouTube/ }).getAttribute('href')).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30')
   })
 
   it('links que não são do YouTube continuam abrindo em outra aba', () => {

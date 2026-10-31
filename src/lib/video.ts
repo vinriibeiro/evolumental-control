@@ -48,9 +48,16 @@ export function parseYoutube(raw: string | null | undefined): YoutubeRef | null 
 }
 
 /** Endereço do player embutido (domínio sem cookies de rastreamento do YouTube). */
-export function youtubeEmbedUrl(ref: YoutubeRef): string {
+export function youtubeEmbedUrl(ref: YoutubeRef, opts: { autoplay?: boolean } = {}): string {
   const q = new URLSearchParams({ rel: '0' })
+  if (opts.autoplay) q.set('autoplay', '1')
   if (ref.start > 0 && ref.videoId) q.set('start', String(ref.start))
   if (ref.playlistId) q.set('list', ref.playlistId)
   return `https://www.youtube-nocookie.com/embed/${ref.videoId ?? 'videoseries'}?${q}`
+}
+
+/** Próximo item da fila de vídeos (na ordem das lições); null quando é o último ou o atual não está na fila. */
+export function nextInQueue<T extends { id: string }>(queue: readonly T[], currentId: string | null | undefined): T | null {
+  const i = queue.findIndex((v) => v.id === currentId)
+  return i >= 0 ? (queue[i + 1] ?? null) : null
 }
