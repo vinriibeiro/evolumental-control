@@ -23,4 +23,5 @@ O validador confere formato, ids, gabarito, alternativas repetidas e duplicatas.
 
 ## Estado atual
 - 2.000 questões de **SQL** (10 subtemas, 200 por subtema), geradas com os resultados verificados pela execução real das consultas.
-- Os demais temas (Python, Pandas, Estatística, Machine Learning etc.) entram quando as entregas chegarem: basta rodar os comandos acima com todas as pastas.
+- 100 questões de **Machine Learning** (10 subtemas, 10 por subtema), do piloto das sessões do Claude na nuvem (branch `banco-questoes-claude`, pasta `banco-questoes/`, que guarda o briefing, o validador e os prompts das sessões).
+- Os demais temas entram conforme as sessões entregarem: juntar os `.jsonl` de todas as entregas numa pasta e rodar os comandos acima.
