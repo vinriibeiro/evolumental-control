@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Brain, ExternalLink, Layers, Link2, Pencil, Play, Plus, Search, Trash2 } from 'lucide-react'
+import { Brain, ExternalLink, Layers, Link2, Pencil, Play, PlayCircle, Plus, Search, Trash2 } from 'lucide-react'
 import { searchLinks } from '@/lib/search'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
@@ -14,6 +14,10 @@ import { MASTERY_TOPIC_LABELS, PRIORITY_LABELS, REVIEW_STATUS_LABELS, TOPIC_STAT
 import { addDays, formatDateTime, formatDayKey, formatDuration, todayKey, minuteIso } from '@/lib/time'
 import { topicPath } from '@/lib/tree'
 import { urlSchema } from '@/lib/validation'
+import { parseYoutube } from '@/lib/video'
+import { VideoPlayer } from '@/components/VideoPlayer'
+import { StudiedButton } from '@/components/StudiedButton'
+import { TopicScheduling } from './TopicScheduling'
 import type { Subject, Topic } from '@/types/db'
 import { CardForm } from '@/pages/flashcards/CardForm'
 import { TopicForm } from './TopicForm'
@@ -73,6 +77,7 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
         description={path ? `${subject.name} › ${path}` : subject.name}
         footer={
           <>
+            <StudiedButton topic={topic} />
             <Button icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
               Editar
             </Button>
@@ -162,6 +167,8 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
               <p className="mt-1.5 text-xs text-muted">Encontrou um bom material? Salve o link em "Materiais e links".</p>
             </div>
 
+            <TopicScheduling subject={subject} topic={topic} />
+
             <TopicAudios topicId={topic.id} />
 
             <Materials subjectId={subject.id} topicId={topic.id} />
@@ -183,13 +190,14 @@ function Info({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Materials({ subjectId, topicId }: { subjectId: string; topicId: string }) {
+export function Materials({ subjectId, topicId }: { subjectId: string; topicId: string }) {
   const materials = useAll('study_materials', { filters: [eq('topic_id', topicId)], order: [{ column: 'created_at' }] })
   const insert = useInsert('study_materials')
   const remove = useRemove('study_materials')
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [watching, setWatching] = useState<string | null>(null)
   const toast = useToast()
 
   const add = async () => {
@@ -213,18 +221,37 @@ function Materials({ subjectId, topicId }: { subjectId: string; topicId: string 
       </h3>
       <ul className="mb-2 space-y-1">
         {(materials.data ?? []).map((m) => (
-          <li key={m.id} className="flex items-center gap-2 text-sm">
-            {m.url ? (
-              <a href={m.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-1 text-ink hover:underline">
-                <span className="truncate">{m.title}</span>
-                <ExternalLink className="size-3 shrink-0" />
-              </a>
-            ) : (
-              <span className="min-w-0 flex-1 truncate text-ink">{m.title}</span>
-            )}
-            <IconButton label={`Remover ${m.title}`} size="sm" onClick={() => remove.mutate(m.id)}>
-              <Trash2 className="size-3.5" />
-            </IconButton>
+          <li key={m.id} className="text-sm">
+            <div className="flex items-center gap-2">
+              {m.url && parseYoutube(m.url) ? (
+                <>
+                  <button
+                    type="button"
+                    aria-expanded={watching === m.id}
+                    aria-label={`Assistir ${m.title}`}
+                    onClick={() => setWatching(watching === m.id ? null : m.id)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-ink hover:underline"
+                  >
+                    <PlayCircle className="size-4 shrink-0 text-accent-strong" aria-hidden />
+                    <span className="truncate">{m.title}</span>
+                  </button>
+                  <a href={m.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${m.title} no YouTube`} title="Abrir no YouTube" className="shrink-0 text-muted hover:text-ink">
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                </>
+              ) : m.url ? (
+                <a href={m.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-1 text-ink hover:underline">
+                  <span className="truncate">{m.title}</span>
+                  <ExternalLink className="size-3 shrink-0" />
+                </a>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-ink">{m.title}</span>
+              )}
+              <IconButton label={`Remover ${m.title}`} size="sm" onClick={() => remove.mutate(m.id)}>
+                <Trash2 className="size-3.5" />
+              </IconButton>
+            </div>
+            {watching === m.id && m.url && <VideoPlayer url={m.url} title={m.title} onClose={() => setWatching(null)} />}
           </li>
         ))}
       </ul>

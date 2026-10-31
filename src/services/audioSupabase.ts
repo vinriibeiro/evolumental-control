@@ -49,6 +49,11 @@ export function supabaseAudioCloud(client: SupabaseClient, userId: string): Audi
       if (error) throw error
       return ((data ?? []) as Row[]).map(fromRow)
     },
+    async listAll() {
+      const { data, error } = await client.from(TABLE).select('*').order('sort_order', { ascending: true })
+      if (error) throw error
+      return ((data ?? []) as Row[]).map(fromRow)
+    },
     async upsert(track) {
       const { error } = await client.from(TABLE).upsert(toRow(userId, track), { onConflict: 'user_id,id' })
       if (error) throw error

@@ -22,7 +22,8 @@ import { formatDuration } from '@/lib/time'
 import { cn } from '@/lib/cn'
 import type { ActivityType, StudyCycle, StudyCycleItem } from '@/types/db'
 
-export default function CyclesPage() {
+/** Ciclos de estudo: usado dentro do Calendário (modo Ciclo). `compact` = coluna estreita ao lado do calendário. */
+export function CyclesPanel({ compact = false }: { compact?: boolean }) {
   const cycles = useAll('study_cycles', { filters: [{ column: 'status', op: 'neq', value: 'archived' }], order: [{ column: 'created_at' }] })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [form, setForm] = useState<{ cycle: StudyCycle | null } | null>(null)
@@ -68,15 +69,24 @@ export default function CyclesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="Ciclo de estudos"
-        description="Rodízio de matérias independente do calendário: o ciclo só avança quando você estuda o bloco. Dias sem estudo não fazem você perder a posição."
-        actions={
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ cycle: null })}>
+      {compact ? (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-ink">Ciclo de estudos</h2>
+          <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ cycle: null })}>
             Novo ciclo
           </Button>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          title="Ciclo de estudos"
+          description="Rodízio de matérias independente do calendário: o ciclo só avança quando você estuda o bloco. Dias sem estudo não fazem você perder a posição."
+          actions={
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ cycle: null })}>
+              Novo ciclo
+            </Button>
+          }
+        />
+      )}
       <QueryState query={cycles}>
         {!selected ? (
           <EmptyState
@@ -90,8 +100,18 @@ export default function CyclesPage() {
             }
           />
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-            <nav aria-label="Ciclos" className="flex flex-col gap-2">
+          <div className={compact ? 'space-y-4' : 'grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]'}>
+            {compact && cycles.data!.length > 1 && (
+              <Select aria-label="Ciclo" value={selected.id} onChange={(e) => setSelectedId(e.target.value)}>
+                {cycles.data!.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.status === 'active' ? ' (ativo)' : ''}
+                  </option>
+                ))}
+              </Select>
+            )}
+            <nav aria-label="Ciclos" className={cn('flex-col gap-2', compact ? 'hidden' : 'flex')}>
               {cycles.data!.map((c) => (
                 <button
                   key={c.id}
@@ -107,6 +127,7 @@ export default function CyclesPage() {
               ))}
             </nav>
             <CycleDetail
+              compact={compact}
               cycle={selected}
               onEdit={() => setForm({ cycle: selected })}
               onActivate={() => activate(selected)}
@@ -124,6 +145,7 @@ export default function CyclesPage() {
 }
 
 function CycleDetail(props: {
+  compact?: boolean
   cycle: StudyCycle
   onEdit: () => void
   onActivate: () => void
@@ -225,7 +247,7 @@ function CycleDetail(props: {
         </div>
 
         {summary.current ? (
-          <div className="mt-5 grid gap-4 rounded-xl bg-surface p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className={cn('mt-5 grid gap-4 rounded-xl bg-surface p-4', !props.compact && 'sm:grid-cols-[minmax(0,1fr)_auto]')}>
             <div className="min-w-0">
               <p className="text-xs text-muted">
                 Posição atual: bloco {summary.position} de {summary.length}
@@ -238,7 +260,7 @@ function CycleDetail(props: {
                 {ACTIVITY_LABELS[summary.current.activity_type]}
                 {summary.current.topic_id ? ` · ${lookups.topicName(summary.current.topic_id)}` : ''}
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div className={cn('mt-3 grid grid-cols-2 gap-3 text-sm', !props.compact && 'sm:grid-cols-4')}>
                 <div>
                   <p className="text-xs text-muted">Planejado</p>
                   <p className="tabular text-ink">{summary.current.duration_minutes} min</p>
@@ -263,7 +285,7 @@ function CycleDetail(props: {
                 </p>
               )}
             </div>
-            <div className="flex flex-row flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
+            <div className={cn('flex flex-row flex-wrap items-center gap-2', !props.compact && 'sm:flex-col sm:items-stretch')}>
               <Button variant="dark" icon={<Play className="size-4" />} onClick={startCurrent} disabled={Boolean(live.data)} title={live.data ? 'Há uma sessão em andamento' : undefined}>
                 Estudar bloco
               </Button>

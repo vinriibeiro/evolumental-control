@@ -1,8 +1,8 @@
-// Service worker do EVoLuMentaL Control.
+// Service worker do VLM Control.
 // - Páginas: rede primeiro (sempre a versão mais nova), cópia em cache como reserva offline.
 // - /assets/*: arquivos com hash no nome, imutáveis → cache primeiro.
 // - Nada de outros domínios (Supabase, APIs) é interceptado.
-const VERSION = 'evl-v1'
+const VERSION = 'vlm-v2'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -36,7 +36,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/')) {
+  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/') || url.pathname.startsWith('/questoes/')) {
     event.respondWith(
       caches.match(req).then(
         (hit) =>

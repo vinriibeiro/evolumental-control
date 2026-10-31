@@ -41,7 +41,7 @@ export function TimerAlerts() {
   }, [due, key, settings.sound, status?.phase?.kind])
 
   useEffect(() => {
-    const base = 'EVoLuMentaL Control'
+    const base = 'VLM Control'
     if (!s || s.status !== 'active') {
       document.title = base
       return

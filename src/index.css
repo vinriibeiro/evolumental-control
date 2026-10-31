@@ -2,7 +2,7 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Paleta oficial EVoLuMentaL Control. Os tokens mudam no tema escuro. */
+/* Paleta oficial VLM Control. Os tokens mudam no tema escuro. */
 :root {
   --bg: #ffffff;
   --surface: #f8f6f2;

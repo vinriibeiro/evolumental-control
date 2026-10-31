@@ -24,3 +24,5 @@ Estudos/
 # Livros (EPUB/PDF) são material protegido de uso pessoal: a Biblioteca guarda só no navegador
 *.epub
 *.pdf
+
+tsconfig.tsbuildinfo

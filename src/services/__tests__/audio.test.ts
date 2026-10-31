@@ -99,6 +99,22 @@ describe('áudios com nuvem privada', () => {
     expect(cloud.calls).not.toContain('downloadFile')
   })
 
+  it('sincroniza todos os tópicos de uma vez (tela de áudios) e lista tudo', async () => {
+    const cloud = new FakeAudioCloud()
+    const a = shelf(cloud)
+    const b = shelf(cloud)
+    const r1 = await a.add(TOPIC, mp3('L01_T01_pag07.mp3'))
+    const r2 = await a.add(OUTRO, mp3('L02_T06_pag20.mp3'))
+
+    const summary = await b.sync()
+    expect(summary.fromCloud).toBe(2)
+    expect((await b.listAll()).map((t) => t.id).sort()).toEqual([r1.track.id, r2.track.id].sort())
+
+    await a.remove(r1.track.id)
+    expect((await b.sync()).removed).toBe(1)
+    expect((await b.listAll()).map((t) => t.topicId)).toEqual([OUTRO])
+  })
+
   it('remover apaga da nuvem e some dos outros aparelhos', async () => {
     const cloud = new FakeAudioCloud()
     const a = shelf(cloud)

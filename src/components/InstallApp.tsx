@@ -31,7 +31,7 @@ export function InstallAppButton({ variant = 'secondary', size = 'md', className
 
 function InstallHelp({ open, onClose, ios }: { open: boolean; onClose: () => void; ios: boolean }) {
   return (
-    <Modal open={open} onClose={onClose} title="Instalar o EVoLuMentaL no celular" size="sm" footer={<Button onClick={onClose}>Entendi</Button>}>
+    <Modal open={open} onClose={onClose} title="Instalar o VLM Control no celular" size="sm" footer={<Button onClick={onClose}>Entendi</Button>}>
       <div className="space-y-4 text-sm text-ink">
         <div className="flex items-center gap-3">
           <LogoMark className="size-12" />
@@ -61,7 +61,7 @@ function InstallHelp({ open, onClose, ios }: { open: boolean; onClose: () => voi
         </div>
         <div>
           <p className="mb-1 font-semibold">Computador (Chrome ou Edge)</p>
-          <p className="text-muted">Clique no ícone de instalar na barra de endereço ou no menu → “Instalar EVoLuMentaL Control”.</p>
+          <p className="text-muted">Clique no ícone de instalar na barra de endereço ou no menu → “Instalar VLM Control”.</p>
         </div>
       </div>
     </Modal>
@@ -80,7 +80,7 @@ export function InstallAppSection() {
             <CheckCircle2 className="size-4" /> Você está usando o aplicativo instalado.
           </span>
         ) : (
-          'Instale o EVoLuMentaL no celular ou no computador direto pelo navegador — sem loja de aplicativos.'
+          'Instale o VLM Control no celular ou no computador direto pelo navegador — sem loja de aplicativos.'
         )}
       </p>
       <InstallAppButton variant="primary" />

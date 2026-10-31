@@ -80,9 +80,16 @@ export function trackNameFromFile(fileName: string): string {
   if (a) return `Track ${a[1]} · pág. ${a[2]}`
   const b = /^B\d+_L\d+_T0*(\d+)/i.exec(stem)
   if (b) return `Track ${b[1]}`
+  const c = /^L\d+_T0*(\d+)$/i.exec(stem)
+  if (c) return `Track ${c[1]}`
   return stem.replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim() || fileName
 }
 
 export function isAudioFile(name: string, type = ''): boolean {
   return /\.(mp3|m4a|aac|wav|ogg|oga|flac)$/i.test(name) || type.startsWith('audio/')
+}
+
+/** Nome para exibir: faixas salvas antes da regra "L02_T06" → "Track 6" aparecem com o nome novo. */
+export function displayTrackName(name: string, fileName: string): string {
+  return /^L\d+ T\d+$/i.test(name) ? trackNameFromFile(fileName) : name
 }

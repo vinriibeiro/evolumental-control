@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronsLeft, ChevronsRight, CloudOff, LogOut, Menu, Pause, Play, Search, Settings, X } from 'lucide-react'
-import { NAV, titleFor } from './nav'
+import { MENU, groupFor, tabsFor, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { IconButton } from '@/components/ui/Button'
@@ -138,6 +138,7 @@ export function AppShell() {
         </div>
 
         <main id="conteudo" className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <SectionTabs pathname={location.pathname} />
           <Suspense fallback={<Spinner />}>
             <Outlet />
           </Suspense>
@@ -150,40 +151,63 @@ export function AppShell() {
   )
 }
 
+function SectionTabs({ pathname }: { pathname: string }) {
+  const tabs = tabsFor(pathname)
+  if (!tabs.length) return null
+  return (
+    <nav aria-label="Seções" className="scroll-thin -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-line">
+      {tabs.map((t) => (
+        <NavLink
+          key={t.to}
+          to={t.to}
+          end
+          className={({ isActive }) =>
+            cn(
+              '-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+              isActive ? 'border-accent-strong text-ink' : 'border-transparent text-muted hover:text-ink',
+            )
+          }
+        >
+          {t.label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
+
 function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: boolean }) {
+  const location = useLocation()
+  const current = groupFor(location.pathname)
   return (
     <>
       <div className={cn('flex h-16 shrink-0 items-center', collapsed ? 'justify-center px-2' : 'px-4')}>
-        <Link to="/" aria-label="EVoLuMentaL Control — início">
+        <Link to="/" aria-label="VLM Control — início">
           <Logo collapsed={collapsed} />
         </Link>
       </div>
       <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-2">
         <ul className="flex flex-col gap-0.5">
-          {NAV.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.to === '/'}
-                title={collapsed ? item.label : undefined}
-                className={({ isActive }) =>
-                  cn(
+          {MENU.map((item) => {
+            const isActive = current === item
+            return (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  aria-current={isActive ? 'page' : undefined}
+                  title={collapsed ? item.label : undefined}
+                  className={cn(
                     'flex items-center gap-3 rounded-lg font-medium transition-colors',
                     large ? 'px-3 py-3 text-[15px]' : 'px-3 py-2 text-sm',
                     collapsed && 'justify-center px-0',
                     isActive ? 'bg-accent/35 text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink',
-                  )
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
-                    {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
-                  </>
-                )}
-              </NavLink>
-            </li>
-          ))}
+                  )}
+                >
+                  <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
+                  {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       </nav>
     </>

@@ -18,6 +18,11 @@ export class FakeAudioCloud implements AudioCloud {
     return [...this.tracks.values()].filter((t) => t.topicId === topicId).map((t) => structuredClone(t))
   }
 
+  async listAll() {
+    this.guard('listAll')
+    return [...this.tracks.values()].map((t) => structuredClone(t))
+  }
+
   async upsert(track: CloudTrack) {
     this.guard('upsert')
     this.tracks.set(track.id, structuredClone(track))

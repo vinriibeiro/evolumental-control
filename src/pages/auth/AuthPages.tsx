@@ -13,7 +13,7 @@ function AuthLayout({ title, subtitle, children, footer }: { title: string; subt
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <LogoMark className="size-16" />
-          <p className="mt-4 text-xl font-bold tracking-tight text-ink">EVoLuMentaL Control</p>
+          <p className="mt-4 text-xl font-bold tracking-tight text-ink">VLM Control</p>
           <p className="mt-1 text-xs tracking-[0.2em] text-muted uppercase">Evolução · Disciplina · Tempo</p>
         </div>
         <div className="rounded-2xl border border-line bg-bg p-6 shadow-sm">
@@ -23,9 +23,6 @@ function AuthLayout({ title, subtitle, children, footer }: { title: string; subt
         </div>
         {footer && <div className="mt-4 text-center text-sm text-muted">{footer}</div>}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <Link to="/inicio" className="inline-flex h-8 items-center rounded-lg px-3 text-sm text-muted hover:bg-bg hover:text-ink">
-            Conheça o EVoLuMentaL
-          </Link>
           <InstallAppButton variant="ghost" size="sm" />
         </div>
       </div>

@@ -1,8 +1,8 @@
-# PRD — EVoLuMentaL Control: rotinas inteligentes (sem IA) e prática diária de inglês
+# PRD — VLM Control: rotinas inteligentes (sem IA) e prática diária de inglês
 
 ## 1. Contexto
 
-O EVoLuMentaL Control é um gerenciador e organizador de estudos (React + TypeScript + Vite, dados locais no navegador ou Supabase). O jogo EvoQuest **já foi removido** do `main` e não deve voltar: o produto é apenas gerenciador de estudos, com cronograma, ciclo e calendário.
+O VLM Control é um gerenciador e organizador de estudos (React + TypeScript + Vite, dados locais no navegador ou Supabase). O jogo EvoQuest **já foi removido** do `main` e não deve voltar: o produto é apenas gerenciador de estudos, com cronograma, ciclo e calendário.
 
 O app já possui, e **deve ser reaproveitado** (não reconstruir):
 - `src/lib/planner.ts`: cronograma automático por regras determinísticas e visíveis (`PLANNER_RULES`, `generatePlan`, `diffPlan`, `replanLate`).

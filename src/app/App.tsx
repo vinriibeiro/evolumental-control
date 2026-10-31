@@ -11,20 +11,19 @@ const WorkspacePage = lazy(() => import('@/pages/workspace/WorkspacePage'))
 const SubjectsPage = lazy(() => import('@/pages/subjects/SubjectsPage'))
 const SubjectDetailPage = lazy(() => import('@/pages/subjects/SubjectDetailPage'))
 const TimerPage = lazy(() => import('@/pages/timer/TimerPage'))
-const SchedulePage = lazy(() => import('@/pages/schedule/SchedulePage'))
-const CyclesPage = lazy(() => import('@/pages/cycles/CyclesPage'))
 const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const DecksPage = lazy(() => import('@/pages/flashcards/DecksPage'))
 const DeckDetailPage = lazy(() => import('@/pages/flashcards/DeckDetailPage'))
 const StudyCardsPage = lazy(() => import('@/pages/flashcards/StudyCardsPage'))
 const ReviewsPage = lazy(() => import('@/pages/reviews/ReviewsPage'))
 const QuestionsPage = lazy(() => import('@/pages/questions/QuestionsPage'))
+const QuestionBankPage = lazy(() => import('@/pages/questions/QuestionBankPage'))
 const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
 const ReportsPage = lazy(() => import('@/pages/reports/ReportsPage'))
-const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
 const RoutinesPage = lazy(() => import('@/pages/routines/RoutinesPage'))
 const EnglishPage = lazy(() => import('@/pages/english/EnglishPage'))
+const AudiosPage = lazy(() => import('@/pages/audios/AudiosPage'))
 const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
 const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
@@ -34,7 +33,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   if (auth.loading) return <Spinner label="Verificando sessão…" className="min-h-screen" />
   if (auth.mode === 'supabase' && auth.recovering) return <Navigate to="/redefinir-senha" replace />
-  if (!auth.user) return <Navigate to="/inicio" replace state={{ from: location.pathname }} />
+  if (!auth.user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
   return <>{children}</>
 }
 
@@ -48,7 +47,7 @@ export function App() {
             <BrowserRouter>
               <Suspense fallback={<Spinner className="min-h-screen" />}>
               <Routes>
-                <Route path="/inicio" element={<LandingPage />} />
+                <Route path="/inicio" element={<Navigate to="/login" replace />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/cadastro" element={<SignUpPage />} />
                 <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
@@ -67,10 +66,11 @@ export function App() {
                   <Route path="trilhas" element={<TrailsPage />} />
                   <Route path="rotinas" element={<RoutinesPage />} />
                   <Route path="cronometro"element={<TimerPage />} />
-                  <Route path="cronograma" element={<SchedulePage />} />
-                  <Route path="ciclos" element={<CyclesPage />} />
+                  <Route path="cronograma" element={<Navigate to="/calendario?modo=cronograma" replace />} />
+                  <Route path="ciclos" element={<Navigate to="/calendario?modo=ciclo" replace />} />
                   <Route path="calendario" element={<CalendarPage />} />
                   <Route path="ingles" element={<EnglishPage />} />
+                  <Route path="audios" element={<AudiosPage />} />
                   <Route path="biblioteca" element={<LibraryPage />} />
                   <Route path="biblioteca/:id" element={<ReaderPage />} />
                   <Route path="flashcards" element={<DecksPage />} />
@@ -78,6 +78,7 @@ export function App() {
                   <Route path="flashcards/:id" element={<DeckDetailPage />} />
                   <Route path="revisoes" element={<ReviewsPage />} />
                   <Route path="questoes" element={<QuestionsPage />} />
+                  <Route path="banco-de-questoes" element={<QuestionBankPage />} />
                   <Route path="metas" element={<GoalsPage />} />
                   <Route path="relatorios" element={<ReportsPage />} />
                   <Route path="configuracoes" element={<SettingsPage />} />

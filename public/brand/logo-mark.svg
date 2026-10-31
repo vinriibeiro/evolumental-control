@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#F5DEB3" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="EVoLuMentaL Control">
-  <title>EVoLuMentaL Control</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#F5DEB3" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="VLM Control">
+  <title>VLM Control</title>
   <!-- Relógio: gestão do tempo -->
   <circle cx="30" cy="26" r="13"/>
   <path d="M30 18v8"/>

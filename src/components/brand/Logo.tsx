@@ -1,12 +1,12 @@
 import { cn } from '@/lib/cn'
 
 /**
- * Símbolo EVoLuMentaL Control: livro aberto (conhecimento), relógio (tempo) e
+ * Símbolo VLM Control: livro aberto (conhecimento), relógio (tempo) e
  * seta ascendente (evolução) — o ponteiro do relógio é a própria seta.
  * Cor institucional: Wheat #F5DEB3. A variante "tile" aplica o símbolo sobre
  * fundo marrom profundo para garantir contraste em fundos claros.
  */
-export function LogoMark({ variant = 'tile', className, title = 'EVoLuMentaL Control' }: { variant?: 'tile' | 'plain'; className?: string; title?: string }) {
+export function LogoMark({ variant = 'tile', className, title = 'VLM Control' }: { variant?: 'tile' | 'plain'; className?: string; title?: string }) {
   const strokes = (
     <>
       <circle cx="30" cy="26" r="13" />
@@ -40,7 +40,7 @@ export function LogoMark({ variant = 'tile', className, title = 'EVoLuMentaL Con
 export function Wordmark({ className, compact }: { className?: string; compact?: boolean }) {
   return (
     <span className={cn('flex min-w-0 flex-col leading-none', className)}>
-      <span className="truncate text-[15px] font-bold tracking-tight text-ink">EVoLuMentaL</span>
+      <span className="truncate text-[15px] font-bold tracking-tight text-ink">VLM</span>
       {!compact && <span className="mt-1 text-[10px] font-medium tracking-[0.28em] text-muted">CONTROL</span>}
     </span>
   )

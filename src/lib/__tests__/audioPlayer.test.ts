@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { advance, clampRepeats, formatClock, isAudioFile, progressLabel, skipNext, skipPrevious, totalListeningSeconds, trackNameFromFile, type PlayState } from '../audioPlayer'
+import { advance, clampRepeats, formatClock, displayTrackName, isAudioFile, progressLabel, skipNext, skipPrevious, totalListeningSeconds, trackNameFromFile, type PlayState } from '../audioPlayer'
 
 const st = (over: Partial<PlayState> = {}): PlayState => ({ index: 0, lap: 1, mode: 'licao', repeats: 5, total: 3, ...over })
 
@@ -75,6 +75,9 @@ describe('textos', () => {
     expect(trackNameFromFile('L01_T01_pag07.mp3')).toBe('Track 1 · pág. 7')
     expect(trackNameFromFile('L03_T12_pag110.mp3')).toBe('Track 12 · pág. 110')
     expect(trackNameFromFile('B02_L07_T013.mp3')).toBe('Track 13')
+    expect(trackNameFromFile('L02_T06.mp3')).toBe('Track 6')
+    expect(displayTrackName('L02 T06', 'L02_T06.mp3')).toBe('Track 6')
+    expect(displayTrackName('Minha faixa', 'L02_T06.mp3')).toBe('Minha faixa')
     expect(trackNameFromFile('minha_gravacao  final.mp3')).toBe('minha gravacao final')
   })
 

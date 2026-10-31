@@ -3,16 +3,17 @@
 // para outro dia/horário e redimensionados pela borda inferior (sempre em
 // passos de 30 min). Camadas: planejamento, histórico (sessões realizadas),
 // revisões e tarefas.
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Brain, CalendarClock, Check, ChevronLeft, ChevronRight, CircleDashed, Flag, Pencil, Play, Plus, RotateCcw, Settings2, Sparkles, Trash2, X } from 'lucide-react'
+import { Brain, CalendarClock, Check, ChevronLeft, ChevronRight, CircleDashed, Copy, Flag, Pencil, Play, Plus, RotateCcw, Settings2, Sparkles, Trash2, X } from 'lucide-react'
 import { useBackend } from '@/app/data'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Checkbox, Select } from '@/components/ui/Field'
 import { Badge, Card, Segmented } from '@/components/ui/layout'
 import { Modal } from '@/components/ui/Modal'
 import { Spinner, useConfirm, useToast } from '@/components/ui/feedback'
+import { useSafeDelete } from '@/components/useSafeDelete'
 import { invalidateTables, useAll, useUpdate } from '@/hooks/data'
 import { useLookups, useSubjects } from '@/hooks/domain'
 import { useNow } from '@/hooks/useNow'
@@ -43,8 +44,21 @@ import { cn } from '@/lib/cn'
 import type { CalendarTask, PlanItemStatus, StudyPlan, StudyPlanItem } from '@/types/db'
 import { PlanItemForm } from '@/pages/schedule/PlanItemForm'
 import { PlanEditor } from '@/pages/schedule/PlanEditor'
-import { ProposalModal } from '@/pages/schedule/SchedulePage'
+import { ProposalModal } from '@/pages/schedule/ProposalModal'
 import { TaskForm } from './TaskForm'
+import { CopyBlocksModal } from './CopyBlocksModal'
+
+const CyclesPanel = lazy(() => import('@/pages/cycles/CyclesPage').then((m) => ({ default: m.CyclesPanel })))
+
+type Mode = 'cronograma' | 'ciclo'
+const MODE_KEY = 'evl:cal-mode'
+const storedMode = (): Mode => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'ciclo' ? 'ciclo' : 'cronograma'
+  } catch {
+    return 'cronograma'
+  }
+}
 
 type View = 'week' | 'day' | 'month'
 interface Layers {
@@ -90,6 +104,17 @@ export default function CalendarPage() {
   const settings = useSettings()
   const tz = settings.timezone
   const today = todayKey(tz)
+  const [params, setParams] = useSearchParams()
+  const modeParam = params.get('modo')
+  const mode: Mode = modeParam === 'ciclo' || modeParam === 'cronograma' ? modeParam : storedMode()
+  const setMode = (m: Mode) => {
+    setParams({ modo: m }, { replace: true })
+    try {
+      localStorage.setItem(MODE_KEY, m)
+    } catch {
+      /* preferência apenas deste dispositivo */
+    }
+  }
   const [view, setView] = useState<View>(() => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'))
   const [anchor, setAnchor] = useState(today)
   const [layers, setLayers] = useState<Layers>(() => readPref('evl:cal-layers', DEFAULT_LAYERS))
@@ -99,6 +124,7 @@ export default function CalendarPage() {
   const [taskForm, setTaskForm] = useState<{ task: CalendarTask | null; date: string; time?: string } | null>(null)
   const [proposalPlan, setProposalPlan] = useState<StudyPlan | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [copyOpen, setCopyOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const lookups = useLookups()
   const subjects = useSubjects()
@@ -107,6 +133,7 @@ export default function CalendarPage() {
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
+  const safeDeletePlan = useSafeDelete('study_plans')
 
   useEffect(() => writePref('evl:cal-layers', layers), [layers])
   useEffect(() => writePref('evl:cal-hours', hours), [hours])
@@ -130,7 +157,7 @@ export default function CalendarPage() {
 
   const events = useMemo(() => {
     const out: CalEvent[] = []
-    if (layers.plan)
+    if (layers.plan && mode === 'cronograma')
       for (const it of items.data ?? []) {
         if (it.status === 'rescheduled') continue
         const start = hhmmToMinutes(it.start_time)
@@ -163,7 +190,7 @@ export default function CalendarPage() {
         out.push({ key: `t-${t.id}`, kind: 'task', date: t.date, start, end: Math.min(24 * 60, start + (t.duration_minutes ?? 30)), title: t.title, subtitle: 'Tarefa', color: 'var(--muted)', task: t })
       }
     return out
-  }, [items.data, sessions.data, tasks.data, layers, lookups, tz]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [items.data, sessions.data, tasks.data, layers, lookups, tz, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const allDay = (d: DayKey) => [
     ...(layers.reviews ? (reviews.data ?? []).filter((r) => r.scheduled_for === d).map((r) => ({ key: r.id, label: r.title, kind: 'review' as const, done: r.status === 'done' })) : []),
@@ -210,6 +237,15 @@ export default function CalendarPage() {
     }
   }
 
+  const openCopy = async () => {
+    try {
+      await ensurePlan()
+      setCopyOpen(true)
+    } catch (e) {
+      toast.error(e)
+    }
+  }
+
   const planAuto = async () => {
     if (!activePlan) return setEditorOpen(true)
     setProposalPlan(activePlan)
@@ -247,7 +283,7 @@ export default function CalendarPage() {
 
   return (
     <div className="flex gap-5">
-      <aside className="hidden w-60 shrink-0 space-y-4 lg:block">
+      <aside className={cn('hidden w-60 shrink-0 space-y-4', mode === 'cronograma' ? 'lg:block' : '2xl:block')}>
         <MiniCalendar anchor={anchor} today={today} onPick={(d) => setAnchor(d)} marked={new Set((monthItems.data ?? []).map((i) => i.date))} />
         <Card className="p-3">
           <p className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">Minhas agendas</p>
@@ -277,17 +313,32 @@ export default function CalendarPage() {
               ))}
             </Select>
           </div>
-          {activePlan && (
-            <Button size="sm" variant="ghost" className="mt-3 w-full justify-start" icon={<Settings2 className="size-4" />} onClick={() => setEditorOpen(true)}>
-              Disponibilidade e matérias
-            </Button>
+          {activePlan && mode === 'cronograma' && (
+            <>
+              <Button size="sm" variant="ghost" className="mt-3 w-full justify-start" icon={<Settings2 className="size-4" />} onClick={() => setEditorOpen(true)}>
+                Períodos, disponibilidade e matérias
+              </Button>
+              <Button size="sm" variant="ghost" className="w-full justify-start" icon={<Trash2 className="size-4" />} onClick={() => void safeDeletePlan(activePlan.id, activePlan.name)}>
+                Apagar este cronograma
+              </Button>
+            </>
           )}
         </Card>
       </aside>
 
+      <div className="flex min-w-0 flex-1 flex-col gap-5 xl:flex-row">
       <div className="min-w-0 flex-1">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <h1 className="mr-2 text-xl font-semibold tracking-tight text-ink">Planejamento</h1>
+          <Segmented
+            label="Modo do planejamento"
+            size="sm"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'cronograma', label: 'Cronograma' },
+              { value: 'ciclo', label: 'Ciclo' },
+            ]}
+          />
           <Segmented
             label="Visualização"
             size="sm"
@@ -312,11 +363,16 @@ export default function CalendarPage() {
           </div>
           <span className="inline-block text-sm font-medium text-ink first-letter:uppercase">{title}</span>
           <span className="flex-1" />
+          {mode === 'cronograma' && (
+            <>
           <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => openNewBlock(view === 'day' ? anchor : today < days[0] || today > days[days.length - 1] ? days[0] : today, 19 * 60)}>
             Bloco
           </Button>
           <Button size="sm" icon={<Sparkles className="size-4" />} onClick={planAuto} disabled={busy}>
             Planejar
+          </Button>
+          <Button size="sm" icon={<Copy className="size-4" />} onClick={openCopy} disabled={busy}>
+            Copiar horários
           </Button>
           <Button size="sm" icon={<RotateCcw className="size-4" />} onClick={replan} disabled={busy}>
             Replanejar
@@ -324,12 +380,14 @@ export default function CalendarPage() {
           <Button size="sm" icon={<Trash2 className="size-4" />} onClick={removeRange} disabled={busy}>
             Remover
           </Button>
+            </>
+          )}
         </div>
 
         {loading ? (
           <Spinner />
         ) : view === 'month' ? (
-          <MonthGrid days={days} anchor={anchor} today={today} items={layers.plan ? (items.data ?? []) : []} studied={layers.history ? sessions.stats.byDay : new Map()} onPick={(d) => (setAnchor(d), setView('day'))} />
+          <MonthGrid days={days} anchor={anchor} today={today} items={layers.plan && mode === 'cronograma' ? (items.data ?? []) : []} studied={layers.history ? sessions.stats.byDay : new Map()} onPick={(d) => (setAnchor(d), setView('day'))} />
         ) : (
           <TimeGrid
             days={days}
@@ -349,12 +407,25 @@ export default function CalendarPage() {
             onAddTask={(d) => setTaskForm({ task: null, date: d })}
           />
         )}
-        <p className="mt-2 text-xs text-muted">Clique num horário vazio para criar um bloco · arraste para mover · puxe a borda de baixo para mudar a duração (passos de 30 min).</p>
+        <p className="mt-2 text-xs text-muted">
+          {mode === 'cronograma'
+            ? 'Clique num horário vazio para criar um bloco · arraste para mover · puxe a borda de baixo para mudar a duração (passos de 30 min).'
+            : 'No modo Ciclo, a ordem das matérias vem do ciclo ao lado e o calendário mostra o que você já estudou, as revisões e as tarefas.'}
+        </p>
+      </div>
+      {mode === 'ciclo' && (
+        <aside aria-label="Ciclo de estudos" className="w-full shrink-0 xl:w-[380px]">
+          <Suspense fallback={<Spinner />}>
+            <CyclesPanel compact />
+          </Suspense>
+        </aside>
+      )}
       </div>
 
       {itemForm && activePlan && <PlanItemForm open plan={activePlan} item={itemForm.item} defaultDate={itemForm.date} defaultTime={itemForm.time} defaultDuration={60} onClose={() => setItemForm(null)} />}
       <BlockDetails item={details} onClose={() => setDetails(null)} onEdit={(it) => (setDetails(null), activePlan && setItemForm({ item: it, date: it.date }))} />
       <TaskForm open={Boolean(taskForm)} task={taskForm?.task ?? null} date={taskForm?.date ?? today} defaultTime={taskForm?.time} onClose={() => setTaskForm(null)} />
+      {copyOpen && activePlan && <CopyBlocksModal open plan={activePlan} anchor={anchor} onClose={() => setCopyOpen(false)} />}
       {proposalPlan && <ProposalModal open plan={proposalPlan} today={today} onClose={() => setProposalPlan(null)} />}
       <PlanEditor open={editorOpen} plan={activePlan} onClose={() => setEditorOpen(false)} onSaved={(p) => (setEditorOpen(false), setProposalPlan(p))} />
     </div>

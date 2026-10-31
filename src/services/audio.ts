@@ -27,6 +27,8 @@ export type CloudTrack = Pick<AudioTrack, 'id' | 'topicId' | 'name' | 'fileName'
 
 export interface AudioCloud {
   listForTopic(topicId: string): Promise<CloudTrack[]>
+  /** Todas as faixas da conta (para a tela de áudios). */
+  listAll(): Promise<CloudTrack[]>
   upsert(track: CloudTrack): Promise<void>
   uploadFile(id: string, data: ArrayBuffer): Promise<void>
   downloadFile(id: string): Promise<ArrayBuffer>
@@ -114,6 +116,11 @@ export class AudioLibrary {
     return (await this.db.tracks.where('topicId').equals(topicId).toArray()).sort(byOrder)
   }
 
+  /** Todas as faixas guardadas neste aparelho (qualquer tópico). */
+  async listAll(): Promise<AudioTrack[]> {
+    return (await this.db.tracks.toArray()).sort(byOrder)
+  }
+
   async get(id: string): Promise<AudioTrack | undefined> {
     return this.db.tracks.get(id)
   }
@@ -178,14 +185,14 @@ export class AudioLibrary {
     }
   }
 
-  /** Traz as faixas do tópico que estão na nuvem, tira as apagadas em outro aparelho e reenvia as pendentes. */
-  async sync(topicId: string): Promise<AudioSyncSummary> {
+  /** Traz as faixas que estão na nuvem, tira as apagadas em outro aparelho e reenvia as pendentes. Sem `topicId`, todos os tópicos. */
+  async sync(topicId?: string): Promise<AudioSyncSummary> {
     const summary: AudioSyncSummary = { fromCloud: 0, removed: 0, uploaded: 0, failed: 0 }
     const cloud = this.cloud
     if (!cloud) return summary
-    const remote = await cloud.listForTopic(topicId)
+    const remote = topicId === undefined ? await cloud.listAll() : await cloud.listForTopic(topicId)
     const remoteIds = new Set(remote.map((r) => r.id))
-    const locals = new Map((await this.list(topicId)).map((t) => [t.id, t]))
+    const locals = new Map((topicId === undefined ? await this.listAll() : await this.list(topicId)).map((t) => [t.id, t]))
     for (const r of remote) {
       const local = locals.get(r.id)
       if (!local) {

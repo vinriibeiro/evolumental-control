@@ -1,4 +1,4 @@
-# EVoLuMentaL Control
+# VLM Control
 
 Plataforma de controle de estudos em geral — concursos, faculdade, carreira em tecnologia, idiomas ou qualquer outro objetivo: matérias e tópicos, cronômetro com tempo líquido confiável, rotinas automáticas ou manuais por regras (sem IA), cronograma automático, ciclo de estudos, prática diária de inglês, calendário, flashcards com repetição espaçada e leitura em voz alta editáveis, revisões, registro de questões, metas e relatórios.
 
@@ -213,7 +213,7 @@ Desempenho: consultas filtradas no banco e paginadas ("Carregar mais"), cache co
 
 ## Aplicativo no celular (PWA)
 
-O EVoLuMentaL pode ser instalado pelo navegador, sem loja de aplicativos (`public/manifest.webmanifest`, ícones em `public/icons/`, service worker em `public/sw.js`):
+O VLM Control pode ser instalado pelo navegador, sem loja de aplicativos (`public/manifest.webmanifest`, ícones em `public/icons/`, service worker em `public/sw.js`):
 
 - **Android (Chrome/Edge):** menu ⋮ → *Instalar app*.
 - **iPhone (Safari):** Compartilhar → *Adicionar à Tela de Início*.

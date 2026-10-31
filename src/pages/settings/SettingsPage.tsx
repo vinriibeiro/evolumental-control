@@ -77,7 +77,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3">
           <LogoMark className="size-10" />
           <div className="text-sm">
-            <p className="font-semibold text-ink">EVoLuMentaL Control</p>
+            <p className="font-semibold text-ink">VLM Control</p>
             <p className="text-xs text-muted">
               Versão 1.0.0 · {auth.mode === 'supabase' ? 'Conectado ao Supabase (dados na nuvem, protegidos por usuário)' : 'Modo local (IndexedDB deste navegador, sem sincronização)'}
             </p>
@@ -334,12 +334,12 @@ function DataSection() {
   const exportAll = async () => {
     setBusy(true)
     try {
-      const out: Record<string, unknown> = { exportado_em: new Date().toISOString(), aplicativo: 'EVoLuMentaL Control', versao: 1, perfil: await backend.getProfile() }
+      const out: Record<string, unknown> = { exportado_em: new Date().toISOString(), aplicativo: 'VLM Control', versao: 1, perfil: await backend.getProfile() }
       for (const t of TABLES.filter((x) => x !== 'profiles' && x !== 'study_sessions' && x !== 'study_session_pauses')) {
         out[t] = await fetchAll(backend, t as TableName)
       }
       out.study_sessions = await fetchAllSessions(backend, {})
-      downloadJson(out, `evolumental-backup-${slugDate()}.json`)
+      downloadJson(out, `vlm-backup-${slugDate()}.json`)
       toast.success('Exportação concluída.')
     } catch (e) {
       toast.error(e)
