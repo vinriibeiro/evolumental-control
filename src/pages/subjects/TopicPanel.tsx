@@ -17,6 +17,7 @@ import { urlSchema } from '@/lib/validation'
 import type { Subject, Topic } from '@/types/db'
 import { CardForm } from '@/pages/flashcards/CardForm'
 import { TopicForm } from './TopicForm'
+import { TopicAudios } from './TopicAudios'
 
 interface Props {
   topic: Topic | null
@@ -160,6 +161,8 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
               </div>
               <p className="mt-1.5 text-xs text-muted">Encontrou um bom material? Salve o link em "Materiais e links".</p>
             </div>
+
+            <TopicAudios topicId={topic.id} />
 
             <Materials subjectId={subject.id} topicId={topic.id} />
           </section>

@@ -310,3 +310,67 @@ describe('biblioteca (livros privados)', () => {
     expect(left.rows.map((r) => r.user_id)).toEqual([ALICE]);
   });
 });
+
+describe('áudios dos tópicos (privados)', () => {
+  const novoTopico = async () => {
+    const subj = await db.query<{ id: string }>(`insert into public.subjects (name) values ('Inglês') returning id`)
+    const top = await db.query<{ id: string }>(`insert into public.topics (subject_id, name) values ($1, 'Lesson 01') returning id`, [subj.rows[0].id])
+    return top.rows[0].id
+  }
+  const audio = (id: string, topic: string) =>
+    db.query(`insert into public.topic_audios (id, topic_id, name, file_name, size) values ($1, $2, 'Track 1', 'L01_T01.mp3', 1000)`, [id, topic])
+
+  it('o bucket de áudios é privado, com limite de 50 MiB por arquivo', async () => {
+    const r = await db.query<{ public: boolean; file_size_limit: string }>(`select public, file_size_limit from storage.buckets where id = 'audios'`)
+    expect(r.rows[0].public).toBe(false)
+    expect(Number(r.rows[0].file_size_limit)).toBe(52428800)
+  })
+
+  it('um usuário não vê, altera nem apaga os áudios de outro', async () => {
+    const topico = await as(ALICE, async () => {
+      const t = await novoTopico()
+      await audio('aud11111', t)
+      return t
+    })
+    await as(BOB, async () => {
+      expect((await db.query(`select * from public.topic_audios`)).rows).toHaveLength(0)
+      expect((await db.query(`update public.topic_audios set name = 'hack' where id = 'aud11111'`)).affectedRows).toBe(0)
+      expect((await db.query(`delete from public.topic_audios where id = 'aud11111'`)).affectedRows).toBe(0)
+      // não dá para ligar um áudio ao tópico de outra pessoa (FK composta)
+      await expect(audio('aud22222', topico)).rejects.toThrow()
+    })
+    await as(ALICE, async () => {
+      expect((await db.query(`select * from public.topic_audios`)).rows).toHaveLength(1)
+    })
+  })
+
+  it('apagar o tópico apaga os metadados dos áudios', async () => {
+    await as(ALICE, async () => {
+      const t = await novoTopico()
+      await audio('aud33333', t)
+      await db.query(`delete from public.topics where id = $1`, [t])
+      expect((await db.query(`select * from public.topic_audios where id = 'aud33333'`)).rows).toHaveLength(0)
+    })
+  })
+
+  it('valida o formato do id e anon não acessa', async () => {
+    await as(ALICE, async () => {
+      const t = await novoTopico()
+      await expect(audio('../x', t)).rejects.toThrow()
+    })
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
+    await expect(db.query(`select * from public.topic_audios`)).rejects.toThrow()
+    await db.exec(`reset role;`)
+  })
+
+  it('o armazenamento de áudios só aceita arquivos na pasta do próprio usuário', async () => {
+    await as(ALICE, async () => {
+      await db.query(`insert into storage.objects (bucket_id, name) values ('audios', $1)`, [`${ALICE}/aud11111.mp3`])
+      await expect(db.query(`insert into storage.objects (bucket_id, name) values ('audios', $1)`, [`${BOB}/x.mp3`])).rejects.toThrow()
+    })
+    await as(BOB, async () => {
+      expect((await db.query(`select * from storage.objects where bucket_id = 'audios'`)).rows).toHaveLength(0)
+      expect((await db.query(`delete from storage.objects where bucket_id = 'audios'`)).affectedRows).toBe(0)
+    })
+  })
+})
