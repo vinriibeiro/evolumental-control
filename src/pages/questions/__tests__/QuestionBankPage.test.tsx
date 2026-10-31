@@ -55,14 +55,17 @@ const renderPage = () =>
     </QueryClientProvider>,
   )
 const bring = async () => fireEvent.click(await screen.findByRole('button', { name: /Trazer (novas )?questões/ }))
+const openFilters = () => fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }))
 
 describe('banco de questões', () => {
-  it('só monta a lista quando o usuário clica em "Trazer questões"', async () => {
+  it('só monta a lista quando o usuário clica em "Trazer questões", e aí recolhe os filtros', async () => {
     renderPage()
-    expect(await screen.findByText('Monte a sua lista')).toBeTruthy()
+    expect(await screen.findByRole('combobox', { name: 'Tema' })).toBeTruthy()
     expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]))).toEqual([expect.stringContaining('index.json')])
     await bring()
     expect(await screen.findByText('3 questão(ões)')).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: 'Tema' })).toBeNull()
+    expect(screen.getByText('todos os subtemas')).toBeTruthy()
     expect(document.querySelector('pre code')?.textContent).toBe('SELECT 1;')
   })
 
@@ -77,11 +80,14 @@ describe('banco de questões', () => {
     expect(JSON.parse(localStorage.getItem('vlm.questoes.local')!)['sql-0001']).toEqual([1, 0, 0, 0])
   })
 
-  it('os filtros só valem depois de trazer de novo; salva a sessão em Desempenho', async () => {
+  it('nível é um menu suspenso de múltipla escolha; os filtros só valem depois de trazer de novo; salva a sessão', async () => {
     renderPage()
     await bring()
     await screen.findByText('3 questão(ões)')
-    fireEvent.click(screen.getByRole('button', { name: 'Extremo' }))
+    openFilters()
+    fireEvent.click(screen.getByRole('button', { name: 'Nível' }))
+    fireEvent.click(screen.getByLabelText('Extremo'))
+    expect(screen.getByRole('button', { name: 'Nível' }).textContent).toContain('Extremo')
     expect(screen.getByText('3 questão(ões)')).toBeTruthy() // ainda não aplicou
     await bring()
     expect(await screen.findByText('1 questão(ões)')).toBeTruthy()
@@ -92,11 +98,23 @@ describe('banco de questões', () => {
     expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ total: 1, correct: 1, wrong: 0, source: 'Banco de questões', subject_id: null }))
   })
 
+  it('subtemas: marcar todos, limpar e fechar com Esc', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Subtemas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar todos' }))
+    expect(screen.getByRole('button', { name: 'Subtemas' }).textContent).toContain('JOINs (3)')
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar' }))
+    expect(screen.getByRole('button', { name: 'Subtemas' }).textContent).toContain('Todos')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Subtemas' })).toBeNull()
+  })
+
   it('a quantidade limita a lista', async () => {
     renderPage()
     fireEvent.change(await screen.findByRole('combobox', { name: 'Quantidade' }), { target: { value: '10' } })
     await bring()
     await screen.findByText('3 questão(ões)')
+    openFilters()
     fireEvent.change(screen.getByRole('combobox', { name: 'Quantidade' }), { target: { value: '0' } })
     await bring()
     expect(await screen.findByText('3 questão(ões)')).toBeTruthy()
@@ -106,22 +124,22 @@ describe('banco de questões', () => {
     renderPage()
     await bring()
     await screen.findByText('3 questão(ões)')
-    expect(screen.getByText('Questão 1 de 3')).toBeTruthy()
+    expect(screen.getByText(/Questão 1 de 3/)).toBeTruthy()
     expect(screen.getByText('sql-0001')).toBeTruthy()
     expect(screen.queryByText('sql-0002')).toBeNull()
     expect((screen.getByRole('button', { name: /Anterior/ }) as HTMLButtonElement).disabled).toBe(true)
     // sem responder, o botão se chama "Pular"; depois de responder, "Próxima"
     fireEvent.click(screen.getByRole('button', { name: /Pular/ }))
-    expect(screen.getByText('Questão 2 de 3')).toBeTruthy()
+    expect(screen.getByText(/Questão 2 de 3/)).toBeTruthy()
     expect(screen.getByText('sql-0002')).toBeTruthy()
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
-    expect(screen.getByText('Questão 1 de 3')).toBeTruthy()
+    expect(screen.getByText(/Questão 1 de 3/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Alternativa A' }))
     expect(await screen.findByText('Você acertou!')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Próxima/ })).toBeTruthy()
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     fireEvent.keyDown(window, { key: 'ArrowRight' })
-    expect(screen.getByText('Questão 3 de 3')).toBeTruthy()
+    expect(screen.getByText(/Questão 3 de 3/)).toBeTruthy()
     expect((screen.getByRole('button', { name: /Pular/ }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Alternativa A' }))
     expect(await screen.findByText(/Fim da lista: 2 de 2 certas/)).toBeTruthy()
@@ -133,6 +151,7 @@ describe('banco de questões', () => {
     await screen.findByText('3 questão(ões)')
     fireEvent.click(screen.getByRole('button', { name: /Pular/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Favoritar' }))
+    openFilters()
     fireEvent.change(screen.getByRole('combobox', { name: 'Situação' }), { target: { value: 'favoritas' } })
     await bring()
     expect(await screen.findByText('1 questão(ões)')).toBeTruthy()

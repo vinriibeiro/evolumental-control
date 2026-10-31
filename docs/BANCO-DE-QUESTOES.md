@@ -3,7 +3,7 @@
 Aba **Biblioteca → Banco de questões**. Questões técnicas de TI (múltipla escolha e certo/errado, estilo concurso e entrevista), com gabarito comentado.
 
 ## Como usar
-- Escolha o **tema**, marque **subtemas** (nenhum marcado = todos), filtre por **nível** (básico, intermediário, avançado, extremo), **tipo**, **estilo**, **situação** (todas, não respondidas, que errei, favoritas) e **busca** no enunciado, escolha a **quantidade** (10 a 100, ou todas) e clique em **Trazer questões**. Mexer nos filtros não muda a lista até você clicar de novo.
+- A barra de filtros fica em cima, com menus suspensos: **tema**, **subtemas** (múltipla escolha; nenhum marcado = todos), **nível**, **tipo**, **estilo**, **situação** (todas, não respondidas, que errei, favoritas), **quantidade** (10 a 100, ou todas) e **palavra-chave**. Clique em **Trazer questões**: a barra se recolhe num resumo e a questão ocupa a tela. O botão **Filtros** reabre a barra; mexer nela não muda a lista até você trazer de novo.
 - A tela mostra **uma questão por vez**. Clique numa alternativa: o app corrige na hora e mostra a explicação. Depois, **Próxima** (ou a seta → do teclado) passa para a seguinte; **Pular** avança sem responder e **Anterior** volta. A questão fica travada depois de respondida; use **Embaralhar** ou mude os filtros para recomeçar a lista.
 - No celular os filtros ficam escondidos atrás do botão **Filtros**, para a questão ocupar a tela.
 - A estrela marca como **favorita**.
