@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Save, Shuffle, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ListChecks, Save, Shuffle, SlidersHorizontal, Star } from 'lucide-react'
 import { useAuth } from '@/app/auth'
 import { Button } from '@/components/ui/Button'
 import { Checkbox, Input, Select } from '@/components/ui/Field'
-import { Badge, Card, PageHeader } from '@/components/ui/layout'
+import { Badge, Card, PageHeader, Progress as ProgressBar } from '@/components/ui/layout'
 import { EmptyState, QueryState, Spinner, useToast } from '@/components/ui/feedback'
 import { useInsert } from '@/hooks/data'
 import { useSettings } from '@/hooks/useSettings'
@@ -37,13 +37,22 @@ import {
 import { cn } from '@/lib/cn'
 import { todayKey } from '@/lib/time'
 
-const PAGE_SIZE = 10
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+/** Quantas questões trazer por vez (0 = todas as que passarem nos filtros). */
+const AMOUNTS = [10, 20, 30, 50, 100, 0]
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${base}/questoes/${path}`)
   if (!res.ok) throw new Error(`Não consegui carregar as questões (${res.status}).`)
   return (await res.json()) as T
+}
+
+/** O que o usuário escolheu nos filtros. Só vira lista quando ele clica em "Trazer questões". */
+interface Pick {
+  tema: string
+  subtemas: string[]
+  filters: BankFilters
+  amount: number
 }
 
 function Chips<T extends string>({ label, options, value, onChange }: { label: string; options: Array<{ value: T; label: string }>; value: T[]; onChange: (v: T[]) => void }) {
@@ -91,7 +100,7 @@ function Blocks({ text }: { text: string }) {
 function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q: BankQuestion; number: number; chosen: string | undefined; favorite: boolean; onAnswer: (key: string) => void; onFavorite: () => void }) {
   const answered = chosen !== undefined
   return (
-    <Card className="p-4">
+    <Card className="p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         <span className="tabular text-xs font-semibold text-muted">#{number}</span>
         <Badge>{q.subtema}</Badge>
@@ -105,7 +114,7 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
         </button>
       </div>
       <Blocks text={q.enunciado} />
-      <ul className="mt-3 space-y-1.5">
+      <ul className="mt-4 space-y-1.5">
         {answerOptions(q).map((o) => {
           const isRight = o.key === q.gabarito
           const isChosen = chosen === o.key
@@ -117,7 +126,7 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
                 aria-label={`Alternativa ${o.key}`}
                 onClick={() => onAnswer(o.key)}
                 className={cn(
-                  'flex w-full items-start gap-3 rounded-lg border px-3 py-2 text-left text-sm transition-colors',
+                  'flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors',
                   !answered && 'border-line text-ink hover:bg-surface',
                   answered && isRight && 'border-success bg-success/10 text-ink',
                   answered && isChosen && !isRight && 'border-danger bg-danger/10 text-ink',
@@ -132,7 +141,7 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
         })}
       </ul>
       {answered && (
-        <div role="status" className="mt-3 rounded-lg bg-surface p-3">
+        <div role="status" className="mt-4 rounded-lg bg-surface p-3">
           <p className={cn('mb-1 text-sm font-semibold', chosen === q.gabarito ? 'text-success' : 'text-danger')}>{chosen === q.gabarito ? 'Você acertou!' : `Você errou. A resposta é ${q.gabarito}.`}</p>
           <p className="text-sm whitespace-pre-wrap text-ink">{q.explicacao}</p>
         </div>
@@ -141,6 +150,10 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
   )
 }
 
+/**
+ * Banco de questões. O usuário monta os filtros (tema, subtemas, nível, quantidade…) e clica em "Trazer questões";
+ * só então a lista é montada. Depois responde uma questão por vez, com "Anterior" / "Próxima" (ou as setas do teclado).
+ */
 export default function QuestionBankPage() {
   const auth = useAuth()
   const settings = useSettings()
@@ -149,42 +162,70 @@ export default function QuestionBankPage() {
   const scope = auth.mode === 'supabase' ? (auth.user?.id ?? 'anon') : 'local'
 
   const index = useQuery({ queryKey: ['qbank', 'index'], queryFn: () => getJson<BankIndex>('index.json'), staleTime: Infinity })
-  const [tema, setTema] = useState<string>('')
-  const [subtemas, setSubtemas] = useState<string[]>([])
-  const [filters, setFilters] = useState<BankFilters>(EMPTY_FILTERS)
+  const [draft, setDraft] = useState<Pick>({ tema: '', subtemas: [], filters: EMPTY_FILTERS, amount: 20 })
+  const [applied, setApplied] = useState<Pick | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(true)
   const [progress, setProgress] = useState<Progress>(() => loadProgress(scope))
   const [chosen, setChosen] = useState<Record<string, string>>({})
   const [session, setSession] = useState({ total: 0, correct: 0 })
-  const [page, setPage] = useState(0)
+  const [pos, setPos] = useState(0)
   const [seed, setSeed] = useState(0)
 
   useEffect(() => setProgress(loadProgress(scope)), [scope])
   useEffect(() => saveProgress(scope, progress), [scope, progress])
 
-  const theme = index.data?.temas.find((t) => t.tema === tema) ?? index.data?.temas[0]
-  const activeSubs = useMemo(() => (theme ? (subtemas.length ? theme.subtemas.filter((s) => subtemas.includes(s.nome)) : theme.subtemas) : []), [theme, subtemas])
+  const temas = index.data?.temas ?? []
+  const draftTheme = temas.find((t) => t.tema === draft.tema) ?? temas[0]
+  const appliedTheme = applied ? temas.find((t) => t.tema === applied.tema) : undefined
+  const activeSubs = useMemo(() => (appliedTheme && applied ? (applied.subtemas.length ? appliedTheme.subtemas.filter((s) => applied.subtemas.includes(s.nome)) : appliedTheme.subtemas) : []), [appliedTheme, applied])
   const shards = useQueries({
-    queries: activeSubs.map((s) => ({ queryKey: ['qbank', theme?.prefixo, s.arquivo], queryFn: () => getJson<BankQuestion[]>(`${theme?.prefixo}/${s.arquivo}`), staleTime: Infinity })),
+    queries: activeSubs.map((s) => ({ queryKey: ['qbank', appliedTheme?.prefixo, s.arquivo], queryFn: () => getJson<BankQuestion[]>(`${appliedTheme?.prefixo}/${s.arquivo}`), staleTime: Infinity })),
   })
-  const loading = shards.some((s) => s.isPending)
+  const loading = Boolean(applied) && shards.some((s) => s.isPending)
   const failed = shards.find((s) => s.isError)
   const loaded = useMemo(() => shards.flatMap((s) => s.data ?? []), [shards])
 
-  // A lista só muda quando os filtros mudam (responder uma questão não a tira da tela).
+  // A lista só muda quando o usuário traz questões de novo ou embaralha (responder não tira a questão da tela).
   const [frozen, setFrozen] = useState<{ ids: string[] } | null>(null)
-  const filtered = useMemo(() => filterQuestions(loaded, filters, progress), [loaded, filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  const filtered = useMemo(() => (applied ? filterQuestions(loaded, applied.filters, progress) : []), [loaded, applied]) // eslint-disable-line react-hooks/exhaustive-deps
   const filteredKey = filtered.map((q) => q.id).join(',')
   useEffect(() => {
-    setFrozen({ ids: (seed ? shuffled(filtered) : filtered).map((q) => q.id) })
-    setPage(0)
-  }, [filteredKey, seed]) // eslint-disable-line react-hooks/exhaustive-deps
+    const list = seed ? shuffled(filtered) : filtered
+    setFrozen({ ids: (applied?.amount ? list.slice(0, applied.amount) : list).map((q) => q.id) })
+    setPos(0)
+  }, [filteredKey, seed, applied?.amount]) // eslint-disable-line react-hooks/exhaustive-deps
   const byId = useMemo(() => new Map(loaded.map((q) => [q.id, q])), [loaded])
   const ordered = useMemo(() => (frozen?.ids ?? []).map((id) => byId.get(id)).filter((q): q is BankQuestion => Boolean(q)), [frozen, byId])
-  const pages = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE))
-  const visible = ordered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+  const current = ordered[pos] ?? null
+  const answeredHere = ordered.filter((q) => chosen[q.id] !== undefined).length
   const stats = summarizeProgress(progress, loaded.map((q) => q.id))
 
-  const setF = <K extends keyof BankFilters>(k: K, v: BankFilters[K]) => setFilters((f) => ({ ...f, [k]: v }))
+  const setF = <K extends keyof BankFilters>(k: K, v: BankFilters[K]) => setDraft((d) => ({ ...d, filters: { ...d.filters, [k]: v } }))
+  const goTo = (i: number) => {
+    if (i < 0 || i >= ordered.length) return
+    setPos(i)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const bring = () => {
+    if (!draftTheme) return
+    const next = { ...draft, tema: draftTheme.tema }
+    if (applied?.tema !== next.tema) setChosen({})
+    setApplied(next)
+    setFiltersOpen(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Setas do teclado trocam de questão (fora de campos de texto).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      if (e.key === 'ArrowRight') goTo(pos + 1)
+      else if (e.key === 'ArrowLeft') goTo(pos - 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }) // sem lista de dependências de propósito: usa sempre pos/ordered atuais
 
   const answer = (q: BankQuestion, key: string) => {
     if (chosen[q.id] !== undefined) return
@@ -197,7 +238,7 @@ export default function QuestionBankPage() {
   const saveSession = async () => {
     if (!session.total) return
     try {
-      await insert.mutateAsync({ subject_id: null, topic_id: null, date: todayKey(settings.timezone), total: session.total, correct: session.correct, wrong: session.total - session.correct, board: null, exam: null, source: 'Banco de questões', notes: sessionNote(theme?.tema ?? '', subtemas, session.total) })
+      await insert.mutateAsync({ subject_id: null, topic_id: null, date: todayKey(settings.timezone), total: session.total, correct: session.correct, wrong: session.total - session.correct, board: null, exam: null, source: 'Banco de questões', notes: sessionNote(applied?.tema ?? '', applied?.subtemas ?? [], session.total) })
       toast.success(`${session.total} questão(ões) salvas em Desempenho.`)
       setSession({ total: 0, correct: 0 })
     } catch (e) {
@@ -205,26 +246,31 @@ export default function QuestionBankPage() {
     }
   }
 
-  const changeTheme = (t: string) => {
-    setTema(t)
-    setSubtemas([])
-    setChosen({})
-  }
+  const activeFilters = draft.subtemas.length + draft.filters.niveis.length + draft.filters.tipos.length + draft.filters.estilos.length + (draft.filters.status !== 'todas' ? 1 : 0) + (draft.filters.busca ? 1 : 0)
+  const bringLabel = applied ? 'Trazer novas questões' : 'Trazer questões'
 
   return (
     <div>
-      <PageHeader title="Banco de questões" description="Escolha o tema, o nível e o estilo; responda e veja o gabarito comentado na hora. O progresso fica salvo neste aparelho." />
+      <PageHeader
+        title="Banco de questões"
+        description="Escolha o tema e os filtros, clique em Trazer questões e responda uma por vez. O progresso fica salvo neste aparelho."
+        actions={
+          <Button size="sm" className="lg:hidden" icon={<SlidersHorizontal className="size-4" aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+            Filtros{activeFilters ? ` (${activeFilters})` : ''}
+          </Button>
+        }
+      />
       <QueryState query={index}>
-        {!theme ? (
+        {!draftTheme ? (
           <EmptyState title="Banco vazio" description="Nenhuma questão foi carregada ainda." />
         ) : (
           <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-            <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <aside className={cn('space-y-4 lg:sticky lg:top-24 lg:self-start', !filtersOpen && 'max-lg:hidden')}>
               <Card className="space-y-4 p-4">
                 <label className="block text-xs font-semibold tracking-wide text-muted uppercase">
                   Tema
-                  <Select aria-label="Tema" className="mt-1.5 w-full text-sm font-normal normal-case" value={theme.tema} onChange={(e) => changeTheme(e.target.value)}>
-                    {index.data!.temas.map((t) => (
+                  <Select aria-label="Tema" className="mt-1.5 w-full text-sm font-normal normal-case" value={draftTheme.tema} onChange={(e) => setDraft((d) => ({ ...d, tema: e.target.value, subtemas: [] }))}>
+                    {temas.map((t) => (
                       <option key={t.tema} value={t.tema}>
                         {t.tema} ({t.total.toLocaleString('pt-BR')})
                       </option>
@@ -234,18 +280,23 @@ export default function QuestionBankPage() {
                 <fieldset>
                   <legend className="mb-1.5 text-xs font-semibold tracking-wide text-muted uppercase">Subtemas</legend>
                   <div className="flex flex-col gap-1.5">
-                    {theme.subtemas.map((s) => (
-                      <Checkbox key={s.nome} label={`${s.nome} (${s.total})`} checked={subtemas.includes(s.nome)} onChange={(e) => setSubtemas(e.target.checked ? [...subtemas, s.nome] : subtemas.filter((x) => x !== s.nome))} />
+                    {draftTheme.subtemas.map((s) => (
+                      <Checkbox
+                        key={s.nome}
+                        label={`${s.nome} (${s.total})`}
+                        checked={draft.subtemas.includes(s.nome)}
+                        onChange={(e) => setDraft((d) => ({ ...d, subtemas: e.target.checked ? [...d.subtemas, s.nome] : d.subtemas.filter((x) => x !== s.nome) }))}
+                      />
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[11px] text-muted">{subtemas.length ? 'Só os marcados.' : 'Nenhum marcado = todos.'}</p>
+                  <p className="mt-1.5 text-[11px] text-muted">{draft.subtemas.length ? 'Só os marcados.' : 'Nenhum marcado = todos.'}</p>
                 </fieldset>
-                <Chips label="Nível" value={filters.niveis} onChange={(v) => setF('niveis', v)} options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))} />
-                <Chips<QuestionType> label="Tipo" value={filters.tipos} onChange={(v) => setF('tipos', v)} options={(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => ({ value: t, label: TYPE_LABELS[t] }))} />
-                <Chips<QuestionStyle> label="Estilo" value={filters.estilos} onChange={(v) => setF('estilos', v)} options={(Object.keys(STYLE_LABELS) as QuestionStyle[]).map((s) => ({ value: s, label: STYLE_LABELS[s] }))} />
+                <Chips label="Nível" value={draft.filters.niveis} onChange={(v) => setF('niveis', v)} options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))} />
+                <Chips<QuestionType> label="Tipo" value={draft.filters.tipos} onChange={(v) => setF('tipos', v)} options={(Object.keys(TYPE_LABELS) as QuestionType[]).map((t) => ({ value: t, label: TYPE_LABELS[t] }))} />
+                <Chips<QuestionStyle> label="Estilo" value={draft.filters.estilos} onChange={(v) => setF('estilos', v)} options={(Object.keys(STYLE_LABELS) as QuestionStyle[]).map((s) => ({ value: s, label: STYLE_LABELS[s] }))} />
                 <label className="block text-xs font-semibold tracking-wide text-muted uppercase">
                   Situação
-                  <Select aria-label="Situação" className="mt-1.5 w-full text-sm font-normal normal-case" value={filters.status} onChange={(e) => setF('status', e.target.value as StatusFilter)}>
+                  <Select aria-label="Situação" className="mt-1.5 w-full text-sm font-normal normal-case" value={draft.filters.status} onChange={(e) => setF('status', e.target.value as StatusFilter)}>
                     {(Object.keys(STATUS_LABELS) as StatusFilter[]).map((s) => (
                       <option key={s} value={s}>
                         {STATUS_LABELS[s]}
@@ -255,59 +306,110 @@ export default function QuestionBankPage() {
                 </label>
                 <label className="block text-xs font-semibold tracking-wide text-muted uppercase">
                   Buscar no enunciado
-                  <Input aria-label="Buscar" className="mt-1.5 w-full text-sm font-normal normal-case" value={filters.busca} placeholder="ex.: LEFT JOIN, janela, NULL" onChange={(e) => setF('busca', e.target.value)} />
+                  <Input aria-label="Buscar" className="mt-1.5 w-full text-sm font-normal normal-case" value={draft.filters.busca} placeholder="ex.: LEFT JOIN, janela, NULL" onChange={(e) => setF('busca', e.target.value)} />
                 </label>
-                <Button size="sm" variant="ghost" onClick={() => (setFilters(EMPTY_FILTERS), setSubtemas([]))}>
-                  Limpar filtros
-                </Button>
+                <label className="block text-xs font-semibold tracking-wide text-muted uppercase">
+                  Quantidade
+                  <Select aria-label="Quantidade" className="mt-1.5 w-full text-sm font-normal normal-case" value={draft.amount} onChange={(e) => setDraft((d) => ({ ...d, amount: Number(e.target.value) }))}>
+                    {AMOUNTS.map((n) => (
+                      <option key={n} value={n}>
+                        {n === 0 ? 'Todas que passarem nos filtros' : `${n} questões`}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <div className="flex flex-col gap-2 border-t border-line pt-4">
+                  <Button variant="primary" icon={<ListChecks className="size-4" aria-hidden />} onClick={bring}>
+                    {bringLabel}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDraft((d) => ({ ...d, subtemas: [], filters: EMPTY_FILTERS }))}>
+                    Limpar filtros
+                  </Button>
+                </div>
               </Card>
-              <Card className="p-4 text-sm">
-                <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Seu progresso neste tema</p>
-                <p className="text-ink">
-                  {stats.answered} de {loaded.length} respondidas · {stats.correctLast} certas · {stats.wrongLast} erradas · {stats.favorites} favoritas
-                </p>
-              </Card>
+              {applied && (
+                <Card className="p-4 text-sm">
+                  <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Seu progresso em {applied.tema}</p>
+                  <p className="text-ink">
+                    {stats.answered} de {loaded.length} respondidas · {stats.correctLast} certas · {stats.wrongLast} erradas · {stats.favorites} favoritas
+                  </p>
+                </Card>
+              )}
             </aside>
 
             <section className="min-w-0 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium text-ink" aria-live="polite">
-                  {loading ? 'Carregando questões…' : `${ordered.length.toLocaleString('pt-BR')} questão(ões)`}
-                </p>
-                <span className="flex-1" />
-                <span className="text-xs text-muted">
-                  Sessão: {session.correct}/{session.total} certas
-                </span>
-                <Button size="sm" icon={<Save className="size-4" />} disabled={!session.total} loading={insert.isPending} onClick={() => void saveSession()}>
-                  Salvar em Desempenho
-                </Button>
-                <Button size="sm" icon={<Shuffle className="size-4" />} onClick={() => setSeed((s) => s + 1)}>
-                  Embaralhar
-                </Button>
-              </div>
-
-              {failed ? (
-                <EmptyState title="Não consegui carregar" description={String((failed.error as Error)?.message ?? 'Erro desconhecido.')} />
-              ) : loading ? (
-                <Spinner />
-              ) : ordered.length === 0 ? (
-                <EmptyState title="Nenhuma questão com esses filtros" description="Tire algum filtro ou escolha outro subtema." />
+              {!applied ? (
+                <EmptyState
+                  icon={<ListChecks className="size-8" aria-hidden />}
+                  title="Monte a sua lista"
+                  description="Escolha o tema, os subtemas, o nível e a quantidade nos filtros e clique em Trazer questões. As questões aparecem uma por vez."
+                  action={
+                    <Button variant="primary" className="lg:hidden" onClick={() => setFiltersOpen(true)}>
+                      Escolher filtros
+                    </Button>
+                  }
+                />
               ) : (
                 <>
-                  {visible.map((q, i) => (
-                    <QuestionCard key={q.id} q={q} number={page * PAGE_SIZE + i + 1} chosen={chosen[q.id]} favorite={progress[q.id]?.[3] === 1} onAnswer={(k) => answer(q, k)} onFavorite={() => setProgress((p) => toggleFavorite(p, q.id))} />
-                  ))}
-                  <div className="flex items-center justify-between gap-2">
-                    <Button size="sm" icon={<ChevronLeft className="size-4" />} disabled={page === 0} onClick={() => setPage(page - 1)}>
-                      Anterior
-                    </Button>
-                    <span className="text-sm text-muted">
-                      Página {page + 1} de {pages}
-                    </span>
-                    <Button size="sm" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>
-                      Próxima <ChevronRight className="size-4" />
-                    </Button>
-                  </div>
+                  <Card className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-ink" aria-live="polite">
+                        {loading ? 'Carregando questões…' : `${ordered.length.toLocaleString('pt-BR')} questão(ões)`}
+                        {!loading && filtered.length > ordered.length && <span className="text-muted"> de {filtered.length.toLocaleString('pt-BR')} que passaram nos filtros</span>}
+                        {!loading && current && <span className="text-muted"> · {answeredHere} respondidas</span>}
+                      </p>
+                      <span className="flex-1" />
+                      <span className="text-xs text-muted">
+                        Sessão: {session.correct}/{session.total} certas
+                      </span>
+                      <Button size="sm" icon={<Save className="size-4" />} disabled={!session.total} loading={insert.isPending} onClick={() => void saveSession()}>
+                        Salvar em Desempenho
+                      </Button>
+                      <Button size="sm" icon={<Shuffle className="size-4" />} onClick={() => setSeed((s) => s + 1)}>
+                        Embaralhar
+                      </Button>
+                    </div>
+                    {!loading && ordered.length > 0 && <ProgressBar value={((pos + 1) / ordered.length) * 100} className="h-1.5" label="Posição na lista" />}
+                  </Card>
+
+                  {failed ? (
+                    <EmptyState title="Não consegui carregar" description={String((failed.error as Error)?.message ?? 'Erro desconhecido.')} />
+                  ) : loading ? (
+                    <Spinner />
+                  ) : !current ? (
+                    <EmptyState title="Nenhuma questão com esses filtros" description="Tire algum filtro ou escolha outro subtema e clique em Trazer questões de novo." />
+                  ) : (
+                    <>
+                      <QuestionCard key={current.id} q={current} number={pos + 1} chosen={chosen[current.id]} favorite={progress[current.id]?.[3] === 1} onAnswer={(k) => answer(current, k)} onFavorite={() => setProgress((p) => toggleFavorite(p, current.id))} />
+                      <nav aria-label="Navegar entre as questões" className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                        <Button icon={<ChevronLeft className="size-4" aria-hidden />} disabled={pos === 0} onClick={() => goTo(pos - 1)} className="justify-self-start">
+                          Anterior
+                        </Button>
+                        <span className="tabular text-center text-sm text-muted">
+                          Questão {pos + 1} de {ordered.length.toLocaleString('pt-BR')}
+                        </span>
+                        <Button variant={chosen[current.id] !== undefined ? 'primary' : 'secondary'} disabled={pos >= ordered.length - 1} onClick={() => goTo(pos + 1)} className="justify-self-end">
+                          {chosen[current.id] !== undefined ? 'Próxima' : 'Pular'} <ChevronRight className="size-4" aria-hidden />
+                        </Button>
+                      </nav>
+                      {pos >= ordered.length - 1 && chosen[current.id] !== undefined && (
+                        <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm text-ink">
+                            Fim da lista: {session.correct} de {session.total} certas nesta sessão.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" icon={<Save className="size-4" />} disabled={!session.total} loading={insert.isPending} onClick={() => void saveSession()}>
+                              Salvar em Desempenho
+                            </Button>
+                            <Button size="sm" variant="primary" icon={<ListChecks className="size-4" aria-hidden />} onClick={() => setFiltersOpen(true)}>
+                              Montar outra lista
+                            </Button>
+                          </div>
+                        </Card>
+                      )}
+                      <p className="hidden text-center text-xs text-muted sm:block">Dica: use as setas ← → do teclado para trocar de questão.</p>
+                    </>
+                  )}
                 </>
               )}
             </section>

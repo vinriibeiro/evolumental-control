@@ -3,8 +3,9 @@
 Aba **Biblioteca → Banco de questões**. Questões técnicas de TI (múltipla escolha e certo/errado, estilo concurso e entrevista), com gabarito comentado.
 
 ## Como usar
-- Escolha o **tema**, marque **subtemas** (nenhum marcado = todos) e filtre por **nível** (básico, intermediário, avançado, extremo), **tipo**, **estilo**, **situação** (todas, não respondidas, que errei, favoritas) e **busca** no enunciado.
-- Clique numa alternativa: o app corrige na hora e mostra a explicação. A questão fica travada depois de respondida; use **Embaralhar** ou mude os filtros para recomeçar a lista.
+- Escolha o **tema**, marque **subtemas** (nenhum marcado = todos), filtre por **nível** (básico, intermediário, avançado, extremo), **tipo**, **estilo**, **situação** (todas, não respondidas, que errei, favoritas) e **busca** no enunciado, escolha a **quantidade** (10 a 100, ou todas) e clique em **Trazer questões**. Mexer nos filtros não muda a lista até você clicar de novo.
+- A tela mostra **uma questão por vez**. Clique numa alternativa: o app corrige na hora e mostra a explicação. Depois, **Próxima** (ou a seta → do teclado) passa para a seguinte; **Pular** avança sem responder e **Anterior** volta. A questão fica travada depois de respondida; use **Embaralhar** ou mude os filtros para recomeçar a lista.
+- No celular os filtros ficam escondidos atrás do botão **Filtros**, para a questão ocupar a tela.
 - A estrela marca como **favorita**.
 - **Salvar em Desempenho** grava o resumo da sessão (total, certas e erradas) na aba Desempenho, em "Questões e desempenho", com a origem "Banco de questões". Isso sincroniza com a conta.
 - O **progresso por questão** (tentativas, última resposta, favoritas) fica salvo **neste aparelho** (localStorage, uma chave por conta). Em outro aparelho o progresso começa do zero.
