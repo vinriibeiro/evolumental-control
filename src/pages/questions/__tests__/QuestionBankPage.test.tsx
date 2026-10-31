@@ -55,6 +55,10 @@ const renderPage = () =>
     </QueryClientProvider>,
   )
 const bring = async () => fireEvent.click(await screen.findByRole('button', { name: /Trazer (novas )?questões/ }))
+const answerWith = (k: string) => {
+  fireEvent.click(screen.getByRole('button', { name: `Alternativa ${k}` }))
+  fireEvent.click(screen.getByRole('button', { name: 'Responder' }))
+}
 const openFilters = () => fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }))
 
 describe('banco de questões', () => {
@@ -73,7 +77,12 @@ describe('banco de questões', () => {
     renderPage()
     await bring()
     await screen.findByText('3 questão(ões)')
-    fireEvent.click(screen.getByRole('button', { name: 'Alternativa B' }))
+    // marcar não corrige: só o botão Responder
+    expect((screen.getByRole('button', { name: 'Responder' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Alternativa A' }))
+    expect(screen.queryByText('Você acertou!')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Alternativa A' }).getAttribute('aria-pressed')).toBe('true')
+    answerWith('B')
     expect(await screen.findByText(/Você errou\. A resposta é A\./)).toBeTruthy()
     expect(screen.getByText('Explicação sql-0001')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Alternativa A' }) as HTMLButtonElement).disabled).toBe(true)
@@ -91,7 +100,7 @@ describe('banco de questões', () => {
     expect(screen.getByText('3 questão(ões)')).toBeTruthy() // ainda não aplicou
     await bring()
     expect(await screen.findByText('1 questão(ões)')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Alternativa E' }))
+    answerWith('E')
     expect(await screen.findByText('Você acertou!')).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: /Salvar em Desempenho/ })[0])
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1))
@@ -134,14 +143,14 @@ describe('banco de questões', () => {
     expect(screen.getByText('sql-0002')).toBeTruthy()
     fireEvent.keyDown(window, { key: 'ArrowLeft' })
     expect(screen.getByText(/Questão 1 de 3/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Alternativa A' }))
+    answerWith('A')
     expect(await screen.findByText('Você acertou!')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Próxima/ })).toBeTruthy()
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(screen.getByText(/Questão 3 de 3/)).toBeTruthy()
     expect((screen.getByRole('button', { name: /Pular/ }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByRole('button', { name: 'Alternativa A' }))
+    answerWith('A')
     expect(await screen.findByText(/Fim da lista: 2 de 2 certas/)).toBeTruthy()
   })
 

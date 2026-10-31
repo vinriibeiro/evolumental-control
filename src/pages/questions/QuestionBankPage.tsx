@@ -77,6 +77,8 @@ function Blocks({ text }: { text: string }) {
 
 function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q: BankQuestion; number: number; chosen: string | undefined; favorite: boolean; onAnswer: (key: string) => void; onFavorite: () => void }) {
   const answered = chosen !== undefined
+  // Clicar numa alternativa só a marca; a correção vem com o botão "Responder".
+  const [selected, setSelected] = useState<string | null>(null)
   return (
     <div className="p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
@@ -96,16 +98,19 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
         {answerOptions(q).map((o) => {
           const isRight = o.key === q.gabarito
           const isChosen = chosen === o.key
+          const isSelected = !answered && selected === o.key
           return (
             <li key={o.key}>
               <button
                 type="button"
                 disabled={answered}
                 aria-label={`Alternativa ${o.key}`}
-                onClick={() => onAnswer(o.key)}
+                aria-pressed={answered ? undefined : isSelected}
+                onClick={() => setSelected(o.key)}
                 className={cn(
                   'flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors',
-                  !answered && 'border-line text-ink hover:bg-surface',
+                  !answered && !isSelected && 'border-line text-ink hover:bg-surface',
+                  isSelected && 'border-accent-strong bg-accent/20 text-ink',
                   answered && isRight && 'border-success bg-success/10 text-ink',
                   answered && isChosen && !isRight && 'border-danger bg-danger/10 text-ink',
                   answered && !isRight && !isChosen && 'border-line text-muted',
@@ -118,6 +123,14 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
           )
         })}
       </ul>
+      {!answered && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted">{selected ? `Marcada: ${selected}` : 'Marque uma alternativa.'}</p>
+          <Button variant="primary" disabled={!selected} onClick={() => selected && onAnswer(selected)} className="max-sm:w-full">
+            Responder
+          </Button>
+        </div>
+      )}
       {answered && (
         <div role="status" className="mt-4 rounded-lg bg-surface p-3">
           <p className={cn('mb-1 text-sm font-semibold', chosen === q.gabarito ? 'text-success' : 'text-danger')}>{chosen === q.gabarito ? 'Você acertou!' : `Você errou. A resposta é ${q.gabarito}.`}</p>
