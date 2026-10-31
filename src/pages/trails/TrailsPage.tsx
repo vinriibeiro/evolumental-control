@@ -7,7 +7,7 @@ import { Badge, Card, PageHeader, Progress, Segmented, Tabs } from '@/components
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/feedback'
 import { useTransaction } from '@/hooks/data'
-import { CAREER_TRAILS, SUBJECT_LIBRARY, countTopics, subjectByKey, type CareerTrail, type SubjectDef, type TopicTree } from '@/content/trails'
+import { CAREER_TRAILS, SUBJECT_LIBRARY, countTopics, subjectByKey, topicName, type CareerTrail, type CyclePlan, type SubjectDef, type TopicTree } from '@/content/trails'
 import { installTrail, type InstallItem, type InstallResult } from '@/services/trails'
 import { cn } from '@/lib/cn'
 import { searchLinks } from '@/lib/search'
@@ -15,10 +15,10 @@ import { searchLinks } from '@/lib/search'
 type Area = 'all' | 'Concursos' | 'Tecnologia'
 
 export default function TrailsPage() {
-  const [tab, setTab] = useState<'careers' | 'subjects'>('careers')
+  const [tab, setTab] = useState<'minha' | 'careers' | 'subjects'>('minha')
   const [area, setArea] = useState<Area>('all')
   const [selected, setSelected] = useState<CareerTrail | null>(null)
-  const [installing, setInstalling] = useState<{ title: string; items: InstallItem[]; cycleName?: string; allowCycle: boolean } | null>(null)
+  const [installing, setInstalling] = useState<{ title: string; items: InstallItem[]; cycleName?: string; allowCycle: boolean; cyclePlan?: CyclePlan } | null>(null)
 
   if (selected)
     return (
@@ -31,7 +31,8 @@ export default function TrailsPage() {
               title: selected.name,
               items: selected.subjects.map((s) => ({ subject: subjectByKey(s.key), weight: s.weight })),
               cycleName: `Ciclo — ${selected.name}`,
-              allowCycle: true,
+              allowCycle: !selected.cyclePlan,
+              cyclePlan: selected.cyclePlan,
             })
           }
         />
@@ -39,7 +40,8 @@ export default function TrailsPage() {
       </>
     )
 
-  const careers = CAREER_TRAILS.filter((c) => area === 'all' || c.area === area)
+  const minha = CAREER_TRAILS.find((c) => c.sequential)
+  const careers = CAREER_TRAILS.filter((c) => !c.sequential && (area === 'all' || c.area === area))
   const subjects = SUBJECT_LIBRARY.filter((s) => area === 'all' || s.area === area)
 
   return (
@@ -52,11 +54,12 @@ export default function TrailsPage() {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: 'careers', label: 'Por carreira' },
+          ...(minha ? [{ value: 'minha' as const, label: 'Minha trilha' }] : []),
+          { value: 'careers', label: 'Outras carreiras' },
           { value: 'subjects', label: 'Por matéria' },
         ]}
       />
-      <div className="mb-5">
+      <div className={cn('mb-5', tab === 'minha' && 'hidden')}>
         <Segmented
           label="Área"
           value={area}
@@ -69,7 +72,22 @@ export default function TrailsPage() {
         />
       </div>
 
-      {tab === 'careers' ? (
+      {tab === 'minha' && minha ? (
+        <CareerDetail
+          embedded
+          trail={minha}
+          onBack={() => setTab('careers')}
+          onInstall={() =>
+            setInstalling({
+              title: minha.name,
+              items: minha.subjects.map((s) => ({ subject: subjectByKey(s.key), weight: s.weight })),
+              cycleName: minha.cyclePlan?.name,
+              allowCycle: !minha.cyclePlan,
+              cyclePlan: minha.cyclePlan,
+            })
+          }
+        />
+      ) : tab === 'careers' ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {careers.map((c) => {
             const topics = c.subjects.reduce((n, s) => n + countTopics(subjectByKey(s.key).topics), 0)
@@ -100,7 +118,8 @@ export default function TrailsPage() {
                         title: c.name,
                         items: c.subjects.map((s) => ({ subject: subjectByKey(s.key), weight: s.weight })),
                         cycleName: `Ciclo — ${c.name}`,
-                        allowCycle: true,
+                        allowCycle: !c.cyclePlan,
+                        cyclePlan: c.cyclePlan,
                       })
                     }
                   >
@@ -157,14 +176,27 @@ function SubjectTrailCard({ subject: s, onAdd }: { subject: SubjectDef; onAdd: (
   )
 }
 
+function topicMinutes(tree: TopicTree): number {
+  return tree.reduce<number>((n, t) => n + (Array.isArray(t) ? topicMinutes(t[1]) : typeof t === 'string' ? 0 : (t.minutes ?? 0)), 0)
+}
+
 function TopicList({ tree, depth = 0 }: { tree: TopicTree; depth?: number }) {
   return (
     <ol className={cn('space-y-1 text-sm', depth === 0 ? 'list-decimal pl-5 marker:text-muted' : 'mt-1 list-disc pl-5 marker:text-line')}>
       {tree.map((node) => {
-        const [name, sub] = typeof node === 'string' ? [node, null] : node
+        const name = topicName(node)
+        const sub = Array.isArray(node) ? node[1] : null
+        const leaf = typeof node === 'string' || Array.isArray(node) ? null : node
         return (
           <li key={name} className={depth === 0 ? 'text-ink' : 'text-muted'}>
-            {name}
+            {leaf?.url ? (
+              <a href={leaf.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline-offset-2 hover:underline">
+                {name} <ExternalLink className="size-3 shrink-0" aria-label="abre o vídeo em outra aba" />
+              </a>
+            ) : (
+              name
+            )}
+            {leaf?.minutes ? <span className="ml-2 text-xs text-muted">{leaf.minutes} min</span> : null}
             {sub && <TopicList tree={sub} depth={depth + 1} />}
           </li>
         )
@@ -173,16 +205,18 @@ function TopicList({ tree, depth = 0 }: { tree: TopicTree; depth?: number }) {
   )
 }
 
-function CareerDetail({ trail, onBack, onInstall }: { trail: CareerTrail; onBack: () => void; onInstall: () => void }) {
+function CareerDetail({ trail, onBack, onInstall, embedded }: { trail: CareerTrail; onBack: () => void; onInstall: () => void; embedded?: boolean }) {
   const [open, setOpen] = useState<string | null>(trail.subjects[0]?.key ?? null)
   const total = trail.subjects.reduce((a, s) => a + s.weight, 0)
   const max = Math.max(...trail.subjects.map((s) => s.weight))
-  const ordered = useMemo(() => [...trail.subjects].sort((a, b) => b.weight - a.weight), [trail])
+  const ordered = useMemo(() => (trail.sequential ? trail.subjects : [...trail.subjects].sort((a, b) => b.weight - a.weight)), [trail])
   return (
     <div>
-      <button onClick={onBack} className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
-        <ArrowLeft className="size-4" /> Trilhas
-      </button>
+      {!embedded && (
+        <button onClick={onBack} className="mb-3 inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+          <ArrowLeft className="size-4" /> Trilhas
+        </button>
+      )}
       <PageHeader
         title={
           <span className="flex items-center gap-2">
@@ -199,9 +233,9 @@ function CareerDetail({ trail, onBack, onInstall }: { trail: CareerTrail; onBack
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-2">
           <p className="mb-1 flex items-center gap-1.5 text-xs text-muted">
-            <Info className="size-3.5" /> {trail.basis} Matérias ordenadas pelo peso; tópicos na ordem de estudo.
+            <Info className="size-3.5" /> {trail.basis} {trail.sequential ? 'Cursos na ordem recomendada: faça um por vez. Clique numa aula para abrir o vídeo.' : 'Matérias ordenadas pelo peso; tópicos na ordem de estudo.'}
           </p>
-          {ordered.map(({ key, weight, note }) => {
+          {ordered.map(({ key, weight, note }, position) => {
             const s = subjectByKey(key)
             const isOpen = open === key
             return (
@@ -213,10 +247,12 @@ function CareerDetail({ trail, onBack, onInstall }: { trail: CareerTrail; onBack
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium text-ink">{s.name}</span>
                     <span className="block text-xs text-muted">
-                      {trail.area === 'Concursos' ? `${weight} questão(ões)/itens` : `relevância ${weight}/10`} · {Math.round((weight / total) * 100)}% do tempo · {countTopics(s.topics)} tópicos
+                      {trail.sequential
+                        ? `Curso ${position + 1} de ${ordered.length} · ${countTopics(s.topics)} aulas · ${(topicMinutes(s.topics) / 60).toFixed(1).replace('.', ',')} h de vídeo`
+                        : `${trail.area === 'Concursos' ? `${weight} questão(ões)/itens` : `relevância ${weight}/10`} · ${Math.round((weight / total) * 100)}% do tempo · ${countTopics(s.topics)} tópicos`}
                       {note ? ` · ${note}` : ''}
                     </span>
-                    <Progress value={(weight / max) * 100} color={s.color} className="mt-1.5 h-1.5" label={`Peso de ${s.name}`} />
+                    {!trail.sequential && <Progress value={(weight / max) * 100} color={s.color} className="mt-1.5 h-1.5" label={`Peso de ${s.name}`} />}
                   </span>
                   {isOpen ? <ChevronDown className="size-4 shrink-0 text-muted" /> : <ChevronRight className="size-4 shrink-0 text-muted" />}
                 </button>
@@ -274,15 +310,16 @@ function CareerDetail({ trail, onBack, onInstall }: { trail: CareerTrail; onBack
   )
 }
 
-function InstallModal({ state, onClose }: { state: { title: string; items: InstallItem[]; cycleName?: string; allowCycle: boolean } | null; onClose: () => void }) {
+function InstallModal({ state, onClose }: { state: { title: string; items: InstallItem[]; cycleName?: string; allowCycle: boolean; cyclePlan?: CyclePlan } | null; onClose: () => void }) {
   const [withCycle, setWithCycle] = useState(true)
+  const [withPlan, setWithPlan] = useState(true)
   const [hours, setHours] = useState('10')
   const [done, setDone] = useState<InstallResult | null>(null)
   const [step, setStep] = useState('')
   const toast = useToast()
   const navigate = useNavigate()
-  const install = useTransaction(['subjects', 'topics', 'study_materials', 'study_cycles', 'study_cycle_items'], (b, args: { items: InstallItem[]; minutes: number | null; name?: string }) =>
-    installTrail(b, args.items, { cycleMinutes: args.minutes, cycleName: args.name, onProgress: setStep }),
+  const install = useTransaction(['subjects', 'topics', 'study_materials', 'study_cycles', 'study_cycle_items'], (b, args: { items: InstallItem[]; minutes: number | null; name?: string; plan?: CyclePlan }) =>
+    installTrail(b, args.items, { cycleMinutes: args.minutes, cycleName: args.name, cyclePlan: args.plan, onProgress: setStep }),
   )
   if (!state) return null
   const h = Number(hours.replace(',', '.'))
@@ -294,7 +331,7 @@ function InstallModal({ state, onClose }: { state: { title: string; items: Insta
   const run = async () => {
     if (state.allowCycle && withCycle && !validHours) return toast.error('Informe entre 1 e 200 horas por volta do ciclo.')
     try {
-      const r = await install.mutateAsync({ items: state.items, minutes: state.allowCycle && withCycle ? Math.round(h * 60) : null, name: state.cycleName })
+      const r = await install.mutateAsync({ items: state.items, minutes: state.allowCycle && withCycle ? Math.round(h * 60) : null, name: state.cycleName, plan: state.cyclePlan && withPlan ? state.cyclePlan : undefined })
       setDone(r)
     } catch (e) {
       toast.error(e)
@@ -330,13 +367,21 @@ function InstallModal({ state, onClose }: { state: { title: string; items: Insta
           <li>✓ {done.subjectsCreated} matéria(s) criada(s){done.subjectsReused ? `, ${done.subjectsReused} já existente(s) complementada(s)` : ''}.</li>
           <li>✓ {done.topicsCreated} tópico(s) adicionado(s).</li>
           {done.materialsCreated > 0 && <li>✓ {done.materialsCreated} referência(s) oficial(is) adicionada(s).</li>}
-          {done.cycleId && <li>✓ Ciclo de estudos criado com as durações proporcionais aos pesos.</li>}
+          {done.cycleId && <li>✓ {state.cyclePlan ? 'Ciclo recomendado criado (Inglês + Aula + Prática).' : 'Ciclo de estudos criado com as durações proporcionais aos pesos.'}</li>}
         </ul>
       ) : (
         <div className="space-y-4 text-sm">
           <p className="text-muted">
             {state.items.length} matéria(s), {state.items.reduce((n, i) => n + countTopics(i.subject.topics), 0)} tópicos. Matérias e tópicos que você já tem (mesmo nome) são reaproveitados e só recebem o que falta — nada é duplicado.
           </p>
+          {state.cyclePlan && (
+            <div className="space-y-2 rounded-xl border border-line p-3">
+              <Checkbox label={`Criar o ciclo recomendado "${state.cyclePlan.name}"`} checked={withPlan} onChange={(e) => setWithPlan(e.target.checked)} />
+              <p className="text-xs text-muted">
+                {state.cyclePlan.blocks.length} blocos: Inglês, aula do curso da vez e prática, de {state.cyclePlan.blocks[0].minutes} minutos cada. Ao terminar um curso, troque a matéria dos blocos de aula e prática em Ciclo de estudos.
+              </p>
+            </div>
+          )}
           {state.allowCycle && (
             <div className="space-y-3 rounded-xl border border-line p-3">
               <Checkbox label="Criar um ciclo de estudos com as matérias da trilha" checked={withCycle} onChange={(e) => setWithCycle(e.target.checked)} />

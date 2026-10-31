@@ -9,7 +9,28 @@
 // Fontes consultadas em 21/10/2026 (ver `sources` de cada carreira). Editais
 // mudam: confira sempre o edital vigente quando for publicado.
 
-export type TopicTree = Array<string | [string, TopicTree]>
+import { TEO_SUBJECTS, TEO_TRAIL } from './trailTeo'
+
+/** Aula/tópico com link e duração (ex.: videoaula no YouTube). */
+export interface TopicLeaf {
+  name: string
+  url?: string
+  minutes?: number
+}
+
+export type TopicTree = Array<string | TopicLeaf | [string, TopicTree]>
+
+/** Nome de um nó da árvore de tópicos, seja texto, aula com link ou grupo. */
+export function topicName(node: TopicTree[number]): string {
+  return typeof node === 'string' ? node : Array.isArray(node) ? node[0] : node.name
+}
+
+/** Ciclo recomendado montado junto com a trilha: "ingles" = matéria de inglês do usuário; "curso" = primeiro curso da trilha. */
+export interface CyclePlan {
+  name: string
+  description: string
+  blocks: Array<{ slot: 'ingles' | 'curso'; minutes: number; activity: 'theory' | 'video' | 'questions' | 'other'; breakMinutes?: number }>
+}
 
 export interface Reference {
   title: string
@@ -38,13 +59,16 @@ export interface CareerTrail {
   exam?: string
   /** Peso de cada matéria (concursos: nº de questões/itens; tecnologia: relevância). */
   subjects: Array<{ key: string; weight: number; note?: string }>
+  /** Trilha em sequência (um curso por vez): mantém a ordem dada em vez de ordenar por peso. */
+  sequential?: boolean
+  cyclePlan?: CyclePlan
   sources: Reference[]
   tips: string[]
 }
 
 const PLANALTO = 'https://www.planalto.gov.br/ccivil_03'
 
-export const SUBJECT_LIBRARY: SubjectDef[] = [
+const CATALOG_SUBJECTS: SubjectDef[] = [
   // ===================================================================
   // CONCURSOS — base comum
   // ===================================================================
@@ -1071,7 +1095,7 @@ export const SUBJECT_LIBRARY: SubjectDef[] = [
   },
 ]
 
-export const CAREER_TRAILS: CareerTrail[] = [
+const CATALOG_TRAILS: CareerTrail[] = [
   {
     key: 'auditor_fiscal',
     name: 'Auditor Fiscal (Receita Federal)',
@@ -1508,6 +1532,11 @@ export const CAREER_TRAILS: CareerTrail[] = [
   },
 ]
 
+export const SUBJECT_LIBRARY: SubjectDef[] = [...CATALOG_SUBJECTS, ...TEO_SUBJECTS]
+
+/** A trilha pessoal (Téo Me Why) vem primeiro. */
+export const CAREER_TRAILS: CareerTrail[] = [TEO_TRAIL, ...CATALOG_TRAILS]
+
 export function subjectByKey(key: string): SubjectDef {
   const s = SUBJECT_LIBRARY.find((x) => x.key === key)
   if (!s) throw new Error(`Matéria desconhecida no catálogo: ${key}`)
@@ -1515,5 +1544,5 @@ export function subjectByKey(key: string): SubjectDef {
 }
 
 export function countTopics(tree: TopicTree): number {
-  return tree.reduce<number>((n, t) => n + 1 + (typeof t === 'string' ? 0 : countTopics(t[1])), 0)
+  return tree.reduce<number>((n, t) => n + 1 + (Array.isArray(t) ? countTopics(t[1]) : 0), 0)
 }

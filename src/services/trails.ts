@@ -9,7 +9,7 @@ import type { DataBackend } from '@/lib/data/types'
 import { eq, inList } from '@/lib/data/types'
 import { distributeByWeight } from '@/lib/cycle'
 import type { Insert, Subject, Topic } from '@/types/db'
-import type { SubjectDef, TopicTree } from '@/content/trails'
+import { topicName, type CyclePlan, type SubjectDef, type TopicTree } from '@/content/trails'
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
 const BATCH = 500
@@ -23,6 +23,8 @@ export interface InstallOptions {
   cycleName?: string
   /** Minutos por volta do ciclo; null = não criar ciclo. */
   cycleMinutes?: number | null
+  /** Ciclo recomendado da trilha (substitui o ciclo por pesos). */
+  cyclePlan?: CyclePlan
   onProgress?: (message: string) => void
 }
 
@@ -91,6 +93,7 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
     children.set(k, [...(children.get(k) ?? []), t])
   }
   const levels: Array<Array<Insert<'topics'> & { id: string }>> = []
+  const leafMaterials: Array<{ subject_id: string; topic_id: string | null; title: string; url: string }> = []
   const seenSubject = new Set<string>()
   items.forEach(({ subject: def }, idx) => {
     const subjectId = subjectIds[idx]
@@ -102,13 +105,23 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
       children.set(k, siblings)
       let order = siblings.reduce((m, t) => Math.max(m, t.sort_order), -1) + 1
       for (const node of tree) {
-        const [name, sub] = typeof node === 'string' ? [node, null] : node
+        const name = topicName(node)
+        const sub = Array.isArray(node) ? node[1] : null
+        const leaf = typeof node === 'string' || Array.isArray(node) ? null : node
         let topic = siblings.find((t) => norm(t.name) === norm(name))
         if (!topic) {
           topic = { id: crypto.randomUUID(), name, sort_order: order++ }
           siblings.push(topic)
-          ;(levels[depth] ??= []).push({ id: topic.id, subject_id: subjectId, parent_id: parentId, name, sort_order: topic.sort_order })
+          ;(levels[depth] ??= []).push({
+            id: topic.id,
+            subject_id: subjectId,
+            parent_id: parentId,
+            name,
+            sort_order: topic.sort_order,
+            ...(leaf?.minutes ? { estimated_minutes: leaf.minutes } : {}),
+          })
         }
+        if (leaf?.url) leafMaterials.push({ subject_id: subjectId, topic_id: topic.id, title: /youtu/i.test(leaf.url) ? `Aula no YouTube — ${name}` : name, url: leaf.url })
         if (sub) walk(sub, topic.id, depth + 1)
       }
     }
@@ -123,19 +136,50 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
   }
 
   // 3) Referências oficiais (sem repetir links que a matéria já tem).
-  const refs = items.flatMap(({ subject: def }, idx) => (def.references ?? []).map((r) => ({ subject_id: subjectIds[idx], title: r.title, url: r.url })))
+  const courseRefs = items.flatMap(({ subject: def }, idx) => (def.references ?? []).map((r) => ({ subject_id: subjectIds[idx], topic_id: null as string | null, title: r.title, url: r.url })))
+  const refs = [...courseRefs, ...leafMaterials]
   if (refs.length) {
     const { rows: mats } = await backend.list('study_materials', { filters: [inList('subject_id', [...new Set(refs.map((r) => r.subject_id))])] })
     const have = new Set(mats.map((m) => `${m.subject_id}|${m.url}`))
-    const fresh = refs.filter((r) => !have.has(`${r.subject_id}|${r.url}`) && (have.add(`${r.subject_id}|${r.url}`), true)).map((r) => ({ ...r, topic_id: null }))
+    const fresh = refs.filter((r) => !have.has(`${r.subject_id}|${r.url}`) && (have.add(`${r.subject_id}|${r.url}`), true))
     if (fresh.length) {
       await insertBatched(backend, 'study_materials', fresh)
       result.materialsCreated = fresh.length
     }
   }
 
+  // 4a) Ciclo recomendado da trilha (ex.: Inglês + Aula + Prática).
+  if (opts.cyclePlan && subjectIds.length) {
+    progress('Criando o ciclo recomendado…')
+    const plan = opts.cyclePlan
+    const score = (name: string) => (norm(name).startsWith('ingles · times') ? 3 : norm(name) === 'ingles' ? 2 : norm(name).startsWith('ingles') ? 1 : 0)
+    const candidates = existing.filter((x) => x.status !== 'archived' && score(x.name) > 0).sort((a, b) => score(b.name) - score(a.name))
+    let inglesId = candidates[0]?.id
+    if (plan.blocks.some((b) => b.slot === 'ingles') && !inglesId) {
+      const [created] = await backend.insert('subjects', [{ name: 'Inglês', description: 'Estudo de inglês.', color: '#2A78D6', icon: '🇬🇧', difficulty: 3, priority: 4, status: 'active', sort_order: nextOrder }])
+      inglesId = created.id
+      result.subjectsCreated++
+    }
+    const { count } = await backend.list('study_cycles', { filters: [eq('status', 'active')], count: true, limit: 1 })
+    const [cycle] = await backend.insert('study_cycles', [{ name: plan.name.slice(0, 160), description: plan.description, status: count ? 'paused' : 'active', auto_advance: true }])
+    await insertBatched(
+      backend,
+      'study_cycle_items',
+      plan.blocks.map((b, pos) => ({
+        cycle_id: cycle.id,
+        subject_id: (b.slot === 'ingles' ? inglesId : subjectIds[0]) as string,
+        duration_minutes: b.minutes,
+        weight: 1,
+        break_minutes: b.breakMinutes ?? 0,
+        sort_order: pos,
+        activity_type: b.activity,
+      })),
+    )
+    result.cycleId = cycle.id
+  }
+
   // 4) Ciclo opcional, com durações proporcionais aos pesos.
-  if (opts.cycleMinutes && opts.cycleMinutes >= 5 && items.length) {
+  if (!opts.cyclePlan && opts.cycleMinutes && opts.cycleMinutes >= 5 && items.length) {
     progress('Criando o ciclo de estudos…')
     const durations = distributeByWeight(
       items.map((i) => i.weight),

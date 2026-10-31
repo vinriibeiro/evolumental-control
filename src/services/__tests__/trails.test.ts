@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { LocalBackend } from '@/lib/data/local'
 import { eq } from '@/lib/data/types'
-import { CAREER_TRAILS, SUBJECT_LIBRARY, countTopics, subjectByKey, type TopicTree } from '@/content/trails'
+import { CAREER_TRAILS, SUBJECT_LIBRARY, countTopics, subjectByKey, topicName, type TopicTree } from '@/content/trails'
 import { installTrail } from '@/services/trails'
 
 let n = 0
@@ -47,13 +47,13 @@ describe('catálogo de trilhas', () => {
 
   it('não há tópicos irmãos repetidos nem nomes vazios ou longos demais', () => {
     const check = (tree: TopicTree) => {
-      const names = tree.map((x) => (typeof x === 'string' ? x : x[0]).toLowerCase())
+      const names = tree.map((x) => topicName(x).toLowerCase())
       expect(new Set(names).size).toBe(names.length)
       for (const x of tree) {
-        const name = typeof x === 'string' ? x : x[0]
+        const name = topicName(x)
         expect(name.trim().length).toBeGreaterThan(0)
         expect(name.length).toBeLessThanOrEqual(300)
-        if (typeof x !== 'string') check(x[1])
+        if (Array.isArray(x)) check(x[1])
       }
     }
     for (const s of SUBJECT_LIBRARY) check(s.topics)
