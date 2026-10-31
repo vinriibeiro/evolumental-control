@@ -201,17 +201,31 @@ describe('migração + RLS', () => {
       expect(s.rows[0]).toEqual({ subject_id: null, user_id: BOB })
     })
   })
-  it('reset_my_data apaga só os dados do próprio usuário e mantém a conta', async () => {
+  it('reset_my_data zera só o progresso do próprio usuário: apaga sessões e mantém conteúdo e conta', async () => {
     await as(ALICE, async () => {
       await db.query(`insert into public.subjects (name) values ('Alice fica')`)
     })
-    const bobBefore = await as(BOB, async () => {
-      await db.query(`insert into public.subjects (name) values ('Bob some')`)
+    const bob = await as(BOB, async () => {
+      const s = await db.query<{ id: string }>(`insert into public.subjects (name) values ('Bob fica') returning id`)
+      const t = await db.query<{ id: string }>(
+        `insert into public.topics (subject_id, name, status, mastery) values ($1, 'Aula 1', 'completed', 3) returning id`,
+        [s.rows[0].id],
+      )
+      await db.query(`insert into public.study_materials (subject_id, topic_id, title, url) values ($1, $2, 'Vídeo', 'https://youtu.be/dQw4w9WgXcQ')`, [s.rows[0].id, t.rows[0].id])
+      await db.query(`insert into public.study_sessions (started_at, status) values ('2026-10-01T10:00:00Z', 'active')`)
       await db.query(`select public.reset_my_data()`)
-      const r = await db.query<{ n: number }>(`select count(*)::int as n from public.subjects`)
-      return r.rows[0].n
+      const one = async (sql: string) => (await db.query<{ n: number }>(sql)).rows[0].n
+      return {
+        subjects: await one(`select count(*)::int as n from public.subjects`),
+        materials: await one(`select count(*)::int as n from public.study_materials`),
+        sessions: await one(`select count(*)::int as n from public.study_sessions`),
+        topic: (await db.query<{ status: string; mastery: number; completed_at: string | null }>(`select status, mastery, completed_at from public.topics`)).rows[0],
+      }
     })
-    expect(bobBefore).toBe(0)
+    expect(bob.subjects).toBe(1)
+    expect(bob.materials).toBe(1)
+    expect(bob.sessions).toBe(0)
+    expect(bob.topic).toEqual({ status: 'not_started', mastery: 0, completed_at: null })
     await as(ALICE, async () => {
       const r = await db.query<{ n: number }>(`select count(*)::int as n from public.subjects`)
       expect(r.rows[0].n).toBeGreaterThan(0)

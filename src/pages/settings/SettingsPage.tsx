@@ -388,7 +388,7 @@ function DataSection() {
           /* sem armazenamento local */
         }
         await invalidateTables(qc, TABLES)
-        toast.success('Todos os dados foram zerados. Sua conta continua ativa.')
+        toast.success('Progresso zerado. Seu conteúdo (matérias, vídeos, flashcards, livros, áudios e questões) foi mantido.')
         navigate('/')
       } else if (kind === 'delete') {
         await backend.deleteAccount()
@@ -427,7 +427,7 @@ function DataSection() {
             <div className="min-w-0 flex-1 basis-64">
               <p className="text-sm font-medium text-ink">Zerar todos os dados</p>
               <p className="text-xs text-muted">
-                Apaga matérias, tópicos, sessões e horas, cronogramas, ciclos, flashcards, mapas, revisões, questões e metas, e volta as preferências ao padrão.
+                Apaga sessões e horas, cronogramas, ciclos, revisões e metas, zera o progresso dos tópicos e volta as preferências ao padrão. Mantém matérias, tópicos, vídeos e links, flashcards, mapas, livros, áudios e questões.
                 {auth.mode === 'supabase' ? ' Sua conta e seu login continuam.' : ''}
               </p>
             </div>
@@ -496,7 +496,7 @@ function DataSection() {
         message={
           danger === 'delete'
             ? 'Sua conta e todos os dados serão apagados para sempre. Não é possível desfazer.'
-            : 'Todos os registros e números (horas, sessões, metas, flashcards, mapas…) serão apagados para sempre. Não é possível desfazer.'
+            : 'Horas, sessões, cronogramas, ciclos, revisões e metas serão apagados para sempre, e os tópicos voltam a "não iniciado". Matérias, vídeos, flashcards, mapas, livros, áudios e questões não são apagados. Não é possível desfazer.'
         }
       />
     </>

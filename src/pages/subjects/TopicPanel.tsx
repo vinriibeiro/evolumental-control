@@ -75,15 +75,17 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
         title={topic.name}
         description={path ? `${subject.name} › ${path}` : subject.name}
         footer={
-          <>
-            <StudiedButton topic={topic} />
-            <Button icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <div className="col-span-2 [&>button]:w-full sm:[&>button]:w-auto">
+              <StudiedButton topic={topic} />
+            </div>
+            <Button className="w-full sm:w-auto" icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
               Editar
             </Button>
-            <Button variant="primary" icon={<Play className="size-4" />} onClick={() => navigate(`/cronometro?materia=${subject.id}&topico=${topic.id}`)}>
+            <Button className="w-full sm:w-auto" variant="primary" icon={<Play className="size-4" />} onClick={() => navigate(`/cronometro?materia=${subject.id}&topico=${topic.id}`)}>
               Iniciar estudo
             </Button>
-          </>
+          </div>
         }
       >
         <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">

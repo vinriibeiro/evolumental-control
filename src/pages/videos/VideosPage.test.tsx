@@ -1,22 +1,24 @@
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ToastProvider } from '@/components/ui/feedback'
 
-const SUBJECT = { id: 's1', name: 'Téo 1' }
+const SUBJECTS = [{ id: 's1', name: 'Téo 1' }, { id: 's2', name: 'Téo 2' }]
 const TOPICS = [
   { id: 't1', subject_id: 's1', name: 'Ep 01', sort_order: 0, status: 'not_started' },
   { id: 't2', subject_id: 's1', name: 'Ep 02', sort_order: 1, status: 'not_started' },
+  { id: 't3', subject_id: 's2', name: 'Aula de Python', sort_order: 0, status: 'not_started' },
 ]
 const MATERIALS = [
   { id: 'm1', topic_id: 't1', title: 'Aula 1', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
   { id: 'm2', topic_id: 't1', title: 'Aula 2', url: 'https://youtu.be/aaaaaaaaaaa' },
   { id: 'm3', topic_id: 't1', title: 'Site', url: 'https://example.com' },
   { id: 'm4', topic_id: 't2', title: 'Aula 3', url: 'https://youtu.be/bbbbbbbbbbb' },
+  { id: 'm5', topic_id: 't3', title: 'Python 1', url: 'https://youtu.be/ccccccccccc' },
 ]
 
 vi.mock('@/hooks/data', () => ({
-  useAll: (table: string) => ({ data: table === 'study_materials' ? MATERIALS : table === 'subjects' ? [SUBJECT] : TOPICS, isLoading: false, isError: false }),
+  useAll: (table: string) => ({ data: table === 'study_materials' ? MATERIALS : table === 'subjects' ? SUBJECTS : TOPICS, isLoading: false, isError: false }),
   useUpdate: () => ({ mutateAsync: vi.fn(), isPending: false }),
   invalidateTables: vi.fn(),
 }))
@@ -40,27 +42,71 @@ const renderPage = (path = '/videos') =>
     </ToastProvider>,
   )
 const src = () => document.querySelector('iframe')?.getAttribute('src') ?? ''
+const panel = () => within(screen.getByRole('complementary', { name: 'Conteúdo' }))
 
 describe('tela de Vídeos', () => {
-  it('abre o primeiro vídeo e "Prosseguir" avança, inclusive para a próxima lição', () => {
+  it('abre o primeiro vídeo e "Prosseguir" avança, inclusive para a próxima aula e disciplina', () => {
     renderPage()
     expect(src()).toContain('dQw4w9WgXcQ')
     expect(screen.getByText('Aula 1', { selector: 'h2' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Prosseguir' }))
     expect(src()).toContain('aaaaaaaaaaa')
     expect(src()).toContain('autoplay=1')
-    expect(screen.getByText(/Próxima lição: Ep 02/)).toBeTruthy()
+    expect(screen.getByText(/Próxima aula: Ep 02/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Prosseguir' }))
     expect(src()).toContain('bbbbbbbbbbb')
-    const last = screen.getByRole('button', { name: 'Fim da lista' }) as HTMLButtonElement
-    expect(last.disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Prosseguir' }))
+    expect(src()).toContain('ccccccccccc')
+    expect((screen.getByRole('button', { name: 'Fim da lista' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('abre direto no vídeo pedido pelo endereço e ignora links que não são do YouTube', () => {
     renderPage('/videos?video=m4')
     expect(src()).toContain('bbbbbbbbbbb')
-    fireEvent.change(screen.getByLabelText('Lição'), { target: { value: 't1' } })
-    expect(src()).toContain('dQw4w9WgXcQ')
     expect(screen.queryByText('Site')).toBeNull()
+  })
+})
+
+describe('painel de conteúdo (disciplina → aula → vídeo)', () => {
+  it('lista as disciplinas, abre só a do vídeo atual e troca de vídeo ao clicar', () => {
+    renderPage()
+    const subjectButtons = panel().getAllByRole('button', { expanded: undefined }).filter((b) => b.hasAttribute('aria-expanded'))
+    expect(subjectButtons.map((b) => b.getAttribute('aria-expanded'))).toEqual(['true', 'false'])
+    expect(panel().queryByText('Python 1')).toBeNull()
+    fireEvent.click(subjectButtons[1])
+    fireEvent.click(panel().getByRole('button', { name: /Python 1/ }))
+    expect(src()).toContain('ccccccccccc')
+    expect(panel().getByRole('button', { name: /Python 1/ }).getAttribute('aria-current')).toBe('true')
+  })
+
+  it('a busca filtra por disciplina, aula ou título do vídeo, sem considerar acento', () => {
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Buscar conteúdo'), { target: { value: 'PYTHON' } })
+    expect(panel().getByRole('button', { name: /Python 1/ })).toBeTruthy()
+    expect(panel().queryByText('Aula 1')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Buscar conteúdo'), { target: { value: 'ep 02' } })
+    expect(panel().getByRole('button', { name: /Aula 3/ })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Buscar conteúdo'), { target: { value: 'nada disso' } })
+    expect(screen.getByText('Nada encontrado para essa busca.')).toBeTruthy()
+  })
+
+  it('Concluir marca o vídeo como assistido, mostra o progresso e lembra neste aparelho', () => {
+    renderPage()
+    expect(panel().getAllByText('0%')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Concluir' }))
+    expect(screen.getByRole('button', { name: 'Concluído' }).getAttribute('aria-pressed')).toBe('true')
+    expect(panel().getByText('33%')).toBeTruthy()
+    expect(JSON.parse(localStorage.getItem('evolumental.video.done') ?? '[]')).toEqual(['m1'])
+    fireEvent.click(screen.getByRole('button', { name: 'Concluído' }))
+    expect(panel().getAllByText('0%')).toHaveLength(2)
+  })
+
+  it('o painel pode ser ocultado e a escolha fica guardada', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar conteúdo' }))
+    expect(screen.queryByRole('complementary', { name: 'Conteúdo' })).toBeNull()
+    expect(localStorage.getItem('evolumental.video.panel')).toBe('closed')
+    fireEvent.click(screen.getByRole('button', { name: 'Mostrar conteúdo' }))
+    expect(screen.getByRole('complementary', { name: 'Conteúdo' })).toBeTruthy()
   })
 })

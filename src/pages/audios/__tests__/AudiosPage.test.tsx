@@ -69,7 +69,7 @@ describe('tela de áudios', () => {
     await lib.add('t3', mp3('L03_T11.mp3'))
     renderPage()
 
-    const select = (await screen.findByRole('combobox', { name: 'Lição' })) as HTMLSelectElement
+    const select = (await screen.findByRole('combobox', { name: 'Aula' })) as HTMLSelectElement
     expect([...select.options].map((o) => o.textContent)).toEqual(['Lesson 01 · Nice to meet you (2 faixas)', 'Lesson 03 · At the Cafe (1 faixa)'])
     expect(await screen.findByRole('button', { name: 'Tocar Track 1 · pág. 7' })).toBeTruthy()
     expect(screen.getByRole('button', { name: /^Tocar$/ })).toBeTruthy()

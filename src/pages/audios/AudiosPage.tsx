@@ -56,13 +56,18 @@ export default function AudiosPage() {
       .sort((a, b) => a.subject.localeCompare(b.subject, 'pt-BR') || a.order - b.order || a.name.localeCompare(b.name, 'pt-BR', { numeric: true }))
   }, [audios.data, subjects.data, topics.data])
 
-  const groups = useMemo(() => {
-    const out = new Map<string, typeof lessons>()
-    for (const l of lessons) out.set(l.subject, [...(out.get(l.subject) ?? []), l])
-    return [...out.entries()]
+  const subjectOptions = useMemo(() => {
+    const out = new Map<string, { id: string; name: string; count: number }>()
+    for (const l of lessons) {
+      const s = out.get(l.subjectId) ?? { id: l.subjectId, name: l.subject, count: 0 }
+      s.count += l.count
+      out.set(l.subjectId, s)
+    }
+    return [...out.values()]
   }, [lessons])
 
   const lesson = lessons.find((l) => l.id === picked) ?? lessons[0] ?? null
+  const subjectLessons = lessons.filter((l) => l.subjectId === lesson?.subjectId)
   const tracks = useMemo(() => (audios.data?.tracks ?? []).filter((t) => t.topicId === lesson?.id), [audios.data, lesson?.id])
   const total = tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0)
 
@@ -97,22 +102,38 @@ export default function AudiosPage() {
           />
         ) : (
           <Card className="space-y-4 p-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <label className="min-w-0 flex-1 text-xs text-muted sm:max-w-md">
-                Lição
-                <Select aria-label="Lição" className="mt-1 w-full" value={lesson.id} onChange={(e) => choose(e.target.value)}>
-                  {groups.map(([subject, items]) => (
-                    <optgroup key={subject} label={subject}>
-                      {items.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name} ({l.count} {l.count === 1 ? 'faixa' : 'faixas'})
-                        </option>
-                      ))}
-                    </optgroup>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="min-w-0 text-xs text-muted">
+                Disciplina
+                <Select
+                  aria-label="Disciplina"
+                  className="mt-1 w-full"
+                  value={lesson.subjectId}
+                  onChange={(e) => {
+                    const first = lessons.find((l) => l.subjectId === e.target.value)
+                    if (first) choose(first.id)
+                  }}
+                >
+                  {subjectOptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.count} {s.count === 1 ? 'faixa' : 'faixas'})
+                    </option>
                   ))}
                 </Select>
               </label>
-              <div className="flex items-center gap-3 text-xs text-muted">
+              <label className="min-w-0 text-xs text-muted">
+                Aula
+                <Select aria-label="Aula" className="mt-1 w-full" value={lesson.id} onChange={(e) => choose(e.target.value)}>
+                  {subjectLessons.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.count} {l.count === 1 ? 'faixa' : 'faixas'})
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                 {total > 0 && <span>{tracks.length} {tracks.length === 1 ? 'faixa' : 'faixas'} · {formatClock(total)}</span>}
                 <Link to={`/materias/${lesson.subjectId}?topico=${lesson.id}`} className="inline-flex items-center gap-1 text-ink hover:underline">
                   <Settings2 className="size-3.5" aria-hidden /> Gerenciar no tópico

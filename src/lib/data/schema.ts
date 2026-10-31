@@ -69,6 +69,23 @@ export const TABLES: TableName[] = [
   'question_records',
 ]
 
+/**
+ * Tabelas que o "Zerar todos os dados" esvazia: só progresso, agenda e metas. O conteúdo (matérias, tópicos, materiais e
+ * vídeos, flashcards, mapas, questões) fica; o progresso dos tópicos volta a "não iniciado" (ver LocalBackend.resetAllData).
+ */
+export const RESET_TABLES: TableName[] = [
+  'profiles',
+  'study_sessions',
+  'study_session_pauses',
+  'study_plans',
+  'study_plan_items',
+  'study_cycles',
+  'study_cycle_items',
+  'calendar_tasks',
+  'reviews',
+  'study_goals',
+]
+
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
 export function affectedTables(table: TableName): TableName[] {
   const out = new Set<TableName>([table])

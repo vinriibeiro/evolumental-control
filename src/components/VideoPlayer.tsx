@@ -1,20 +1,17 @@
-import { useEffect, useRef } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { parseYoutube, youtubeEmbedUrl } from '@/lib/video'
 
-/** Toca um vídeo do YouTube dentro do aplicativo (player oficial embutido). Link que não é do YouTube não renderiza nada. */
+/**
+ * Toca um vídeo do YouTube dentro do aplicativo (player oficial embutido). Link que não é do YouTube não renderiza nada.
+ * No computador a altura é limitada à da janela (o vídeo não empurra os botões para fora da tela).
+ */
 export function VideoPlayer({ url, title, onClose, autoPlay = false }: { url: string; title: string; onClose?: () => void; autoPlay?: boolean }) {
   const ref = parseYoutube(url)
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    // o painel do tópico rola: traz o vídeo para a vista ao abrir
-    box.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' })
-  }, [url])
   if (!ref) return null
   return (
-    <div ref={box} className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
-      <div className="aspect-video w-full bg-black">
+    <div className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
+      <div className="mx-auto aspect-video w-full max-w-[calc(62vh*16/9)] bg-black">
         <iframe
           key={url}
           src={youtubeEmbedUrl(ref, { autoplay: autoPlay })}

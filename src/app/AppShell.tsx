@@ -25,8 +25,18 @@ function readCollapsed(): boolean {
   }
 }
 
+function readWide(): boolean {
+  try {
+    return localStorage.getItem('evl:sidebar-hidden') === '1'
+  } catch {
+    return false
+  }
+}
+
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  // "Ampliar a tela": esconde de vez a barra lateral no computador e libera a largura do conteúdo
+  const [wide, setWide] = useState(readWide)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const topRef = useRef<HTMLDivElement>(null)
@@ -53,6 +63,13 @@ export function AppShell() {
     }
   }, [collapsed])
   useEffect(() => {
+    try {
+      localStorage.setItem('evl:sidebar-hidden', wide ? '1' : '0')
+    } catch {
+      /* preferência apenas deste dispositivo */
+    }
+  }, [wide])
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -72,7 +89,8 @@ export function AppShell() {
       {/* Barra lateral (desktop) */}
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200 lg:flex',
+          'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200',
+          !wide && 'lg:flex',
           collapsed ? 'w-[72px]' : 'w-64',
         )}
         aria-label="Navegação principal"
@@ -106,6 +124,14 @@ export function AppShell() {
           <IconButton label="Abrir menu" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="size-5" />
           </IconButton>
+          <IconButton
+            label={wide ? 'Mostrar o menu lateral' : 'Ocultar o menu lateral e ampliar a tela'}
+            className="hidden lg:inline-flex"
+            aria-pressed={wide}
+            onClick={() => setWide((w) => !w)}
+          >
+            <Menu className="size-5" />
+          </IconButton>
           <Link to="/" className="lg:hidden" aria-label="Início">
             <LogoMark className="size-8" />
           </Link>
@@ -137,7 +163,7 @@ export function AppShell() {
         )}
         </div>
 
-        <main id="conteudo" className="mx-auto w-full max-w-[1400px] min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main id="conteudo" className={cn('mx-auto w-full min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8', wide ? 'max-w-none' : 'max-w-[1400px]')}>
           <SectionTabs pathname={location.pathname} />
           <Suspense fallback={<Spinner />}>
             <Outlet />
@@ -153,9 +179,16 @@ export function AppShell() {
 
 function SectionTabs({ pathname }: { pathname: string }) {
   const tabs = tabsFor(pathname)
+  const nav = useRef<HTMLElement>(null)
+  useEffect(() => {
+    // no celular a aba ativa pode ficar fora da vista: rola só a barra de abas até ela
+    const el = nav.current
+    const active = el?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (el && active) el.scrollLeft = Math.max(0, active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2)
+  }, [pathname, tabs.length])
   if (!tabs.length) return null
   return (
-    <nav aria-label="Seções" className="scroll-thin -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-line">
+    <nav ref={nav} aria-label="Seções" className="scroll-thin relative -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-line">
       {tabs.map((t) => (
         <NavLink
           key={t.to}

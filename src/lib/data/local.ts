@@ -5,7 +5,7 @@
 // parciais, exclusão em cascata/SET NULL e a RPC de revisão de flashcards.
 import Dexie, { type Table } from 'dexie'
 import type { Insert, Patch, Profile, Row, TableName } from '@/types/db'
-import { DEFAULTS, RELATIONS, TABLES, UNIQUE_RULES } from './schema'
+import { DEFAULTS, RELATIONS, RESET_TABLES, TABLES, UNIQUE_RULES } from './schema'
 import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type SessionWithPauses } from './types'
 
 export const LOCAL_USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -282,9 +282,20 @@ export class LocalBackend implements DataBackend {
     return applied
   }
 
+  /** Zera o progresso (sessões, agenda, ciclos, revisões, metas, preferências e status dos tópicos); o conteúdo fica. */
   async resetAllData(): Promise<void> {
-    await this.db.transaction('rw', TABLES.map((t) => this.db.t(t)), async () => {
-      for (const t of TABLES) await this.db.t(t).clear()
+    const tables: TableName[] = [...RESET_TABLES, 'topics']
+    await this.db.transaction('rw', tables.map((t) => this.db.t(t)), async () => {
+      for (const t of RESET_TABLES) await this.db.t(t).clear()
+      await this.db
+        .t('topics')
+        .toCollection()
+        .modify((r: AnyRow) => {
+          r.status = 'not_started'
+          r.mastery = 0
+          r.completed_at = null
+          r.updated_at = this.now()
+        })
     })
   }
 
