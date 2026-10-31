@@ -5,6 +5,7 @@
 // Sai com código 1 se houver ERRO (avisos não bloqueiam).
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const TEMAS = {
   SQL: { prefixo: 'sql', alvo: 2500 },
@@ -24,6 +25,11 @@ const TEMAS = {
   'Engenharia de Software': { prefixo: 'es', alvo: 600 },
   'Cloud e DevOps': { prefixo: 'cloud', alvo: 500 },
 }
+// Temas do concurso CGU 2026 (AFFC – Ciência de Dados): vêm do programa oficial em cgu/programa-cgu-2026.json.
+// Nesses temas o subtema precisa ser exatamente um item do edital.
+const PROGRAMA_CGU = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'cgu', 'programa-cgu-2026.json'), 'utf8'))
+for (const t of PROGRAMA_CGU.temas) TEMAS[t.tema] = { prefixo: t.prefixo, alvo: t.alvo, subtemas: t.subtemas.map((s) => s.subtema), bloco: t.bloco }
+const ALVO_TOTAL = Object.values(TEMAS).reduce((s, t) => s + t.alvo, 0)
 const NIVEIS = ['basico', 'intermediario', 'avancado', 'extremo']
 const TIPOS = ['multipla_escolha', 'certo_errado']
 const ESTILOS = ['concurso', 'entrevista']
@@ -92,6 +98,8 @@ for (const arq of arquivos) {
     // classificação
     if (!TEMAS[q.tema]) err(arq, n, `tema inválido "${q.tema}"`)
     if (typeof q.subtema !== 'string' || q.subtema.trim().length < 3 || q.subtema.length > 60) err(arq, n, 'subtema ausente ou fora de 3-60 caracteres')
+    else if (TEMAS[q.tema]?.subtemas && !TEMAS[q.tema].subtemas.includes(q.subtema)) err(arq, n, `subtema "${q.subtema}" não é um item do edital para o tema "${q.tema}"`)
+    if (TEMAS[q.tema]?.bloco && q.tipo === 'multipla_escolha') err(arq, n, 'nos temas CGU só entram questões certo_errado (prova do Cebraspe)')
     if (!NIVEIS.includes(q.nivel)) err(arq, n, `nivel inválido "${q.nivel}"`)
     if (!TIPOS.includes(q.tipo)) err(arq, n, `tipo inválido "${q.tipo}"`)
     if (!ESTILOS.includes(q.estilo)) err(arq, n, `estilo inválido "${q.estilo}"`)
@@ -173,9 +181,11 @@ if (!aceitaExemplos) {
     const nv = NIVEIS.map((n) => pct(qs.filter((q) => q.nivel === n).length, qs.length)).join('/')
     const me = pct(qs.filter((q) => q.tipo === 'multipla_escolha').length, qs.length)
     const co = pct(qs.filter((q) => q.estilo === 'concurso').length, qs.length)
-    console.log(`  ${nome.padEnd(40)} ${String(qs.length).padStart(5)} / ${String(alvo).padEnd(5)}  nível b/i/a/e ${nv}  ME ${me}  concurso ${co}`)
+    console.log(`  ${nome.padEnd(64)} ${String(qs.length).padStart(5)} / ${String(alvo).padEnd(5)}  nível b/i/a/e ${nv}  ME ${me}  concurso ${co}`)
   }
-  console.log(`  ${'TOTAL'.padEnd(40)} ${String(total).padStart(5)} / 20000\n`)
+  console.log(`  ${'TOTAL'.padEnd(64)} ${String(total).padStart(5)} / ${ALVO_TOTAL}`)
+  const cgu = validas.filter((q) => TEMAS[q.tema]?.bloco)
+  console.log(`  ${'  dos quais CGU 2026'.padEnd(64)} ${String(cgu.length).padStart(5)} / 20000  (oficiais ${cgu.filter((q) => (q.tags ?? []).includes('oficial')).length}, autorais ${cgu.filter((q) => !(q.tags ?? []).includes('oficial')).length})\n`)
 }
 const me = validas.filter((q) => q.tipo === 'multipla_escolha')
 const ce = validas.filter((q) => q.tipo === 'certo_errado')
