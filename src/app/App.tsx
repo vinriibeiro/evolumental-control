@@ -17,8 +17,6 @@ const CalendarPage = lazy(() => import('@/pages/calendar/CalendarPage'))
 const DecksPage = lazy(() => import('@/pages/flashcards/DecksPage'))
 const DeckDetailPage = lazy(() => import('@/pages/flashcards/DeckDetailPage'))
 const StudyCardsPage = lazy(() => import('@/pages/flashcards/StudyCardsPage'))
-const MindMapsPage = lazy(() => import('@/pages/mindmaps/MindMapsPage'))
-const MindMapEditorPage = lazy(() => import('@/pages/mindmaps/MindMapEditorPage'))
 const ReviewsPage = lazy(() => import('@/pages/reviews/ReviewsPage'))
 const QuestionsPage = lazy(() => import('@/pages/questions/QuestionsPage'))
 const GoalsPage = lazy(() => import('@/pages/goals/GoalsPage'))
@@ -27,6 +25,8 @@ const LandingPage = lazy(() => import('@/pages/landing/LandingPage'))
 const TrailsPage = lazy(() => import('@/pages/trails/TrailsPage'))
 const RoutinesPage = lazy(() => import('@/pages/routines/RoutinesPage'))
 const EnglishPage = lazy(() => import('@/pages/english/EnglishPage'))
+const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
+const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -71,11 +71,11 @@ export function App() {
                   <Route path="ciclos" element={<CyclesPage />} />
                   <Route path="calendario" element={<CalendarPage />} />
                   <Route path="ingles" element={<EnglishPage />} />
+                  <Route path="biblioteca" element={<LibraryPage />} />
+                  <Route path="biblioteca/:id" element={<ReaderPage />} />
                   <Route path="flashcards" element={<DecksPage />} />
                   <Route path="flashcards/revisar" element={<StudyCardsPage />} />
                   <Route path="flashcards/:id" element={<DeckDetailPage />} />
-                  <Route path="mapas" element={<MindMapsPage />} />
-                  <Route path="mapas/:id" element={<MindMapEditorPage />} />
                   <Route path="revisoes" element={<ReviewsPage />} />
                   <Route path="questoes" element={<QuestionsPage />} />
                   <Route path="metas" element={<GoalsPage />} />

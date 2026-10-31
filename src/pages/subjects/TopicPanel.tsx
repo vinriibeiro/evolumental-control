@@ -1,20 +1,19 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Brain, ExternalLink, Layers, Link2, Network, Pencil, Play, Plus, Search, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Brain, ExternalLink, Layers, Link2, Pencil, Play, Plus, Search, Trash2 } from 'lucide-react'
 import { searchLinks } from '@/lib/search'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { Badge, Progress } from '@/components/ui/layout'
 import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/feedback'
-import { useAll, useCount, useInsert, useRemove, useTransaction } from '@/hooks/data'
+import { useAll, useCount, useInsert, useRemove } from '@/hooks/data'
 import { useSettings } from '@/hooks/useSettings'
 import { eq, inList, lte } from '@/lib/data/types'
 import { MASTERY_TOPIC_LABELS, PRIORITY_LABELS, REVIEW_STATUS_LABELS, TOPIC_STATUS_LABELS } from '@/lib/labels'
 import { addDays, formatDateTime, formatDayKey, formatDuration, todayKey, minuteIso } from '@/lib/time'
 import { topicPath } from '@/lib/tree'
 import { urlSchema } from '@/lib/validation'
-import { createMindMap } from '@/services/mindmaps'
 import type { Subject, Topic } from '@/types/db'
 import { CardForm } from '@/pages/flashcards/CardForm'
 import { TopicForm } from './TopicForm'
@@ -38,11 +37,9 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
   const enabled = Boolean(topic)
   const cardCount = useCount('flashcards', [eq('topic_id', tid)], { enabled })
   const dueCount = useCount('flashcards', [eq('topic_id', tid), inList('status', ['new', 'learning', 'review']), lte('due_at', minuteIso())], { enabled })
-  const maps = useAll('mind_maps', { filters: [eq('topic_id', tid)], order: [{ column: 'updated_at', ascending: false }] }, { enabled })
   const reviews = useAll('reviews', { filters: [eq('topic_id', tid)], order: [{ column: 'scheduled_for', ascending: false }] }, { enabled })
   const questions = useAll('question_records', { filters: [eq('topic_id', tid)] }, { enabled })
   const insertReview = useInsert('reviews')
-  const newMap = useTransaction(['mind_maps'], (b, title: string) => createMindMap(b, { title, subject_id: subject.id, topic_id: tid }))
 
   if (!topic) return null
   const byId = new Map(allTopics.map((t) => [t.id, t]))
@@ -148,36 +145,6 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
                   Revisar cartões deste tópico
                 </Button>
               </div>
-            </div>
-
-            <div>
-              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
-                <Network className="size-4 text-accent-strong" /> Mapas mentais
-              </h3>
-              <ul className="mb-2 space-y-1 text-sm">
-                {(maps.data ?? []).map((m) => (
-                  <li key={m.id}>
-                    <Link to={`/mapas/${m.id}`} className="text-ink underline-offset-2 hover:underline">
-                      {m.title}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                size="sm"
-                icon={<Plus className="size-4" />}
-                loading={newMap.isPending}
-                onClick={async () => {
-                  try {
-                    const m = await newMap.mutateAsync(topic.name)
-                    navigate(`/mapas/${m.id}`)
-                  } catch (e) {
-                    toast.error(e)
-                  }
-                }}
-              >
-                Novo mapa deste tópico
-              </Button>
             </div>
 
             <div>

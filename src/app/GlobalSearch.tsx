@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { BookOpen, Layers, ListTree, Network, Search, StickyNote } from 'lucide-react'
+import { BookOpen, Layers, ListTree, Search, StickyNote } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useBackend } from './data'
 import { NAV } from './nav'
@@ -9,13 +9,13 @@ import { useDebounced } from '@/hooks/useDebounced'
 
 interface Hit {
   id: string
-  kind: 'Página' | 'Matéria' | 'Tópico' | 'Baralho' | 'Flashcard' | 'Mapa'
+  kind: 'Página' | 'Matéria' | 'Tópico' | 'Baralho' | 'Flashcard'
   label: string
   sub?: string
   to: string
 }
 
-const ICONS = { Página: Search, Matéria: BookOpen, Tópico: ListTree, Baralho: Layers, Flashcard: StickyNote, Mapa: Network }
+const ICONS = { Página: Search, Matéria: BookOpen, Tópico: ListTree, Baralho: Layers, Flashcard: StickyNote }
 
 /** Pesquisa global (Ctrl+K) em todos os níveis: matérias, tópicos, baralhos, cartões e mapas. */
 export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -33,23 +33,21 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
   }, [open])
 
   const results = useQuery({
-    queryKey: ['data', ['subjects', 'topics', 'flashcard_decks', 'flashcards', 'mind_maps'], 'search', backend.kind, debounced],
+    queryKey: ['data', ['subjects', 'topics', 'flashcard_decks', 'flashcards'], 'search', backend.kind, debounced],
     enabled: open && debounced.length >= 2,
     queryFn: async (): Promise<Hit[]> => {
       const q = (columns: string[]) => ({ search: { columns, term: debounced }, limit: 8 })
-      const [subjects, topics, decks, cards, maps] = await Promise.all([
+      const [subjects, topics, decks, cards] = await Promise.all([
         backend.list('subjects', q(['name', 'description', 'exam'])),
         backend.list('topics', q(['name', 'description', 'notes'])),
         backend.list('flashcard_decks', q(['name', 'description'])),
         backend.list('flashcards', q(['front', 'back'])),
-        backend.list('mind_maps', q(['title', 'description'])),
       ])
       return [
         ...subjects.rows.map((s): Hit => ({ id: s.id, kind: 'Matéria', label: s.name, sub: s.exam ?? undefined, to: `/materias/${s.id}` })),
         ...topics.rows.map((t): Hit => ({ id: t.id, kind: 'Tópico', label: t.name, to: `/materias/${t.subject_id}?topico=${t.id}` })),
         ...decks.rows.map((d): Hit => ({ id: d.id, kind: 'Baralho', label: d.name, to: `/flashcards/${d.id}` })),
         ...cards.rows.map((c): Hit => ({ id: c.id, kind: 'Flashcard', label: c.front, sub: c.back, to: `/flashcards/${c.deck_id}?cartao=${c.id}` })),
-        ...maps.rows.map((m): Hit => ({ id: m.id, kind: 'Mapa', label: m.title, to: `/mapas/${m.id}` })),
       ]
     },
   })

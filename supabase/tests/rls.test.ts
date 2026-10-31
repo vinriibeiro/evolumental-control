@@ -21,6 +21,16 @@ const AUTH_STUB = `
   grant usage on schema public to anon, authenticated;
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
+
+  -- Stub mínimo do armazenamento do Supabase (bucket + objetos com RLS)
+  create schema storage;
+  create table storage.buckets (id text primary key, name text not null, public boolean default false, file_size_limit bigint);
+  create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id), name text not null, owner uuid);
+  alter table storage.objects enable row level security;
+  create function storage.foldername(name text) returns text[] language sql immutable as
+    $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
+  grant usage on schema storage to anon, authenticated;
+  grant select, insert, update, delete on storage.objects to authenticated;
 `
 
 let db: PGlite
@@ -232,3 +242,71 @@ describe('migração + RLS', () => {
     await db.exec(`reset role;`)
   })
 })
+
+describe('biblioteca (livros privados)', () => {
+  const book = (id: string, title: string) =>
+    db.query(`insert into public.library_books (id, title, file_name, size) values ($1, $2, $3, 1000)`, [id, title, `${id}.epub`]);
+
+  it('o bucket é privado e tem limite de 50 MiB por arquivo', async () => {
+    const r = await db.query<{ public: boolean; file_size_limit: string }>(`select public, file_size_limit from storage.buckets where id = 'livros'`);
+    expect(r.rows[0].public).toBe(false);
+    expect(Number(r.rows[0].file_size_limit)).toBe(52428800);
+  });
+
+  it('um usuário não vê, altera nem apaga os livros de outro', async () => {
+    await as(ALICE, async () => {
+      await book('aaaa1111', 'Livro da Alice');
+    });
+    await as(BOB, async () => {
+      expect((await db.query(`select * from public.library_books`)).rows).toHaveLength(0);
+      expect((await db.query(`update public.library_books set title = 'hack' where id = 'aaaa1111'`)).affectedRows).toBe(0);
+      expect((await db.query(`delete from public.library_books where id = 'aaaa1111'`)).affectedRows).toBe(0);
+      await expect(
+        db.query(`insert into public.library_books (user_id, id, title, file_name, size) values ($1, 'bbbb', 'x', 'x.epub', 1)`, [ALICE]),
+      ).rejects.toThrow();
+    });
+    await as(ALICE, async () => {
+      expect((await db.query<{ title: string }>(`select title from public.library_books`)).rows[0].title).toBe('Livro da Alice');
+    });
+  });
+
+  it('valida progresso, formato do id e lista de marcadores', async () => {
+    await as(ALICE, async () => {
+      await expect(db.query(`insert into public.library_books (id, title, file_name, size, progress) values ('c1', 't', 'f', 1, 101)`)).rejects.toThrow();
+      await expect(db.query(`insert into public.library_books (id, title, file_name, size) values ('../x', 't', 'f', 1)`)).rejects.toThrow();
+      await expect(db.query(`insert into public.library_books (id, title, file_name, size, bookmarks) values ('c2', 't', 'f', 1, '{}'::jsonb)`)).rejects.toThrow();
+    });
+  });
+
+  it('anon não acessa a tabela de livros', async () => {
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`);
+    await expect(db.query(`select * from public.library_books`)).rejects.toThrow();
+    await db.exec(`reset role;`);
+  });
+
+  it('o armazenamento só aceita arquivos na pasta do próprio usuário', async () => {
+    await as(ALICE, async () => {
+      await db.query(`insert into storage.objects (bucket_id, name) values ('livros', $1)`, [`${ALICE}/aaaa1111.epub`]);
+      await expect(db.query(`insert into storage.objects (bucket_id, name) values ('livros', $1)`, [`${BOB}/x.epub`])).rejects.toThrow();
+      await expect(db.query(`insert into storage.objects (bucket_id, name) values ('livros', 'solto.epub')`)).rejects.toThrow();
+    });
+    await as(BOB, async () => {
+      expect((await db.query(`select * from storage.objects where bucket_id = 'livros'`)).rows).toHaveLength(0);
+      expect((await db.query(`delete from storage.objects where bucket_id = 'livros'`)).affectedRows).toBe(0);
+    });
+    await as(ALICE, async () => {
+      expect((await db.query(`select * from storage.objects where bucket_id = 'livros'`)).rows).toHaveLength(1);
+    });
+  });
+
+  it('excluir a conta remove os livros do usuário', async () => {
+    await as(BOB, async () => {
+      await book('bbbb2222', 'Livro do Bob');
+    });
+    await as(BOB, async () => {
+      await db.query(`select public.delete_my_account()`);
+    });
+    const left = await db.query<{ user_id: string }>(`select user_id from public.library_books`);
+    expect(left.rows.map((r) => r.user_id)).toEqual([ALICE]);
+  });
+});

@@ -107,37 +107,6 @@ await step('flashcards: criar baralho e cartão, revisar com revelação', async
   await page.getByRole('heading', { name: 'Revisão concluída' }).waitFor()
 })
 
-await step('mapa mental: criar, adicionar nó, salvar e persistir após recarregar', async () => {
-  await page.goto(`${BASE}/mapas`)
-  await page.getByRole('button', { name: 'Novo mapa' }).first().click()
-  await page.getByLabel(/Título/).fill('Poderes')
-  await page.getByRole('button', { name: 'Criar e abrir' }).click()
-  await page.locator('.react-flow__node').first().waitFor()
-  await page.waitForTimeout(400)
-  await page.locator('.react-flow__node').first().click()
-  await page.locator('.react-flow__node.selected').waitFor()
-  await page.keyboard.press('Tab')
-  await page.locator('.react-flow__node').nth(1).waitFor()
-  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Texto do nó')
-  await page.keyboard.type('Poder de polícia')
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(150)
-  await page.reload() // recarregar logo após editar não pode perder a alteração
-  await page.locator('.react-flow__node').nth(1).waitFor()
-  const n = await page.locator('.react-flow__node').count()
-  if (n !== 2) throw new Error(`esperava 2 nós após recarregar, vi ${n}`)
-  await page.getByText('Poder de polícia').waitFor()
-})
-
-await step('mapa mental: exporta PNG e PDF válidos', async () => {
-  for (const [label, sig] of [['PNG', '\x89PNG'], ['PDF', '%PDF']]) {
-    const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: label, exact: true }).click()])
-    const path = await dl.path()
-    const head = readFileSync(path).subarray(0, 4).toString('latin1')
-    if (head !== sig) throw new Error(`${label} inválido (cabeçalho ${JSON.stringify(head)})`)
-  }
-})
-
 await step('flashcards: importa CSV com prévia e validação', async () => {
   await page.goto(`${BASE}/flashcards`)
   await page.getByRole('link', { name: 'Atos — conceitos' }).click()
@@ -188,7 +157,7 @@ await step('questões: valida acertos > total e registra', async () => {
   await page.getByText('80%').first().waitFor()
 })
 
-const pages = ['/', '/espaco', '/materias', '/cronometro', '/cronograma', '/ciclos', '/calendario', '/flashcards', '/mapas', '/revisoes', '/questoes', '/metas', '/relatorios', '/configuracoes']
+const pages = ['/', '/espaco', '/materias', '/cronometro', '/cronograma', '/ciclos', '/calendario', '/flashcards', '/revisoes', '/questoes', '/metas', '/relatorios', '/configuracoes']
 for (const [label, vp] of [
   ['desktop', { width: 1366, height: 860 }],
   ['celular', { width: 390, height: 844 }],

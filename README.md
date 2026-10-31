@@ -1,6 +1,6 @@
 # EVoLuMentaL Control
 
-Plataforma de controle de estudos em geral — concursos, faculdade, carreira em tecnologia, idiomas ou qualquer outro objetivo: matérias e tópicos, cronômetro com tempo líquido confiável, rotinas automáticas ou manuais por regras (sem IA), cronograma automático, ciclo de estudos, prática diária de inglês, calendário, flashcards com repetição espaçada e leitura em voz alta, mapas mentais editáveis, revisões, registro de questões, metas e relatórios.
+Plataforma de controle de estudos em geral — concursos, faculdade, carreira em tecnologia, idiomas ou qualquer outro objetivo: matérias e tópicos, cronômetro com tempo líquido confiável, rotinas automáticas ou manuais por regras (sem IA), cronograma automático, ciclo de estudos, prática diária de inglês, calendário, flashcards com repetição espaçada e leitura em voz alta editáveis, revisões, registro de questões, metas e relatórios.
 
 ![Logo](public/brand/logo-full.svg)
 
@@ -36,7 +36,7 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 | Ciclo de estudos | Vários ciclos, um ativo; blocos reordenáveis com peso, duração e intervalo; avanço pela execução registrada; decisão explícita em execuções parciais. |
 | Calendário / Planejamento | Grade de horários de 30 em 30 min (dia e semana) e visão mensal: clique num horário para criar um bloco, arraste para mover, puxe a borda para mudar a duração. Camadas (planejamento, histórico realizado, revisões, tarefas), minicalendário, Planejar (proposta automática), Replanejar (atrasados → próximo horário livre) e Remover. |
 | Flashcards | Baralhos e cartões ilimitados, pastas, tags, vínculo com matéria/tópico, importação CSV com prévia, exportação, revisão com repetição espaçada (SM-2 ajustável), modos vencidos/todos/aleatório/selecionados/contínuo, leitura por voz local (Web Speech API). |
-| Mapas mentais | Editor com React Flow: nós editáveis, conexões, cores, tamanhos e formas, desfazer/refazer, atalhos, salvamento automático, exportação PNG/PDF, vínculo com matéria/tópico. |
+| Biblioteca | Leitor de livros EPUB estilo Kindle: estante com capas, páginas ou rolagem, temas claro/sépia/escuro, índice, marcadores e retomada de onde parou. Com Supabase, os livros ficam num espaço privado da conta e sincronizam entre aparelhos (veja `docs/BIBLIOTECA.md`). |
 | Revisões | Revisões planejadas × realizadas; concluir, adiar, cancelar, reabrir; agendamento automático após estudar um tópico. |
 | Questões | Registro por matéria/tópico/banca/concurso com validação; taxa de acertos, evolução e assuntos que exigem atenção. |
 | Metas | Horas, sessões, questões, acertos, tópicos, flashcards e dias de estudo por dia/semana/mês; progresso, histórico e ajuste sem perder o passado. |
@@ -157,7 +157,7 @@ src/
     cycle.ts srs.ts planner.ts routine.ts english.ts goals.ts stats.ts time.ts tree.ts validation.ts
   content/          trilhas prontas (trails.ts) e modelos de rotina (routines.ts)
   pages/            uma pasta por módulo
-  services/         operações compostas (sessões, flashcards, mapas, trilhas, rotinas, inglês)
+  services/         operações compostas (sessões, flashcards, trilhas, rotinas, inglês)
   types/db.ts       tipos do modelo de dados
 supabase/
   migrations/       SQL versionado
@@ -165,9 +165,9 @@ supabase/
 e2e/                testes de navegador (Playwright + Edge/Chrome do sistema)
 ```
 
-Stack: React 19, TypeScript 6, Vite 8, Tailwind CSS 4, TanStack Query 5, Supabase JS 2, Dexie 4 (IndexedDB), Recharts 3, React Flow 12, dnd-kit, Zod 4, Lucide, Vitest 5, PGlite.
+Stack: React 19, TypeScript 6, Vite 8, Tailwind CSS 4, TanStack Query 5, Supabase JS 2, Dexie 4 (IndexedDB), Recharts 3, dnd-kit, Zod 4, Lucide, Vitest 5, PGlite.
 
-Desempenho: consultas filtradas no banco e paginadas ("Carregar mais"), cache com invalidação apenas das tabelas afetadas (inclusive cascatas), sincronização entre abas via `BroadcastChannel`, páginas carregadas sob demanda e bibliotecas pesadas (gráficos, mapas, exportação) em pacotes separados. O cronômetro re-renderiza a tela mas **não grava nada a cada segundo**: só há escrita ao iniciar, pausar, continuar, trocar de fase e finalizar.
+Desempenho: consultas filtradas no banco e paginadas ("Carregar mais"), cache com invalidação apenas das tabelas afetadas (inclusive cascatas), sincronização entre abas via `BroadcastChannel`, páginas carregadas sob demanda e bibliotecas pesadas (gráficos, leitor de EPUB) em pacotes separados. O cronômetro re-renderiza a tela mas **não grava nada a cada segundo**: só há escrita ao iniciar, pausar, continuar, trocar de fase e finalizar.
 
 ## Regras de negócio importantes
 
@@ -188,8 +188,8 @@ Desempenho: consultas filtradas no banco e paginadas ("Carregar mais"), cache co
 - **Inglês**: cada prática é uma sessão manual da matéria "Inglês" (um tópico por habilidade) e respeita a regra de não sobreposição; o dia conta para a sequência quando há prática registrada nele, e a meta diária é cumprida quando os minutos do dia alcançam o valor configurado.
 - **Revisões**: só são marcadas como feitas por ação explícita (botão ou caixa marcada no resumo da sessão).
 - **Repetição espaçada**: SM-2 com quatro respostas; parâmetros ajustáveis em Configurações; cada resposta é gravada junto com o novo agendamento em uma transação idempotente.
-- **Exclusões**: organização/planejamento em cascata; históricos (sessões, questões, cartões, mapas) apenas perdem o vínculo e continuam nos relatórios. A confirmação mostra quantos registros serão excluídos ou desvinculados, e matérias podem ser arquivadas em vez de excluídas.
-- **Sem limites artificiais**: não há teto de matérias, tópicos, cartões ou mapas no código; a capacidade depende da infraestrutura.
+- **Exclusões**: organização/planejamento em cascata; históricos (sessões, questões, cartões) apenas perdem o vínculo e continuam nos relatórios. A confirmação mostra quantos registros serão excluídos ou desvinculados, e matérias podem ser arquivadas em vez de excluídas.
+- **Sem limites artificiais**: não há teto de matérias, tópicos ou cartões no código; a capacidade depende da infraestrutura.
 
 ## Segurança
 
@@ -238,7 +238,6 @@ Limitações atuais (honestas):
 - O **modo local** não tem login nem sincronização; dados dependem do navegador.
 - Sessões são pareadas entre abas pelo banco (uma sessão ativa por usuário) e pelo `BroadcastChannel`; não há atualização em tempo real entre *dispositivos* diferentes sem recarregar (o app recarrega ao focar a janela).
 - Painéis com séries históricas longas (dashboard e metas) baixam as sessões do intervalo e agregam no navegador. Para contas com muitos anos de dados, o próximo passo é usar agregações no banco (a view `study_session_net` já existe para isso).
-- O editor de mapas salva o documento inteiro a cada alteração (com intervalo de 0,6 s); mapas muito grandes (milhares de nós) podem ficar lentos.
 - A exclusão da conta no Supabase deve ser feita pelo administrador (Authentication → Users); os dados são removidos em cascata.
 
 Próximos passos sugeridos: banco de questões integrado; notificações push opcionais; sincronização em tempo real (Supabase Realtime); PWA/offline-first com fila de sincronização; agregações no servidor para relatórios de longo prazo; importação de editais em PDF.

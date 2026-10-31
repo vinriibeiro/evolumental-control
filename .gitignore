@@ -7,3 +7,20 @@ coverage
 .DS_Store
 e2e/screens
 e2e/visual
+
+# Material do curso de inglês (pago, uso pessoal): nunca versionar nem publicar
+Times-Audios/
+Times-Material/
+Estudos/
+*.mp3
+*.m4a
+*.wav
+*.ogg
+*.flac
+*.m3u
+*.m3u8
+*.zip
+
+# Livros (EPUB/PDF) são material protegido de uso pessoal: a Biblioteca guarda só no navegador
+*.epub
+*.pdf

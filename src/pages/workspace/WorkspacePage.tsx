@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Brain, CalendarRange, Check, ClipboardCheck, Layers, Network, Play, RefreshCcw, StickyNote, Timer } from 'lucide-react'
+import { Brain, CalendarRange, Check, ClipboardCheck, Layers, Play, RefreshCcw, StickyNote, Timer } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Checkbox, Textarea } from '@/components/ui/Field'
 import { Badge, Card, CardHeader, ColorDot, PageHeader, Progress } from '@/components/ui/layout'
@@ -228,7 +228,6 @@ export default function WorkspacePage() {
         {[
           { to: '/questoes', icon: ClipboardCheck, label: 'Registrar questões' },
           { to: '/flashcards', icon: Layers, label: 'Flashcards' },
-          { to: '/mapas', icon: Network, label: 'Mapas mentais' },
           { to: '/metas', icon: Check, label: 'Minhas metas' },
         ].map((q) => (
           <Link key={q.to} to={q.to}>

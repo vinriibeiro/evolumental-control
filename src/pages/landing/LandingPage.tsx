@@ -12,7 +12,6 @@ import {
   Headphones,
   Layers,
   Lock,
-  Network,
   RefreshCcw,
   Route,
   Smartphone,
@@ -59,7 +58,6 @@ const FEATURES = [
   { icon: Route, title: 'Trilhas prontas', text: 'Concursos, professor, programação, dados, cloud, segurança e mais — matérias e tópicos na ordem certa, com fontes e pesos.' },
   { icon: RefreshCcw, title: 'Ciclo de estudos', text: 'Rodízio de matérias que só avança quando você estuda. Faltou um dia? Você não perde a posição.' },
   { icon: Layers, title: 'Flashcards com voz', text: 'Repetição espaçada, importação de CSV e leitura em voz alta no próprio aparelho — ótimo para revisar no trânsito.' },
-  { icon: Network, title: 'Mapas mentais', text: 'Editor visual com ramificações, cores, atalhos de teclado, desfazer/refazer e exportação em PNG e PDF.' },
   { icon: Brain, title: 'Revisões no momento certo', text: 'Revisões agendadas após cada estudo (1, 7 e 30 dias) e um painel com tudo que está pendente ou atrasado.' },
   { icon: ClipboardCheck, title: 'Questões e desempenho', text: 'Registre baterias de questões e veja a taxa de acertos por matéria, tópico e período — e o que precisa de atenção.' },
   { icon: BarChart3, title: 'Metas e relatórios', text: 'Horas por dia, semana e mês, sequência de dias, planejado × realizado e exportação em CSV ou JSON.' },
@@ -147,7 +145,7 @@ export default function LandingPage() {
               <span className="bg-gradient-to-r from-[#B98545] via-[#DEB887] to-[#B98545] bg-clip-text text-transparent">Evolua com dados.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted">
-              O EVoLuMentaL Control junta cronômetro, planejamento por horário, ciclo de estudos, trilhas prontas, flashcards com voz, mapas mentais, revisões e
+              O EVoLuMentaL Control junta cronômetro, planejamento por horário, ciclo de estudos, trilhas prontas, flashcards com voz, revisões e
               relatórios em um só lugar — para concursos, faculdade, tecnologia, idiomas ou qualquer meta.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">

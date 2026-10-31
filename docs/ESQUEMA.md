@@ -25,7 +25,7 @@ Fonte da verdade: `supabase/migrations/20261021000000_init.sql`. Os tipos TypeSc
 | `calendar_tasks` | Tarefas, prazos e provas | Data e horário opcionais. |
 | `reviews` | Revisões planejadas/realizadas | `status = done` exige `done_at`. |
 | `flashcard_decks` / `flashcards` / `flashcard_reviews` | Baralhos, cartões e histórico de respostas | Agendamento SM-2 no cartão; tags `text[]` com índice GIN. |
-| `mind_maps` | Mapas mentais | Nós, conexões, posições, estilos e viewport em `data` JSONB (salvo de forma atômica). |
+| `mind_maps` | (legado) Mapas mentais | Recurso removido da interface; a tabela e os dados antigos continuam no esquema e nos backups. |
 | `study_goals` | Metas | Indicador, período, alvo; ajustes criam nova versão (`previous_goal_id`) e encerram a anterior. |
 | `question_records` | Desempenho em questões | `correct + wrong ≤ total`. |
 

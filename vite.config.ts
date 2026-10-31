@@ -16,9 +16,8 @@ export default defineConfig({
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return undefined
           if (id.includes('recharts') || id.includes('d3-')) return 'charts'
-          if (id.includes('@xyflow')) return 'flow'
-          if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('html-to-image')) return 'export'
           if (id.includes('@supabase')) return 'supabase'
+          if (id.includes('epubjs') || id.includes('jszip')) return 'leitor-epub'
           return undefined
         },
       },
