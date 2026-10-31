@@ -52,7 +52,7 @@ describe('tela de Vídeos', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prosseguir' }))
     expect(src()).toContain('aaaaaaaaaaa')
     expect(src()).toContain('autoplay=1')
-    expect(screen.getByText(/Próxima aula: Ep 02/)).toBeTruthy()
+    expect(screen.getByText(/A seguir:/).textContent).toContain('Aula 3 · Ep 02')
     fireEvent.click(screen.getByRole('button', { name: 'Prosseguir' }))
     expect(src()).toContain('bbbbbbbbbbb')
     fireEvent.click(screen.getByRole('button', { name: 'Prosseguir' }))
@@ -92,13 +92,15 @@ describe('painel de conteúdo (disciplina → aula → vídeo)', () => {
 
   it('Concluir marca o vídeo como assistido, mostra o progresso e lembra neste aparelho', () => {
     renderPage()
-    expect(panel().getAllByText('0%')).toHaveLength(2)
+    expect(panel().getAllByText(/· 0%$/)).toHaveLength(2)
+    expect(panel().getByText('0 de 4 assistidos')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Concluir' }))
     expect(screen.getByRole('button', { name: 'Concluído' }).getAttribute('aria-pressed')).toBe('true')
-    expect(panel().getByText('33%')).toBeTruthy()
+    expect(panel().getByText('1/3 · 33%')).toBeTruthy()
+    expect(panel().getByText('1 de 4 assistidos')).toBeTruthy()
     expect(JSON.parse(localStorage.getItem('evolumental.video.done') ?? '[]')).toEqual(['m1'])
     fireEvent.click(screen.getByRole('button', { name: 'Concluído' }))
-    expect(panel().getAllByText('0%')).toHaveLength(2)
+    expect(panel().getAllByText(/· 0%$/)).toHaveLength(2)
   })
 
   it('o painel pode ser ocultado e a escolha fica guardada', () => {

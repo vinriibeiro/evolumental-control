@@ -126,7 +126,7 @@ export function AppShell() {
           </IconButton>
           <IconButton
             label={wide ? 'Mostrar o menu lateral' : 'Ocultar o menu lateral e ampliar a tela'}
-            className="hidden lg:inline-flex"
+            className="max-lg:hidden"
             aria-pressed={wide}
             onClick={() => setWide((w) => !w)}
           >
