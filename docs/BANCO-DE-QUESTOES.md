@@ -31,5 +31,5 @@ Temas com o prefixo **"CGU P1/P2/P3 ·"** seguem o programa oficial do Edital n�
 ## Estado atual
 - 2.000 questões de **SQL** (10 subtemas, 200 por subtema), geradas com os resultados verificados pela execução real das consultas.
 - 100 questões de **Machine Learning** (piloto do banco de TI, branch `banco-questoes-claude`, pasta `banco-questoes/`).
-- **CGU 2026**: 4.467 questões certo/errado nas 13 disciplinas do edital (3.167 oficiais + 1.300 autorais). O alvo é 20.000; as faixas das sessões que faltam estão em `banco-questoes/cgu/PROMPTS-CGU.md`.
+- **CGU 2026**: 4.450 questões (17 oficiais que dependiam de figura, gráfico ou texto de apoio ausentes foram retiradas por `banco-questoes/cgu/limpar-oficiais.mjs`, que também junta as quebras de linha do PDF; lista em `oficiais-removidas.json`). Antes eram 4.467 questões certo/errado nas 13 disciplinas do edital (3.167 oficiais + 1.300 autorais). O alvo é 20.000; as faixas das sessões que faltam estão em `banco-questoes/cgu/PROMPTS-CGU.md`.
 - Os demais temas de TI (Python, Pandas, Estatística etc.) entram quando as entregas chegarem: basta rodar os comandos acima com todas as pastas.

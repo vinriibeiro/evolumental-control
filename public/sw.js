@@ -2,7 +2,7 @@
 // - Páginas: rede primeiro (sempre a versão mais nova), cópia em cache como reserva offline.
 // - /assets/*: arquivos com hash no nome, imutáveis → cache primeiro.
 // - Nada de outros domínios (Supabase, APIs) é interceptado.
-const VERSION = 'vlm-v4'
+const VERSION = 'vlm-v5'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png']
 
 self.addEventListener('install', (event) => {
