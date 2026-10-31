@@ -1,13 +1,20 @@
 // Gera os arquivos do banco de questões que o app carrega sob demanda.
-// Uso: node scripts/gerar-banco-questoes.mjs <consolidado.json> [pasta-de-saida=public/questoes]
-// O consolidado vem de: node validar-questoes.mjs <pasta-com-os-jsonl> --saida consolidado.json
+// Uso: node scripts/gerar-banco-questoes.mjs <consolidado.json> [outro.json ...] [--saida public/questoes]
+// Cada consolidado vem de: node banco-questoes/validar-questoes.mjs <pasta-com-os-jsonl> --saida consolidado.json
+// Vários arquivos podem ser passados (por exemplo, os JSON já publicados em public/questoes/sql/*.json para
+// manter um tema cuja fonte não está no repositório). Ids repetidos entre arquivos são erro.
 // Saída: <saida>/index.json (temas, subtemas, contagens) e <saida>/<prefixo>/<subtema>.json (questões).
+// Ordem: temas na ordem de entrada; subtemas na ordem de entrada, exceto quando todos começam com número
+// (itens de edital, "1 …", "2 …"), caso em que seguem a ordem numérica.
 import fs from 'node:fs'
 import path from 'node:path'
 
-const [entrada, saida = 'public/questoes'] = process.argv.slice(2)
-if (!entrada) {
-  console.error('Uso: node scripts/gerar-banco-questoes.mjs <consolidado.json> [pasta-de-saida]')
+const argv = process.argv.slice(2)
+const saidaIdx = argv.indexOf('--saida')
+const saida = saidaIdx >= 0 ? argv[saidaIdx + 1] : 'public/questoes'
+const entradas = argv.filter((a, i) => !a.startsWith('--') && i !== saidaIdx + 1)
+if (!entradas.length) {
+  console.error('Uso: node scripts/gerar-banco-questoes.mjs <consolidado.json> [outro.json ...] [--saida public/questoes]')
   process.exit(2)
 }
 
@@ -19,7 +26,15 @@ const slug = (s) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 
-const questoes = JSON.parse(fs.readFileSync(entrada, 'utf8'))
+const questoes = entradas.flatMap((e) => JSON.parse(fs.readFileSync(e, 'utf8')))
+const vistos = new Set()
+for (const q of questoes) {
+  if (vistos.has(q.id)) {
+    console.error(`id repetido entre as entradas: ${q.id}`)
+    process.exit(1)
+  }
+  vistos.add(q.id)
+}
 const temas = new Map()
 for (const q of questoes) {
   const prefixo = q.id.replace(/-\d+$/, '')
@@ -35,7 +50,11 @@ for (const t of temas.values()) {
   const dir = path.join(saida, t.prefixo)
   fs.mkdirSync(dir, { recursive: true })
   const subtemas = []
-  for (const [nome, lista] of t.subtemas) {
+  const nomes = [...t.subtemas.keys()]
+  const numerados = nomes.every((n) => /^\d+\s/.test(n))
+  const ordem = numerados ? nomes.sort((a, b) => parseInt(a, 10) - parseInt(b, 10)) : nomes
+  for (const nome of ordem) {
+    const lista = t.subtemas.get(nome)
     const arquivo = `${slug(nome)}.json`
     lista.sort((a, b) => a.id.localeCompare(b.id))
     fs.writeFileSync(path.join(dir, arquivo), JSON.stringify(lista))

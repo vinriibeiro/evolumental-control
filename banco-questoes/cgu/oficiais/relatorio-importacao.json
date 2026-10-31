@@ -1,0 +1,169 @@
+{
+ "gerado_em": "2026-10-31T15:39:02.893Z",
+ "acervo": "github.com/aureovinicius/concursos-cgu (data/official-content)",
+ "itens_no_acervo": 27557,
+ "descartados": {
+  "fora_do_programa": 7660,
+  "depende_de_contexto": 2721,
+  "sem_classificacao": 8645,
+  "tamanho": 362,
+  "formato_multipla_escolha": 4728,
+  "duplicada_no_acervo": 274
+ },
+ "aceitos": 3167,
+ "por_tema": {
+  "CGU P1 · Estado, democracia, direitos e ciência política": {
+   "total": 86,
+   "candidatos": 86,
+   "por_subtema": {
+    "9 Estado e modelos de desenvolvimento econômico": 7,
+    "3 Federalismo e capacidades estatais": 14,
+    "4 Ordem constitucional e direitos": 27,
+    "1 Estado e legitimidade": 22,
+    "2 Democracia e representação": 11,
+    "5 Valor público e controle": 3,
+    "6 Corrupção como fenômeno político e social": 2
+   },
+   "gabarito_C": 44
+  },
+  "CGU P1 · Sociedade brasileira, desigualdades e desenvolvimento": {
+   "total": 97,
+   "candidatos": 97,
+   "por_subtema": {
+    "4 Diversidade e acesso a direitos": 37,
+    "1 Fundamentos sociológicos": 11,
+    "3 População, território e trabalho": 27,
+    "5 Desenvolvimento e realidade brasileira": 7,
+    "2 Formação social e cidadania no Brasil": 15
+   },
+   "gabarito_C": 51
+  },
+  "CGU P1 · Ética pública e responsabilidade profissional": {
+   "total": 59,
+   "candidatos": 59,
+   "por_subtema": {
+    "1 Fundamentos da ética pública": 46,
+    "2 Deveres profissionais": 1,
+    "4 Relações de trabalho e atendimento": 3,
+    "3 Conflitos de interesses e imparcialidade": 9
+   },
+   "gabarito_C": 30
+  },
+  "CGU P1 · Administração pública e políticas públicas": {
+   "total": 139,
+   "candidatos": 139,
+   "por_subtema": {
+    "1 Organização administrativa": 91,
+    "4 Planejamento e recursos": 26,
+    "2 Modelos de administração": 9,
+    "5 Serviços e transformação digital": 5,
+    "3 Políticas públicas": 8
+   },
+   "gabarito_C": 64
+  },
+  "CGU P2 · Governança, riscos e integridade": {
+   "total": 30,
+   "candidatos": 30,
+   "por_subtema": {
+    "3 Integridade pública": 2,
+    "2 Riscos e controles essenciais": 21,
+    "1 Governança e responsabilidades": 5,
+    "4 Integridade privada": 2
+   },
+   "gabarito_C": 17
+  },
+  "CGU P2 · Transparência, ouvidoria e participação social": {
+   "total": 58,
+   "candidatos": 58,
+   "por_subtema": {
+    "2 Transparência e proteção de dados": 17,
+    "4 Participação e melhoria de serviços": 4,
+    "1 Acesso à informação": 34,
+    "3 Ouvidoria e proteção das pessoas": 3
+   },
+   "gabarito_C": 29
+  },
+  "CGU P2 · Direito público, controle e responsabilização": {
+   "total": 138,
+   "candidatos": 138,
+   "por_subtema": {
+    "4 Responsabilização em nível introdutório": 52,
+    "2 Processo e garantias": 16,
+    "1 Decisão administrativa": 35,
+    "3 Funções de controle e melhoria da gestão": 35
+   },
+   "gabarito_C": 66
+  },
+  "CGU P2 · Evidências, dados e inteligência artificial": {
+   "total": 6,
+   "candidatos": 6,
+   "por_subtema": {
+    "5 Uso responsável de inteligência artificial": 2,
+    "2 Leitura de dados e indicadores": 1,
+    "3 Inferências e erros de raciocínio": 2,
+    "1 Perguntas e fontes": 1
+   },
+   "gabarito_C": 4
+  },
+  "CGU P2 · Auditoria governamental e atuação integrada da CGU": {
+   "total": 13,
+   "candidatos": 13,
+   "por_subtema": {
+    "1 Propósito, serviços e papéis": 6,
+    "2 Ciclo do trabalho": 7
+   },
+   "gabarito_C": 6
+  },
+  "CGU P3 · Estatística, programação e análise de dados": {
+   "total": 294,
+   "candidatos": 294,
+   "por_subtema": {
+    "4 Programação para análise": 126,
+    "2 Probabilidade e inferência": 73,
+    "5 Preparação e transformação": 20,
+    "3 Relações entre variáveis": 23,
+    "1 Exploração e descrição": 52
+   },
+   "gabarito_C": 157
+  },
+  "CGU P3 · Engenharia, arquitetura e governança de dados": {
+   "total": 1284,
+   "candidatos": 1284,
+   "por_subtema": {
+    "1 Modelagem e arquiteturas": 503,
+    "2 SQL e consultas analíticas": 368,
+    "6 Compartilhamento e proteção": 126,
+    "4 Processamento distribuído": 52,
+    "3 Ingestão e integração": 155,
+    "5 Qualidade e rastreabilidade": 80
+   },
+   "gabarito_C": 635
+  },
+  "CGU P3 · Aprendizado de máquina e inteligência artificial": {
+   "total": 253,
+   "candidatos": 253,
+   "por_subtema": {
+    "1 Seleção e construção de modelos": 143,
+    "4 Redes neurais": 52,
+    "5 Linguagem natural e modelos generativos": 18,
+    "2 Validação e generalização": 10,
+    "3 Métricas e efeitos das decisões": 18,
+    "6 Agentes e uso seguro de ferramentas": 12
+   },
+   "gabarito_C": 130
+  },
+  "CGU P3 · Operação, governança e gestão de soluções de dados e IA": {
+   "total": 710,
+   "candidatos": 710,
+   "por_subtema": {
+    "4 Gestão de produtos de dados": 271,
+    "1 Ciclo de vida e MLOps": 112,
+    "5 Contratação e controle de soluções": 186,
+    "2 Sustentação de soluções analíticas": 134,
+    "3 Governança e responsabilidade": 7
+   },
+   "gabarito_C": 360
+  }
+ },
+ "total": 3167
+}
