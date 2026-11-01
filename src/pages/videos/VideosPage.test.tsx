@@ -23,6 +23,7 @@ vi.mock('@/hooks/data', () => ({
   invalidateTables: vi.fn(),
 }))
 vi.mock('@/app/data', () => ({ useBackend: () => ({ list: vi.fn(), update: vi.fn() }) }))
+vi.mock('./VideoStudyTimer', () => ({ VideoStudyTimer: () => <div>Temporizador de estudo</div> }))
 vi.mock('@/hooks/useSettings', () => ({ useSettings: () => ({ timezone: 'America/Sao_Paulo' }) }))
 vi.mock('@tanstack/react-query', async (orig) => ({ ...(await orig<object>()), useQueryClient: () => ({}) }))
 
@@ -45,6 +46,30 @@ const src = () => document.querySelector('iframe')?.getAttribute('src') ?? ''
 const panel = () => within(screen.getByRole('complementary', { name: 'Conteúdo' }))
 
 describe('tela de Vídeos', () => {
+  it('modo cinema e retorno preservam o iframe e Escape restaura a visualização', () => {
+    renderPage()
+    const iframe = document.querySelector('iframe')
+    fireEvent.click(screen.getByRole('button', { name: 'Modo cinema' }))
+    expect(document.querySelector('[data-theater="true"]')).toBeTruthy()
+    expect(document.querySelector('iframe')).toBe(iframe)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(document.querySelector('[data-theater="true"]')).toBeNull()
+    expect(document.querySelector('iframe')).toBe(iframe)
+  })
+
+  it('Anterior retorna ao vídeo precedente e não ultrapassa o início da fila', () => {
+    renderPage('/videos?video=m2')
+    fireEvent.click(screen.getByRole('button', { name: 'Anterior' }))
+    expect(src()).toContain('dQw4w9WgXcQ')
+    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled()
+  })
+
+  it('usa modo cinema quando o navegador não oferece tela cheia', async () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Tela cheia' }))
+    expect(document.querySelector('[data-theater="true"]')).toBeTruthy()
+  })
+
   it('abre o primeiro vídeo e "Prosseguir" avança, inclusive para a próxima aula e disciplina', () => {
     renderPage()
     expect(src()).toContain('dQw4w9WgXcQ')

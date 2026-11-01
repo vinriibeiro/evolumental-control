@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, CheckCircle2, ChevronDown, ExternalLink, PanelRightClose, PanelRightOpen, PlayCircle, Search, Settings2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ExternalLink, Maximize, Minimize, MonitorPlay, PanelRightClose, PanelRightOpen, PlayCircle, Search, Settings2 } from 'lucide-react'
+import { VideoStudyTimer } from './VideoStudyTimer'
 import { StudiedButton } from '@/components/StudiedButton'
 import { UNAVAILABLE_HINT, VideoFrame } from '@/components/VideoPlayer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
-import { EmptyState, QueryState } from '@/components/ui/feedback'
+import { EmptyState, QueryState, useToast } from '@/components/ui/feedback'
 import { Card, PageHeader, Progress } from '@/components/ui/layout'
 import { cn } from '@/lib/cn'
 import { useAll } from '@/hooks/data'
@@ -50,6 +51,32 @@ export default function VideosPage() {
   const [panelOpen, setPanelOpen] = useState(loadPanelOpen)
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const classroom = useRef<HTMLDivElement>(null)
+  const [theater, setTheater] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
+  const toast = useToast()
+
+  useEffect(() => {
+    const changed = () => setFullscreen(document.fullscreenElement === classroom.current)
+    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.fullscreenElement) setTheater(false) }
+    document.addEventListener('fullscreenchange', changed)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('fullscreenchange', changed)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [])
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement === classroom.current) await document.exitFullscreen()
+      else if (classroom.current?.requestFullscreen) await classroom.current.requestFullscreen()
+      else { setTheater(true); toast.info('Tela cheia indisponível neste navegador. Modo cinema ativado.') }
+    } catch {
+      setTheater(true)
+      toast.info('O navegador não permitiu a tela cheia. Modo cinema ativado.')
+    }
+  }
 
   // Lições com vídeo, na ordem das matérias e dos tópicos; a fila segue essa ordem.
   const lessons = useMemo<Lesson[]>(() => {
@@ -77,6 +104,7 @@ export default function VideosPage() {
     null
   const lesson = lessons.find((l) => l.id === current?.topicId) ?? null
   const next = nextInQueue(queue, current?.id)
+  const previous = current ? queue[queue.findIndex((v) => v.id === current.id) - 1] : null
   const nextLesson = next ? lessons.find((l) => l.id === next.topicId) : null
   const position = current && lesson ? lesson.videos.findIndex((v) => v.id === current.id) + 1 : 0
 
@@ -128,7 +156,7 @@ export default function VideosPage() {
   const totalDone = queue.filter((v) => watched.has(v.id)).length
 
   const panel = (
-    <aside aria-label="Conteúdo" className="min-w-0 overflow-hidden rounded-xl border border-line bg-bg lg:sticky lg:top-[calc(var(--app-top,4rem)+1rem)] lg:flex lg:max-h-[calc(100dvh-var(--app-top,4rem)-2rem)] lg:flex-col">
+    <aside aria-label="Conteúdo" className="video-content min-w-0 overflow-hidden rounded-xl border border-line bg-bg lg:sticky lg:top-[calc(var(--app-top,4rem)+1rem)] lg:flex lg:max-h-[calc(100dvh-var(--app-top,4rem)-2rem)] lg:flex-col">
       <div className="space-y-2 border-b border-line p-3">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-ink">Conteúdo</h2>
@@ -136,6 +164,7 @@ export default function VideosPage() {
             {totalDone} de {queue.length} assistidos
           </span>
         </div>
+        <Progress value={queue.length ? totalDone / queue.length * 100 : 0} className="h-1.5" label="Progresso total dos vídeos" />
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
           <Input aria-label="Buscar conteúdo" placeholder="Buscar disciplina, aula ou vídeo" className="h-9 pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -206,17 +235,10 @@ export default function VideosPage() {
   )
 
   return (
-    <div className="space-y-5">
+    <div className="video-page space-y-5">
       <PageHeader
-        title="Vídeos"
-        description="Assista às aulas em vídeo dos seus tópicos, uma depois da outra."
-        actions={
-          current && (
-            <Button size="sm" icon={panelOpen ? <PanelRightClose className="size-4" aria-hidden /> : <PanelRightOpen className="size-4" aria-hidden />} aria-pressed={panelOpen} onClick={togglePanel}>
-              {panelOpen ? 'Ocultar conteúdo' : 'Mostrar conteúdo'}
-            </Button>
-          )
-        }
+        title="Sua sala de estudos"
+        description="Uma aula de cada vez. Aprenda com foco e acompanhe sua evolução."
       />
       <QueryState query={materials}>
         {!current || !lesson ? (
@@ -230,61 +252,73 @@ export default function VideosPage() {
             }
           />
         ) : (
-          <div className={cn('grid items-start gap-5', panelOpen && 'lg:grid-cols-[minmax(0,1fr)_22rem]')}>
-            <section className="min-w-0 space-y-4">
-              <Card className="overflow-hidden">
-                <VideoFrame key={current.id} video={current.ref} url={current.url} title={current.title} autoPlay={autoPlay} className="max-h-[70dvh]" />
-                <div className="space-y-4 p-4 sm:p-5">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs text-muted">
-                      {lesson.subject} › {lesson.name}
-                      {lesson.videos.length > 1 && ` · vídeo ${position} de ${lesson.videos.length}`}
-                    </p>
-                    <h2 className="mt-1 text-lg leading-snug font-semibold text-ink sm:text-xl">{current.title}</h2>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-                      <a href={current.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-ink hover:underline">
-                        Abrir no YouTube <ExternalLink className="size-3" aria-hidden />
-                      </a>
-                      <Link to={`/materias/${lesson.subjectId}?topico=${lesson.id}`} className="inline-flex items-center gap-1 text-ink hover:underline">
-                        <Settings2 className="size-3.5" aria-hidden /> Gerenciar no tópico
-                      </Link>
+          <div ref={classroom} data-theater={theater} className="video-classroom rounded-xl bg-bg">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-ink"><MonitorPlay className="size-5 shrink-0 text-accent-strong" aria-hidden /><span>Aula {queue.findIndex((v) => v.id === current.id) + 1} de {queue.length}</span><span className="hidden text-xs font-normal text-muted sm:inline">· {totalDone} concluídas</span></div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" aria-pressed={panelOpen} onClick={togglePanel} icon={panelOpen ? <PanelRightClose className="size-4" aria-hidden /> : <PanelRightOpen className="size-4" aria-hidden />}>{panelOpen ? 'Ocultar conteúdo' : 'Mostrar conteúdo'}</Button>
+                <Button size="sm" aria-pressed={theater} onClick={() => setTheater((v) => !v)}>{theater ? 'Sair do cinema' : 'Modo cinema'}</Button>
+                <Button size="sm" icon={fullscreen ? <Minimize className="size-4" aria-hidden /> : <Maximize className="size-4" aria-hidden />} onClick={() => void toggleFullscreen()}>{fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}</Button>
+              </div>
+            </div>
+            <div className={cn('grid items-start gap-5', panelOpen && 'lg:grid-cols-[minmax(0,1fr)_20rem]')}>
+              <section className="min-w-0 space-y-4">
+                <Card className="overflow-hidden">
+                  <VideoStudyTimer subjectId={lesson.subjectId} topicId={lesson.id} />
+                  <VideoFrame key={current.id} video={current.ref} url={current.url} title={current.title} autoPlay={autoPlay} className="video-study-frame" />
+                  <div className="space-y-4 p-4 sm:p-5">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs text-muted">
+                        {lesson.subject} › {lesson.name}
+                        {lesson.videos.length > 1 && ` · vídeo ${position} de ${lesson.videos.length}`}
+                      </p>
+                      <h2 className="mt-1 text-lg leading-snug font-semibold text-ink sm:text-xl">{current.title}</h2>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex">
-                      <Button
-                        aria-pressed={watched.has(current.id)}
-                        icon={<CheckCircle2 className={cn('size-4', watched.has(current.id) && 'text-success')} aria-hidden />}
-                        onClick={() => toggleWatched(current.id)}
-                      >
-                        {watched.has(current.id) ? 'Concluído' : 'Concluir'}
-                      </Button>
-                      <Button variant="primary" disabled={!next} icon={<ArrowRight className="size-4" aria-hidden />} onClick={() => next && go(next.id, true)}>
-                        {next ? 'Prosseguir' : 'Fim da lista'}
-                      </Button>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                        <a href={current.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-ink hover:underline">
+                          Abrir no YouTube <ExternalLink className="size-3" aria-hidden />
+                        </a>
+                        <Link to={`/materias/${lesson.subjectId}?topico=${lesson.id}`} className="inline-flex items-center gap-1 text-ink hover:underline">
+                          <Settings2 className="size-3.5" aria-hidden /> Gerenciar no tópico
+                        </Link>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button disabled={!previous} icon={<ArrowLeft className="size-4" aria-hidden />} onClick={() => previous && go(previous.id, true)}>Anterior</Button>
+                        <Button
+                          aria-pressed={watched.has(current.id)}
+                          icon={<CheckCircle2 className={cn('size-4', watched.has(current.id) && 'text-success')} aria-hidden />}
+                          onClick={() => toggleWatched(current.id)}
+                        >
+                          {watched.has(current.id) ? 'Concluído' : 'Concluir'}
+                        </Button>
+                        <Button variant="primary" disabled={!next} icon={<ArrowRight className="size-4" aria-hidden />} onClick={() => next && go(next.id, true)}>
+                          {next ? 'Prosseguir' : 'Fim da lista'}
+                        </Button>
+                      </div>
                     </div>
+                    {next && nextLesson && (
+                      <p className="text-xs text-muted">
+                        A seguir: <span className="text-ink">{next.title}</span>
+                        {nextLesson.id !== lesson.id && <> · {nextLesson.name}</>}
+                      </p>
+                    )}
                   </div>
-                  {next && nextLesson && (
-                    <p className="text-xs text-muted">
-                      A seguir: <span className="text-ink">{next.title}</span>
-                      {nextLesson.id !== lesson.id && <> · {nextLesson.name}</>}
-                    </p>
-                  )}
-                </div>
-              </Card>
+                </Card>
 
-              <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">Terminou a aula {lesson.name}?</p>
-                  <p className="text-xs text-muted">Marcar como estudada conclui o tópico, avança o ciclo e fecha o bloco do cronograma.</p>
-                </div>
-                <div className="max-sm:[&>button]:w-full">
-                  <StudiedButton topic={lesson} />
-                </div>
-              </Card>
-              <p className="text-xs text-muted">{UNAVAILABLE_HINT}</p>
-            </section>
-            {panelOpen && panel}
+                <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">Terminou a aula {lesson.name}?</p>
+                    <p className="text-xs text-muted">Marcar como estudada conclui o tópico, avança o ciclo e fecha o bloco do cronograma.</p>
+                  </div>
+                  <div className="max-sm:[&>button]:w-full">
+                    <StudiedButton topic={lesson} />
+                  </div>
+                </Card>
+                <p className="text-xs text-muted">{UNAVAILABLE_HINT}</p>
+              </section>
+              {panelOpen && panel}
+            </div>
           </div>
         )}
       </QueryState>
