@@ -5,21 +5,25 @@ function audio(): AudioContext | null {
   if (typeof window === 'undefined') return null
   const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   if (!Ctor) return null
-  if (!ctx) ctx = new Ctor()
+  try {
+    if (!ctx || ctx.state === 'closed') ctx = new Ctor()
+  } catch {
+    return null // Restrições do dispositivo não impedem estudar com aviso visual.
+  }
   return ctx
 }
 
 /** Chamar em um gesto do usuário (ex.: Iniciar) para liberar o áudio. */
 export function unlockAudio() {
   const c = audio()
-  if (c && c.state === 'suspended') void c.resume()
+  if (c && c.state === 'suspended') void c.resume().catch(() => {})
 }
 
-export function playChime(kind: 'focus-end' | 'break-end' = 'focus-end') {
+export function playChime(kind: 'focus-end' | 'break-end' | 'warning' = 'focus-end') {
   const c = audio()
   if (!c) return
-  if (c.state === 'suspended') void c.resume()
-  const notes = kind === 'focus-end' ? [659.25, 783.99, 987.77] : [987.77, 783.99, 659.25]
+  if (c.state === 'suspended') void c.resume().catch(() => {})
+  const notes = kind === 'warning' ? [523.25, 659.25] : kind === 'focus-end' ? [659.25, 783.99, 987.77] : [987.77, 783.99, 659.25]
   const start = c.currentTime + 0.02
   notes.forEach((freq, i) => {
     const osc = c.createOscillator()

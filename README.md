@@ -32,6 +32,7 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 | Trilhas | Trilhas prontas por carreira (Auditor Fiscal, Policial Federal, Professor SEEDF de Português, Professor de Português, Programador, Front-end, Back-end, Mobile, DevOps/SRE, Cloud, Cibersegurança, Engenharia de Dados, Analista e Cientista de Dados, Engenheiro de IA, QA, UX/UI, Product Manager, Suporte) e por matéria, com tópicos na ordem de estudo, pesos, fontes e criação automática do ciclo. Cada tópico tem atalhos de pesquisa (Google, YouTube, questões). |
 | Matérias e tópicos | Matérias com cor, ícone, prioridade, dificuldade, meta semanal, datas, edital e status; tópicos/subtópicos em profundidade ilimitada; arrastar para reordenar, mover, duplicar subárvore, colar a estrutura do edital como texto indentado, pesquisa em todos os níveis, progresso ponderado, materiais/links, arquivamento. |
 | Cronômetro | Cronômetro, temporizador, Pomodoro e intervalos personalizados; pausar/continuar/finalizar/cancelar/reiniciar; alertas visuais e sonoros; resumo antes de salvar; lançamento manual sem sobreposição. |
+| Sala de estudos em vídeo | Player com conteúdo por disciplina, aula anterior/próxima, progresso, temporizador configurável junto à aula, pausa/retomada, aviso antecipado e final, modo cinema e tela cheia com timer visível. |
 | Cronograma | Planos com disponibilidade, compromissos, blocos, metas por dia/semana; proposta automática (regras determinísticas e visíveis) com prévia das diferenças; visões dia/semana/mês/lista; status concluído/parcial/não realizado/remarcado; detecção de conflitos; iniciar estudo a partir do bloco. |
 | Ciclo de estudos | Vários ciclos, um ativo; blocos reordenáveis com peso, duração e intervalo; avanço pela execução registrada; decisão explícita em execuções parciais. |
 | Calendário / Planejamento | Grade de horários de 30 em 30 min (dia e semana) e visão mensal: clique num horário para criar um bloco, arraste para mover, puxe a borda para mudar a duração. Camadas (planejamento, histórico realizado, revisões, tarefas), minicalendário, Planejar (proposta automática), Replanejar (atrasados → próximo horário livre) e Remover. |
@@ -141,7 +142,18 @@ Testes de ponta a ponta no navegador (modo local; requer `npm run dev` em outro 
 ```bash
 npm run test:e2e     # fluxos reais + todas as páginas em desktop e celular
 npm run screenshots  # capturas de estados com dados de exemplo
+npm run test:e2e:videos # sala de estudos: timer, tela cheia, cinema, recarga e celular
 ```
+
+### Estudar com vídeos
+
+Em **Biblioteca → Vídeos**, informe a duração e clique em **Iniciar foco**. O temporizador usa a sessão de estudo existente e vincula novas sessões à matéria e ao tópico da aula. Trocar de vídeo mantém o vínculo original, sem abrir outra sessão. Ao finalizar, use **Revisar e salvar sessão** para confirmar o histórico no Cronômetro.
+
+O aviso antecipado ocorre no último minuto, ou nos últimos 20% para blocos com menos de cinco minutos. O aviso final tem um som diferente. Pausas manuais congelam a contagem; Pomodoro e intervalos já iniciados também aparecem na sala. O botão de som respeita a preferência do perfil. Os avisos não pausam o vídeo nem encerram o estudo automaticamente.
+
+**Modo cinema** remove a navegação para ampliar a aula; Escape restaura a visualização. **Tela cheia** expande a sala inteira, incluindo timer e conteúdo; ocultar o conteúdo dá mais espaço ao vídeo. As duas opções preservam o iframe e a reprodução atual. Se o navegador bloquear a Fullscreen API, o modo cinema é usado como alternativa.
+
+Os alertas exigem a página aberta e JavaScript em execução: suspensão do aparelho ou do navegador pode atrasá-los até a retomada. O som depende da liberação de áudio pelo navegador após uma interação (Iniciar foco, pausar/retomar ou ativar som). O relógio é reconstruído por timestamps, inclusive após recarregar. A reprodução dos vídeos depende do YouTube e da autorização do canal para incorporação. O teste E2E usa perfil isolado em modo local e o servidor Vite, com dados sintéticos; não comprova áudio audível nem reprodução do YouTube.
 
 ## Arquitetura
 

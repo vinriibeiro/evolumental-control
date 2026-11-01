@@ -111,6 +111,52 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* A mesma árvore do player permanece montada nos três modos de aula. */
+.video-study-frame {
+  max-height: 65dvh;
+}
+
+/* O aviso integrado permanece acessível em tela cheia, sem duplicar o global. */
+body:has(.video-classroom) .global-timer-alert {
+  display: none;
+}
+
+body:has(.video-classroom[data-theater='true']) .app-sidebar,
+body:has(.video-classroom[data-theater='true']) .app-top,
+body:has(.video-classroom[data-theater='true']) .app-tabs,
+body:has(.video-classroom[data-theater='true']) .video-page > :first-child {
+  display: none;
+}
+
+body:has(.video-classroom[data-theater='true']) #conteudo {
+  max-width: none;
+  padding: 1rem;
+}
+
+.video-classroom[data-theater='true'] .video-content {
+  top: 1rem;
+  max-height: calc(100dvh - 2rem);
+}
+
+.video-classroom:fullscreen {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 1rem;
+  border-radius: 0;
+  background: var(--bg);
+}
+
+.video-classroom:fullscreen .video-content {
+  top: 0;
+  max-height: calc(100dvh - 2rem);
+}
+
+.video-classroom:fullscreen .video-study-frame {
+  max-height: calc(100dvh - 19rem);
+  min-height: 180px;
+}
+
 /* Barra de rolagem discreta */
 .scroll-thin {
   scrollbar-width: thin;

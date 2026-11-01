@@ -89,7 +89,7 @@ export function AppShell() {
       {/* Barra lateral (desktop) */}
       <aside
         className={cn(
-          'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200',
+          'app-sidebar sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200',
           !wide && 'lg:flex',
           collapsed ? 'w-[72px]' : 'w-64',
         )}
@@ -119,7 +119,7 @@ export function AppShell() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div ref={topRef} className="sticky top-0 z-30">
+        <div ref={topRef} className="app-top sticky top-0 z-30">
         <header className="flex h-16 items-center gap-2 border-b border-line bg-bg/95 px-4 backdrop-blur sm:px-6">
           <IconButton label="Abrir menu" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="size-5" />
@@ -135,7 +135,7 @@ export function AppShell() {
           <Link to="/" className="lg:hidden" aria-label="Início">
             <LogoMark className="size-8" />
           </Link>
-          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink">{titleFor(location.pathname)}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink max-sm:sr-only">{titleFor(location.pathname)}</h1>
           <LiveTimerChip />
           <button
             onClick={() => setSearchOpen(true)}
@@ -188,7 +188,7 @@ function SectionTabs({ pathname }: { pathname: string }) {
   }, [pathname, tabs.length])
   if (!tabs.length) return null
   return (
-    <nav ref={nav} aria-label="Seções" className="scroll-thin relative -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-line">
+    <nav ref={nav} aria-label="Seções" className="app-tabs scroll-thin relative -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-line">
       {tabs.map((t) => (
         <NavLink
           key={t.to}
@@ -260,7 +260,7 @@ function LiveTimerChip() {
     <Link
       to="/cronometro"
       className={cn(
-        'tabular flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold',
+        'tabular ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold sm:ml-0',
         st?.due ? 'animate-pulse-ring border-accent bg-accent text-accent-ink' : 'border-line bg-surface text-ink',
       )}
       aria-label={`Sessão em andamento: ${label}`}

@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node e2e/smoke.mjs",
+    "test:e2e:videos": "node e2e/video-study.mjs",
     "screenshots": "node e2e/visual.mjs",
     "check": "npm run typecheck && npm run lint && npm run test && vite build"
   },
