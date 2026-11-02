@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Copy, MonitorPlay, Pause, Pencil, Play, Plus, RefreshCcw, RotateCcw, Scale, SkipBack, SkipForward, Trash2 } from 'lucide-react'
@@ -177,17 +177,28 @@ function CycleDetail(props: {
     { enabled: Boolean(summary.current) },
   )
   const unlinkedSeconds = (unlinked.data ?? []).reduce((a, x) => a + netSeconds(x, x.pauses), 0)
-  const adoptUnlinked = async () => {
-    if (!summary.current || !unlinked.data?.length) return
+  const adoptUnlinked = async (list: typeof unlinked.data, auto = false) => {
+    if (!summary.current || !list?.length) return
     try {
-      const r = await adoptUnlinkedStudy(backend, cycle.id, summary.current.id, unlinked.data)
-      toast.success(r.seconds ? `${formatDuration(r.seconds)} contados no bloco.${r.advanced ? ' O ciclo avançou.' : ''}` : 'Esse estudo já estava contado.')
+      const r = await adoptUnlinkedStudy(backend, cycle.id, summary.current.id, list)
+      if (r.seconds) toast.success(`${formatDuration(r.seconds)} de estudo contados no bloco.${r.advanced ? ' O ciclo avançou.' : ''}`)
+      else if (!auto) toast.success('Esse estudo já estava contado.')
     } catch (e) {
       toast.error(e)
     } finally {
       await invalidateTables(qc, ['study_cycles', 'study_sessions'])
     }
   }
+
+  // Conta sozinho o estudo da matéria feito depois da última atualização do ciclo (com este bloco já em andamento).
+  // O que for mais antigo continua com o botão "Contar no bloco".
+  const tried = useRef(new Set<string>())
+  useEffect(() => {
+    const fresh = (unlinked.data ?? []).filter((x) => Date.parse(x.started_at) >= Date.parse(cycle.updated_at) && !tried.current.has(x.id))
+    if (fresh.length === 0) return
+    fresh.forEach((x) => tried.current.add(x.id))
+    void adoptUnlinked(fresh, true)
+  }, [unlinked.data, cycle.updated_at]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reorder = async (next: StudyCycleItem[]) => {
     const currentId = summary.current?.id
@@ -311,7 +322,7 @@ function CycleDetail(props: {
                   <span>
                     Você estudou <span className="font-medium text-ink">{formatDuration(unlinkedSeconds)}</span> de {lookups.subjectName(summary.current.subject_id)} nos últimos dias sem ligar ao ciclo.
                   </span>
-                  <Button size="sm" onClick={() => void adoptUnlinked()}>
+                  <Button size="sm" onClick={() => void adoptUnlinked(unlinked.data)}>
                     Contar no bloco
                   </Button>
                 </div>
