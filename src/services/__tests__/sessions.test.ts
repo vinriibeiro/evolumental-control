@@ -8,6 +8,7 @@ import {
   confirmSession,
   discardSession,
   finishSession,
+  findCycleLink,
   getLiveSession,
   nextPhase,
   pauseSession,
@@ -130,6 +131,26 @@ describe('sessões de estudo', () => {
     const { rows: reviews } = await backend.list('reviews', { filters: [eq('topic_id', topic.id)] })
     expect(reviews.map((x) => x.scheduled_for).sort()).toEqual(['2026-10-21', '2026-10-27'])
     expect(i2.sort_order).toBe(1)
+  })
+
+  it('estudo livre da matéria do bloco atual liga ao ciclo e abate o tempo ao salvar', async () => {
+    const [subject] = await backend.insert('subjects', [{ name: 'Python' }])
+    const [other] = await backend.insert('subjects', [{ name: 'Estatística' }])
+    const [cycle] = await backend.insert('study_cycles', [{ name: 'Ciclo', status: 'active' }])
+    const [item] = await backend.insert('study_cycle_items', [{ cycle_id: cycle.id, subject_id: subject.id, duration_minutes: 90, sort_order: 0 }])
+    // matéria diferente do bloco atual: não vincula; null explícito: não vincula
+    expect(await findCycleLink(backend, other.id)).toBeNull()
+    await startSession(backend, { subject_id: subject.id, topic_id: null, activity_type: 'video', mode: 'countdown', planned_minutes: 21, cycle_item_id: null })
+    expect((await getLiveSession(backend))?.cycle_item_id).toBeNull()
+    await discardSession(backend, (await getLiveSession(backend))!)
+    // omitido: vincula sozinho
+    await startSession(backend, { subject_id: subject.id, topic_id: null, activity_type: 'video', mode: 'countdown', planned_minutes: 21 })
+    expect(await getLiveSession(backend)).toMatchObject({ cycle_id: cycle.id, cycle_item_id: item.id })
+    at(21)
+    await finishSession(backend, (await getLiveSession(backend))!)
+    const r = await confirmSession(backend, (await getLiveSession(backend))!, { ...confirmDefaults, subject_id: subject.id })
+    expect(r.cycleAdvanced).toBe(false)
+    expect((await backend.get('study_cycles', cycle.id))?.current_progress_seconds).toBe(21 * 60)
   })
 
   it('lançamento manual bloqueia sobreposição (evita duplicidade)', async () => {

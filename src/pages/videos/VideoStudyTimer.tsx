@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BellRing, Pause, Play, Square, Timer, Volume2, VolumeX } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/feedback'
 import { useLiveSession, useSessionActions } from '@/features/timer/useLiveSession'
+import { useCycleLink } from '@/hooks/useCycleLink'
 import { useNow } from '@/hooks/useNow'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { netSeconds, openPause, phaseStatus } from '@/lib/timer/engine'
@@ -19,9 +20,15 @@ export function VideoStudyTimer({ subjectId, topicId }: { subjectId: string; top
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const toast = useToast()
+  const cycleLink = useCycleLink(subjectId)
   const [minutes, setMinutes] = useState('50')
+  const [edited, setEdited] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const s = live.data
+  // Com bloco do ciclo desta matéria em andamento, o tempo sugerido é o que falta nele.
+  useEffect(() => {
+    if (cycleLink && !edited) setMinutes(String(cycleLink.remainingMinutes))
+  }, [cycleLink, edited])
   const now = useNow(1000, s?.status === 'active')
   const status = s?.status === 'active' ? phaseStatus(s, s.pauses, now) : null
   const paused = Boolean(s && openPause(s.pauses))
@@ -30,11 +37,13 @@ export function VideoStudyTimer({ subjectId, topicId }: { subjectId: string; top
   const due = status?.due
   const overtime = status?.overtime ?? 0
   const caption = !s
-    ? 'Aviso antes do fim e ao concluir. Ao finalizar, revise e salve seu estudo.'
+    ? cycleLink
+      ? `Ligado ao ciclo: ${cycleLink.item.duration_minutes} min no bloco, faltam ${cycleLink.remainingMinutes} min. Ao salvar a sessão, o tempo abate o bloco.`
+      : 'Aviso antes do fim e ao concluir. Ao finalizar, revise e salve seu estudo.'
     : s.status === 'pending_review'
       ? 'Revise o tempo antes de salvar no seu histórico.'
       : s.topic_id === topicId
-        ? 'O tempo desta sessão continua ao trocar de aula.'
+        ? s.cycle_item_id ? 'O tempo desta sessão continua ao trocar de aula e abate o bloco do ciclo ao salvar.' : 'O tempo desta sessão continua ao trocar de aula.'
         : 'Esta sessão mantém o vínculo com a aula em que começou.'
   const label = !s ? 'Reserve um tempo para aprender'
     : s.status === 'pending_review' ? 'Sessão finalizada'
@@ -86,7 +95,7 @@ export function VideoStudyTimer({ subjectId, topicId }: { subjectId: string; top
           ) : !s ? (
             <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); start() }}>
               <label className="sr-only" htmlFor="video-study-minutes">Duração do estudo em minutos</label>
-              <Input id="video-study-minutes" className="h-9 w-20 tabular" inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? 'video-timer-error' : undefined} />
+              <Input id="video-study-minutes" className="h-9 w-20 tabular" inputMode="decimal" value={minutes} onChange={(e) => { setEdited(true); setMinutes(e.target.value) }} aria-invalid={Boolean(error)} aria-describedby={error ? 'video-timer-error' : undefined} />
               <span className="text-xs text-muted">min</span>
               <Button type="submit" size="sm" variant="primary" loading={actions.pending} icon={<Play className="size-3.5" aria-hidden />}>Iniciar foco</Button>
             </form>

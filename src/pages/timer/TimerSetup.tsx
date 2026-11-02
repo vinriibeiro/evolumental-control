@@ -82,8 +82,8 @@ export function TimerSetup() {
         repeatIntervals: repeat,
         notes: notes.trim() || null,
         plan_item_id: planItem.data?.id ?? null,
-        cycle_id: cycleItem.data?.cycle_id ?? null,
-        cycle_item_id: cycleItem.data?.id ?? null,
+        cycle_id: cycleItem.data?.cycle_id,
+        cycle_item_id: cycleItem.data?.id,
       })
     } catch (e) {
       actions.resetStartId()

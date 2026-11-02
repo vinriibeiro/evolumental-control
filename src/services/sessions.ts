@@ -5,7 +5,7 @@
 import type { ActivityType, StudySession, TimerConfig, TimerMode, UserSettings } from '@/types/db'
 import { DataError, eq, inList, isNull, type DataBackend, type SessionWithPauses } from '@/lib/data/types'
 import { acknowledgePhase, advancePhase, initialTimerState, netSeconds, openPause, phaseAt, pomodoroPhases } from '@/lib/timer/engine'
-import { applyStudy, type PartialDecision } from '@/lib/cycle'
+import { applyStudy, currentItem, type PartialDecision } from '@/lib/cycle'
 import { addDays, dayKey } from '@/lib/time'
 
 export const LIVE_STATUSES = ['active', 'pending_review'] as const
@@ -55,9 +55,25 @@ export function buildTimerConfig(p: StartParams): { config: TimerConfig | null; 
   }
 }
 
+/**
+ * Bloco atual do ciclo ativo, se for da mesma matéria. É o que liga o estudo
+ * livre (cronômetro, aulas em vídeo) ao ciclo: ao salvar, o tempo abate o bloco.
+ */
+export async function findCycleLink(backend: DataBackend, subjectId: string | null): Promise<{ cycle_id: string; cycle_item_id: string } | null> {
+  if (!subjectId) return null
+  const { rows: cycles } = await backend.list('study_cycles', { filters: [eq('status', 'active')], limit: 1 })
+  const cycle = cycles[0]
+  if (!cycle) return null
+  const { rows: items } = await backend.list('study_cycle_items', { filters: [eq('cycle_id', cycle.id)] })
+  const item = currentItem(cycle, items)
+  return item && item.subject_id === subjectId ? { cycle_id: cycle.id, cycle_item_id: item.id } : null
+}
+
 export async function startSession(backend: DataBackend, p: StartParams, id: string = crypto.randomUUID()): Promise<StudySession> {
   const now = Date.now()
   const { config, planned } = buildTimerConfig(p)
+  // `cycle_item_id` omitido (undefined) = vincular sozinho ao bloco atual do ciclo; `null` = sem ciclo.
+  const link = p.cycle_item_id === undefined && p.plan_item_id == null ? await findCycleLink(backend, p.subject_id) : null
   try {
     const [row] = await backend.insert('study_sessions', [
       {
@@ -73,8 +89,8 @@ export async function startSession(backend: DataBackend, p: StartParams, id: str
         timer_state: config ? initialTimerState(now) : null,
         notes: p.notes ?? null,
         plan_item_id: p.plan_item_id ?? null,
-        cycle_id: p.cycle_id ?? null,
-        cycle_item_id: p.cycle_item_id ?? null,
+        cycle_id: link?.cycle_id ?? p.cycle_id ?? null,
+        cycle_item_id: link?.cycle_item_id ?? p.cycle_item_id ?? null,
       },
     ])
     return row

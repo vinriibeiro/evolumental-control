@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Copy, Pause, Pencil, Play, Plus, RefreshCcw, RotateCcw, Scale, SkipBack, SkipForward, Trash2 } from 'lucide-react'
+import { Copy, MonitorPlay, Pause, Pencil, Play, Plus, RefreshCcw, RotateCcw, Scale, SkipBack, SkipForward, Trash2 } from 'lucide-react'
 import { useBackend } from '@/app/data'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/Field'
@@ -203,6 +203,12 @@ function CycleDetail(props: {
     navigate(`/cronometro?item=${summary.current.id}&minutos=${remaining}`)
   }
 
+  // Aulas em vídeo da matéria do bloco: o cronômetro de lá já vem ligado ao bloco e com o tempo que falta.
+  const openLessons = () => {
+    if (!summary.current) return
+    navigate(summary.current.topic_id ? `/videos?topico=${summary.current.topic_id}` : `/videos?materia=${summary.current.subject_id}`)
+  }
+
   return (
     <div className="min-w-0 space-y-4">
       <Card className="p-5">
@@ -288,6 +294,9 @@ function CycleDetail(props: {
             <div className={cn('flex flex-row flex-wrap items-center gap-2', !props.compact && 'sm:flex-col sm:items-stretch')}>
               <Button variant="dark" icon={<Play className="size-4" />} onClick={startCurrent} disabled={Boolean(live.data)} title={live.data ? 'Há uma sessão em andamento' : undefined}>
                 Estudar bloco
+              </Button>
+              <Button icon={<MonitorPlay className="size-4" />} onClick={openLessons}>
+                Aulas em vídeo
               </Button>
               <div className="flex gap-2">
                 <IconButton label="Voltar um bloco" variant="secondary" onClick={() => move(-1)}>

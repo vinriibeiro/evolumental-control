@@ -93,12 +93,14 @@ export default function VideosPage() {
       .sort((a, b) => a.subject.localeCompare(b.subject, 'pt-BR') || a.order - b.order || a.name.localeCompare(b.name, 'pt-BR', { numeric: true }))
   }, [materials.data, subjects.data, topics.data])
 
-  const queue = useMemo(() => lessons.flatMap((l) => l.videos.map((v) => ({ ...v, topicId: l.id }))), [lessons])
+  const queue = useMemo(() => lessons.flatMap((l) => l.videos.map((v) => ({ ...v, topicId: l.id, subjectId: l.subjectId }))), [lessons])
 
   const wantedTopic = params.get('topico')
+  const wantedSubject = params.get('materia')
   const current =
     queue.find((v) => v.id === params.get('video')) ??
     (wantedTopic ? queue.find((v) => v.topicId === wantedTopic) : undefined) ??
+    (wantedSubject ? queue.find((v) => v.subjectId === wantedSubject) : undefined) ??
     queue.find((v) => v.id === lastVideo()) ??
     queue[0] ??
     null
