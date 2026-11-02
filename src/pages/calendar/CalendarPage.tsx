@@ -192,6 +192,14 @@ export default function CalendarPage() {
     return out
   }, [items.data, sessions.data, tasks.data, layers, lookups, tz, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sessões e blocos fora do horário escolhido ampliam a grade, em vez de sumirem da tela.
+  const shownHours = useMemo(() => {
+    const visible = events.filter((e) => days.includes(e.date))
+    const first = Math.min(hours.start * 60, ...visible.map((e) => e.start))
+    const last = Math.max(hours.end * 60, ...visible.map((e) => e.end))
+    return { start: Math.floor(first / 60), end: Math.min(24, Math.ceil(last / 60)) }
+  }, [events, days, hours])
+
   const allDay = (d: DayKey) => [
     ...(layers.reviews ? (reviews.data ?? []).filter((r) => r.scheduled_for === d).map((r) => ({ key: r.id, label: r.title, kind: 'review' as const, done: r.status === 'done' })) : []),
     ...(layers.tasks ? (tasks.data ?? []).filter((t) => t.date === d && !t.start_time).map((t) => ({ key: t.id, label: t.title, kind: 'task' as const, done: t.done, task: t })) : []),
@@ -393,7 +401,7 @@ export default function CalendarPage() {
             days={days}
             today={today}
             tz={tz}
-            hours={hours}
+            hours={shownHours}
             events={events}
             allDay={allDay}
             onSlot={(d, m) => openNewBlock(d, m)}

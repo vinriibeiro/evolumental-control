@@ -8,7 +8,9 @@ import {
   confirmSession,
   discardSession,
   finishSession,
+  adoptUnlinkedStudy,
   findCycleLink,
+  listUnlinkedStudy,
   getLiveSession,
   nextPhase,
   pauseSession,
@@ -150,6 +152,23 @@ describe('sessões de estudo', () => {
     await finishSession(backend, (await getLiveSession(backend))!)
     const r = await confirmSession(backend, (await getLiveSession(backend))!, { ...confirmDefaults, subject_id: subject.id })
     expect(r.cycleAdvanced).toBe(false)
+    expect((await backend.get('study_cycles', cycle.id))?.current_progress_seconds).toBe(21 * 60)
+  })
+
+  it('conta no bloco o estudo antigo sem vínculo, uma única vez', async () => {
+    const [subject] = await backend.insert('subjects', [{ name: 'Python' }])
+    const [cycle] = await backend.insert('study_cycles', [{ name: 'Ciclo', status: 'active' }])
+    const [item] = await backend.insert('study_cycle_items', [{ cycle_id: cycle.id, subject_id: subject.id, duration_minutes: 90, sort_order: 0 }])
+    await backend.insert('study_sessions', [
+      { subject_id: subject.id, status: 'completed', mode: 'countdown', activity_type: 'video', started_at: '2026-10-20T09:00:00Z', ended_at: '2026-10-20T09:21:00Z' },
+    ])
+    const found = await listUnlinkedStudy(backend, subject.id, '2026-10-19T00:00:00Z')
+    expect(found).toHaveLength(1)
+    const r = await adoptUnlinkedStudy(backend, cycle.id, item.id, found)
+    expect(r.seconds).toBe(21 * 60)
+    expect((await backend.get('study_cycles', cycle.id))?.current_progress_seconds).toBe(21 * 60)
+    expect(await listUnlinkedStudy(backend, subject.id, '2026-10-19T00:00:00Z')).toHaveLength(0)
+    expect((await adoptUnlinkedStudy(backend, cycle.id, item.id, found)).seconds).toBe(0)
     expect((await backend.get('study_cycles', cycle.id))?.current_progress_seconds).toBe(21 * 60)
   })
 

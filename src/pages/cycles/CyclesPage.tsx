@@ -12,10 +12,12 @@ import { EmptyState, QueryState, useToast } from '@/components/ui/feedback'
 import { SortableItem, SortableList } from '@/components/Sortable'
 import { SubjectTopicSelect } from '@/components/SubjectTopicSelect'
 import { useSafeDelete } from '@/components/useSafeDelete'
-import { invalidateTables, useAll, useUpdate } from '@/hooks/data'
+import { invalidateTables, useAll, useSessions, useUpdate } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
 import { useLiveSession } from '@/features/timer/useLiveSession'
-import { eq } from '@/lib/data/types'
+import { eq, gte, isNull } from '@/lib/data/types'
+import { adoptUnlinkedStudy } from '@/services/sessions'
+import { netSeconds } from '@/lib/timer/engine'
 import { ACTIVITY_LABELS, ACTIVITY_TYPES } from '@/lib/labels'
 import { distributeByWeight, normalizeIndex, skip, sortItems, summarize } from '@/lib/cycle'
 import { formatDuration } from '@/lib/time'
@@ -168,6 +170,25 @@ function CycleDetail(props: {
   const sorted = useMemo(() => sortItems(items.data ?? []), [items.data])
   const summary = summarize(cycle, sorted)
 
+  // Estudo recente dessa matéria que ficou fora do ciclo (feito antes do vínculo automático ou em outra tela).
+  const since = useMemo(() => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10) + 'T00:00:00.000Z', [])
+  const unlinked = useSessions(
+    { filters: [eq('status', 'completed'), eq('subject_id', summary.current?.subject_id ?? ''), isNull('cycle_item_id'), isNull('plan_item_id'), gte('started_at', since)] },
+    { enabled: Boolean(summary.current) },
+  )
+  const unlinkedSeconds = (unlinked.data ?? []).reduce((a, x) => a + netSeconds(x, x.pauses), 0)
+  const adoptUnlinked = async () => {
+    if (!summary.current || !unlinked.data?.length) return
+    try {
+      const r = await adoptUnlinkedStudy(backend, cycle.id, summary.current.id, unlinked.data)
+      toast.success(r.seconds ? `${formatDuration(r.seconds)} contados no bloco.${r.advanced ? ' O ciclo avançou.' : ''}` : 'Esse estudo já estava contado.')
+    } catch (e) {
+      toast.error(e)
+    } finally {
+      await invalidateTables(qc, ['study_cycles', 'study_sessions'])
+    }
+  }
+
   const reorder = async (next: StudyCycleItem[]) => {
     const currentId = summary.current?.id
     try {
@@ -285,6 +306,16 @@ function CycleDetail(props: {
                 </div>
               </div>
               <Progress value={summary.blockPercent} className="mt-3" label="Progresso do bloco atual" />
+              {unlinkedSeconds >= 60 && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-bg px-3 py-2 text-xs text-muted">
+                  <span>
+                    Você estudou <span className="font-medium text-ink">{formatDuration(unlinkedSeconds)}</span> de {lookups.subjectName(summary.current.subject_id)} nos últimos dias sem ligar ao ciclo.
+                  </span>
+                  <Button size="sm" onClick={() => void adoptUnlinked()}>
+                    Contar no bloco
+                  </Button>
+                </div>
+              )}
               {summary.next && (
                 <p className="mt-3 text-xs text-muted">
                   Próxima matéria: <span className="font-medium text-ink">{lookups.subjectName(summary.next.subject_id)}</span> ({summary.next.duration_minutes} min)

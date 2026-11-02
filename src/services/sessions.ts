@@ -3,7 +3,7 @@
 // Todas são seguras contra cliques repetidos: atualizações são condicionais
 // ao status atual e inserções usam IDs gerados no cliente.
 import type { ActivityType, StudySession, TimerConfig, TimerMode, UserSettings } from '@/types/db'
-import { DataError, eq, inList, isNull, type DataBackend, type SessionWithPauses } from '@/lib/data/types'
+import { DataError, eq, gte, inList, isNull, type DataBackend, type SessionWithPauses } from '@/lib/data/types'
 import { acknowledgePhase, advancePhase, initialTimerState, netSeconds, openPause, phaseAt, pomodoroPhases } from '@/lib/timer/engine'
 import { applyStudy, currentItem, type PartialDecision } from '@/lib/cycle'
 import { addDays, dayKey } from '@/lib/time'
@@ -243,6 +243,27 @@ export async function confirmSession(backend: DataBackend, s: SessionWithPauses,
     if (rows.length) await backend.insert('reviews', rows)
   }
   return result
+}
+
+/** Sessões salvas da matéria do bloco que nunca foram ligadas a nenhum ciclo/cronograma (ex.: feitas antes do vínculo automático). */
+export async function listUnlinkedStudy(backend: DataBackend, subjectId: string, sinceIso: string): Promise<SessionWithPauses[]> {
+  return backend.listSessions({
+    filters: [eq('status', 'completed'), eq('subject_id', subjectId), isNull('cycle_item_id'), isNull('plan_item_id'), gte('started_at', sinceIso)],
+    order: [{ column: 'started_at' }],
+  })
+}
+
+/** Conta essas sessões no bloco atual do ciclo e as marca como vinculadas (não contam duas vezes). */
+export async function adoptUnlinkedStudy(backend: DataBackend, cycleId: string, itemId: string, sessions: SessionWithPauses[]) {
+  const cycle = await backend.get('study_cycles', cycleId)
+  if (!cycle || sessions.length === 0) return { seconds: 0, advanced: false }
+  const { rows: items } = await backend.list('study_cycle_items', { filters: [eq('cycle_id', cycle.id)] })
+  const seconds = sessions.reduce((a, x) => a + netSeconds(x, x.pauses), 0)
+  const linked = await backend.update('study_sessions', [inList('id', sessions.map((x) => x.id)), isNull('cycle_item_id')], { cycle_id: cycle.id, cycle_item_id: itemId })
+  if (linked.length === 0) return { seconds: 0, advanced: false }
+  const applied = applyStudy(cycle, items, itemId, seconds, 'resume')
+  await backend.update('study_cycles', [eq('id', cycle.id)], applied.progress)
+  return { seconds, advanced: applied.advanced }
 }
 
 /** Status do bloco do cronograma a partir das sessões vinculadas a ele. */
