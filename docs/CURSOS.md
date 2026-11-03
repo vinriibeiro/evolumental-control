@@ -36,7 +36,7 @@ O app é uma SPA estática. Para ler metadados basta um token de curta duração
 3. **Tela de consentimento OAuth** → tipo *Externo*, status *Em teste* → em **Usuários de teste**, adicione o seu e-mail Google. Escopo: `.../auth/drive.metadata.readonly`.
 4. **Credenciais → Criar credenciais → ID do cliente OAuth → Aplicativo da Web**. Em **Origens JavaScript autorizadas**, inclua `http://localhost:5173` e a URL de produção (ex.: `https://seu-app.vercel.app`). Não é preciso URI de redirecionamento.
 5. Copie o **ID do cliente** (termina em `.apps.googleusercontent.com`). Ele é público por natureza; **não** use nem copie o *client secret*.
-6. Use de uma das formas: variável `VITE_GOOGLE_CLIENT_ID` (Vercel → Settings → Environment Variables, e novo deploy) **ou** cole na própria tela, em **Pastas do Drive** (fica salvo só naquele navegador).
+6. Use de uma das formas: variável `VITE_GOOGLE_CLIENT_ID` — já definida em `.env.production` (público, versionado) ou nas variáveis da Vercel — **ou** cole na própria tela, em **Pastas do Drive** (fica salvo só naquele navegador). Origens autorizadas hoje: `https://evolumental-control.vercel.app`, `https://evolumental-control-4eep.vercel.app` e `http://localhost:5173`; um domínio novo precisa ser adicionado no Google Cloud.
 
 Enquanto o app estiver "Em teste", só os usuários de teste conseguem autorizar, e o Google mostra um aviso de app não verificado — esperado para uso pessoal.
 
