@@ -1,4 +1,5 @@
-// Autorização do Google SÓ para o importador ler metadados do Drive (escopo drive.metadata.readonly).
+// O importador continua solicitando só metadados (drive.metadata.readonly).
+// O leitor de PDFs solicita drive.readonly separadamente, mediante ação explícita.
 //
 // - Usa o Google Identity Services (fluxo de token no navegador): não há client secret nem refresh token;
 //   o token de acesso vale ~1 hora e fica apenas na memória desta aba (nunca em localStorage, banco ou logs).
@@ -8,6 +9,8 @@
 //   o iframe do Drive usa a sessão Google do próprio navegador.
 
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly'
+/** Leitura do conteúdo, solicitada separadamente apenas ao abrir o leitor PDF do Drive. */
+export const DRIVE_READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
 const CLIENT_KEY = 'evolumental.google.clientId'
 const CLIENT_ID = /^[0-9]{6,30}-[a-z0-9]{8,64}\.apps\.googleusercontent\.com$/
@@ -79,10 +82,35 @@ function loadGis(): Promise<GoogleOAuth2> {
 }
 
 let current: { token: string; expiresAt: number } | null = null
+let currentRead: { token: string; expiresAt: number } | null = null
 
 /** Token ainda válido nesta aba (com 1 minuto de folga), ou null. */
 export function currentDriveToken(): string | null {
   return current && current.expiresAt - 60_000 > Date.now() ? current.token : null
+}
+
+export function currentDriveReadToken(): string | null {
+  return currentRead && currentRead.expiresAt - 60_000 > Date.now() ? currentRead.token : null
+}
+
+/** Permissão adicional explícita para ler PDFs; o token não é persistido. */
+export async function requestDriveReadToken(clientId: string): Promise<string> {
+  if (!isClientId(clientId)) throw new Error('ID do cliente OAuth inválido.')
+  const oauth2 = await loadGis()
+  return new Promise<string>((resolve, reject) => {
+    const client = oauth2.initTokenClient({
+      client_id: clientId.trim(),
+      scope: DRIVE_READ_SCOPE,
+      callback: (response) => {
+        if (response.error || !response.access_token) return reject(new Error(response.error_description || 'Autorização do Google não concedida.'))
+        if (!oauth2.hasGrantedAllScopes(response, DRIVE_READ_SCOPE)) return reject(new Error('A permissão de leitura dos PDFs do Drive não foi concedida.'))
+        currentRead = { token: response.access_token, expiresAt: Date.now() + (response.expires_in ?? 3600) * 1000 }
+        resolve(response.access_token)
+      },
+      error_callback: (error) => reject(new Error(error.type === 'popup_closed' ? 'Janela do Google fechada antes de autorizar.' : error.type === 'popup_failed_to_open' ? 'O navegador bloqueou a janela do Google. Libere pop-ups para este site.' : error.message || 'Falha na autorização do Google.')),
+    })
+    client.requestAccessToken({ prompt: currentRead ? '' : 'consent' })
+  })
 }
 
 /** Abre a janela do Google para autorizar a leitura dos metadados do Drive. Precisa vir de um clique. */
@@ -107,7 +135,8 @@ export async function requestDriveToken(clientId: string): Promise<string> {
 
 /** Desconecta: revoga o token no Google e apaga da memória. */
 export function revokeDriveToken() {
-  const t = current?.token
+  const tokens = new Set([current?.token, currentRead?.token].filter((token): token is string => Boolean(token)))
   current = null
-  if (t) window.google?.accounts?.oauth2?.revoke(t)
+  currentRead = null
+  for (const token of tokens) window.google?.accounts?.oauth2?.revoke(token)
 }

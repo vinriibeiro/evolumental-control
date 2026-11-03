@@ -41,13 +41,14 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 | Biblioteca | Leitor de livros EPUB estilo Kindle: estante com capas, páginas ou rolagem, temas claro/sépia/escuro, índice, marcadores e retomada de onde parou. Com Supabase, os livros ficam num espaço privado da conta e sincronizam entre aparelhos (veja `docs/BIBLIOTECA.md`). |
 | Revisões | Revisões planejadas × realizadas; concluir, adiar, cancelar, reabrir; agendamento automático após estudar um tópico. |
 | Questões | Registro por matéria/tópico/banca/concurso com validação; taxa de acertos, evolução e assuntos que exigem atenção. |
+| Laboratório de desafios | 60 exercícios de Python, SQL e Git (quatro níveis, cinco desafios por nível), com dicas, soluções comentadas, rascunhos e conclusão por autoavaliação. O código é praticado fora do app. Progresso local por conta, atualização entre abas e exportação JSON própria; sem sincronização com a nuvem (veja `docs/BANCO-DE-QUESTOES.md`). |
 | Metas | Horas, sessões, questões, acertos, tópicos, flashcards e dias de estudo por dia/semana/mês; progresso, histórico e ajuste sem perder o passado. |
 | Relatórios | Filtros por período, matéria, tópico e atividade; indicadores e gráficos; exportação CSV/JSON. |
 | Configurações | Perfil, senha, tema claro/escuro/sistema, metas padrão, fuso horário, formato de hora, Pomodoro, som, voz e velocidade, parâmetros da repetição espaçada e exportação completa dos dados. |
 
 ## Pré-requisitos
 
-- **Node.js 20.19+** (testado com 24.22.1 LTS) e npm.
+- **Node.js 22.13+** (testado com 24.22.1 LTS) e npm. O leitor PDF utiliza PDF.js 6.
 - Opcional, para nuvem: um projeto no [Supabase](https://supabase.com) (plano gratuito serve) ou a [Supabase CLI](https://supabase.com/docs/guides/cli).
 - Opcional, para os testes E2E: Microsoft Edge ou Google Chrome instalados.
 
@@ -218,6 +219,7 @@ Desempenho: consultas filtradas no banco e paginadas ("Carregar mais"), cache co
 ## Backup e recuperação
 
 - **Pelo usuário:** Configurações → Seus dados → *Exportar todos os dados* gera um JSON com todas as tabelas (sessões incluem as pausas). Relatórios exportam CSV/JSON por período.
+- **Desafios de código:** rascunhos e progresso ficam fora do backup global. Use **Exportar progresso e rascunhos** no Laboratório de desafios para guardar um JSON separado, inclusive com alterações ainda em memória. Não há importação automática desse arquivo nesta versão.
 - **Supabase (administrador):** os planos pagos fazem backups diários automáticos (e PITR opcional). Em qualquer plano, um dump lógico pode ser feito com:
   ```bash
   supabase db dump --data-only -f backup-dados.sql     # dados

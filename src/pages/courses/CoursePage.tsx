@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ChevronLeft, Columns2, ExternalLink, Focus, Keyboard, ListVideo, Maximize, Minimize, Paperclip, Pencil, RotateCw, Timer, Trophy, Undo2, X,
+  ArrowLeft, ArrowRight, CheckCircle2, ChevronLeft, Columns2, ExternalLink, Focus, Highlighter, Keyboard, ListVideo, Maximize, Minimize, Paperclip, Pencil, RotateCw, Timer, Trophy, Undo2, X,
 } from 'lucide-react'
 import { VideoStudyTimer } from '@/pages/videos/VideoStudyTimer'
 import { DRIVE_VIEWER_HELP, DriveOpenLink, DriveViewer } from '@/components/DriveViewer'
@@ -48,6 +48,15 @@ export const SHORTCUTS: Array<[string, string]> = [
   ['S', 'Mostrar/ocultar o conteúdo do curso'],
   ['Esc', 'Sair do modo foco'],
 ]
+
+function PdfAnnotationLink({ courseId, node }: { courseId: string; node: CourseNode }) {
+  if (node.mime_type !== 'application/pdf' || node.status !== 'available') return null
+  return (
+    <Link to={`/cursos/${encodeURIComponent(courseId)}/pdf/${encodeURIComponent(node.id)}`} aria-label={`Ler e marcar PDF: ${displayTitle(node)}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent-strong transition-colors hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+      <Highlighter className="size-3.5" aria-hidden />Ler e marcar PDF
+    </Link>
+  )
+}
 
 function EditNodeModal({ node, onClose }: { node: CourseNode | null; onClose: () => void }) {
   const { edit } = useCourseActions()
@@ -276,6 +285,12 @@ export default function CoursePage() {
 
                 {/* Palco */}
                 <Card className="overflow-hidden">
+                  {active.mime_type === 'application/pdf' && active.status === 'available' && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
+                      <span className="text-xs text-muted">Destaque trechos, escreva notas e salve seus marcadores.</span>
+                      <PdfAnnotationLink courseId={view.course.id} node={active} />
+                    </div>
+                  )}
                   {lesson.attachments.length > 0 && (
                     <div role="tablist" aria-label="Conteúdo da aula" className="scroll-thin flex gap-1 overflow-x-auto border-b border-line bg-surface px-2 py-1.5">
                       {[lesson.primary, ...lesson.attachments].map((n, i) => (
@@ -298,6 +313,7 @@ export default function CoursePage() {
                     {sideNode && (
                       <div className="relative border-t border-line lg:border-t-0 lg:border-l">
                         <IconButton size="sm" label="Fechar material ao lado" className="absolute top-2 right-2 z-10 bg-bg/90" onClick={() => setSide(null)}><X className="size-4" /></IconButton>
+                        {sideNode.mime_type === 'application/pdf' && sideNode.status === 'available' && <div className="border-b border-line bg-surface px-3 py-2 pr-12"><PdfAnnotationLink courseId={view.course.id} node={sideNode} /></div>}
                         <DriveViewer key={`${sideNode.id}-${reloadKey}`} node={sideNode} title={displayTitle(sideNode)} frameClassName={frame ?? 'h-[75dvh] min-h-[420px]'} />
                       </div>
                     )}
@@ -349,6 +365,7 @@ export default function CoursePage() {
                               <span className="text-xs text-muted">{t.label}{formatBytes(a.size_bytes) ? ` · ${formatBytes(a.size_bytes)}` : ''}{!t.embeddable ? ' · abre no Drive' : ''}</span>
                             </span>
                             {t.embeddable && <Button size="sm" variant={a.id === active.id ? 'primary' : 'secondary'} onClick={() => open(a)}>{a.id === active.id ? 'Aberto' : 'Abrir'}</Button>}
+                            <PdfAnnotationLink courseId={view.course.id} node={a} />
                             {t.embeddable && active.id === lesson.primary.id && (
                               <Button size="sm" className="max-lg:hidden" aria-pressed={side === a.id} icon={<Columns2 className="size-3.5" aria-hidden />} onClick={() => setSide(side === a.id ? null : a.id)}>{side === a.id ? 'Fechar ao lado' : 'Ao lado do vídeo'}</Button>
                             )}

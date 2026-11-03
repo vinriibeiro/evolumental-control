@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn'
 
 export function Card({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('min-w-0 rounded-xl border border-line bg-bg', className)} {...rest}>
+    <div className={cn('evl-card min-w-0 rounded-2xl border border-line bg-surface', className)} {...rest}>
       {children}
     </div>
   )
@@ -11,9 +11,9 @@ export function Card({ className, children, ...rest }: HTMLAttributes<HTMLDivEle
 
 export function CardHeader({ title, description, action, className }: { title: ReactNode; description?: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex flex-wrap items-start justify-between gap-3 px-5 pt-4', className)}>
+    <div className={cn('flex flex-wrap items-start justify-between gap-3 px-5 pt-5', className)}>
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-ink">{title}</h2>
+        <h2 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h2>
         {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
       {action}
@@ -23,10 +23,10 @@ export function CardHeader({ title, description, action, className }: { title: R
 
 export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="evl-page-header mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-sm text-muted">{description}</p>}
+        <h1 className="text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">{title}</h1>
+        {description && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -66,10 +66,10 @@ export function Progress({ value, className, color, label }: { value: number; cl
 
 export function StatCard({ label, value, hint, icon, children }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode; children?: ReactNode }) {
   return (
-    <Card className="flex flex-col gap-1 p-4">
+    <Card className="flex flex-col gap-2 p-5">
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-xs font-medium text-muted">{label}</span>
-        {icon && <span className="shrink-0 text-accent-strong">{icon}</span>}
+        {icon && <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-accent/8 text-accent-strong">{icon}</span>}
       </div>
       <div className="tabular truncate text-2xl font-semibold tracking-tight text-ink" title={typeof value === 'string' ? value : undefined}>
         {value}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, ListChecks, Save, Shuffle, SlidersHorizontal, Star } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Code2, ListChecks, Save, Shuffle, SlidersHorizontal, Star } from 'lucide-react'
 import { useAuth } from '@/app/auth'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Field'
@@ -261,10 +262,16 @@ export default function QuestionBankPage() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Banco de questões"
+        description="Consolide a teoria com questões e pratique Python, SQL e Git nos desafios de código."
         actions={
-          <Button size="sm" icon={<SlidersHorizontal className="size-4" aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
-            Filtros{activeFilters ? ` (${activeFilters})` : ''}
-          </Button>
+          <>
+            <Link to="/banco-de-questoes/desafios" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-xs font-semibold text-accent-ink transition-colors hover:bg-accent-strong">
+              <Code2 className="size-4" aria-hidden />Desafios de código
+            </Link>
+            <Button size="sm" icon={<SlidersHorizontal className="size-4" aria-hidden />} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+              Filtros{activeFilters ? ` (${activeFilters})` : ''}
+            </Button>
+          </>
         }
       />
       <QueryState query={index}>

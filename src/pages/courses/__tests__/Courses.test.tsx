@@ -75,12 +75,12 @@ describe('Cursos e materiais', () => {
     await seed()
     renderAt('/cursos')
     expect(await screen.findByRole('link', { name: 'Curso SQL' })).toBeInTheDocument()
-    expect(screen.getByText('3 aula(s) · 15 min de vídeo')).toBeInTheDocument()
+    expect(screen.getByText('3 aulas · 15 min de vídeo')).toBeInTheDocument()
     expect(screen.getByText('0 de 3 concluída(s)')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Buscar curso ou aula' }), { target: { value: 'modulo 2' } })
     expect(await screen.findByText('Aulas e materiais encontrados')).toBeInTheDocument()
     fireEvent.change(screen.getByRole('textbox', { name: 'Buscar curso ou aula' }), { target: { value: 'nada disso' } })
-    expect(await screen.findByText('Nada encontrado com esses filtros.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Nenhum curso encontrado' })).toBeInTheDocument()
   })
 
   it('aula com materiais: videoaula, abas, "Concluir e avançar", desmarcar pelo sumário e persistência ao recarregar', async () => {

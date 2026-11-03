@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, FolderSync, GraduationCap, PlayCircle, Search } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, BookOpen, CheckCircle2, FolderSync, GraduationCap, PlayCircle, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Switch } from '@/components/ui/Field'
 import { EmptyState, ErrorState, Spinner } from '@/components/ui/feedback'
@@ -21,33 +21,26 @@ const STATUS_TABS: Array<{ value: CourseStatusFilter; label: string }> = [
 
 export const courseLink = (v: CourseView, itemId?: string | null) => `/cursos/${v.course.id}${itemId ? `?item=${itemId}` : ''}`
 
-/** Cor estável por curso (para a capa), a partir do nome. */
-function coverHue(title: string) {
-  let h = 0
-  for (const ch of title) h = (h * 31 + ch.charCodeAt(0)) % 360
-  return h
-}
-
 function CourseCard({ v, source, resumeId }: { v: CourseView; source?: string; resumeId: string | null }) {
   const pct = v.total ? Math.round((v.done / v.total) * 100) : 0
   const status = courseStatus(v)
-  const hue = coverHue(v.title)
   const dur = formatDuration(v.durationMs)
   return (
-    <Card className="flex flex-col overflow-hidden">
-      <Link to={courseLink(v, resumeId)} tabIndex={-1} aria-hidden className="relative block h-24 overflow-hidden" style={{ background: `linear-gradient(135deg, hsl(${hue} 55% 42%), hsl(${(hue + 40) % 360} 60% 28%))` }}>
-        <GraduationCap className="absolute -right-3 -bottom-4 size-24 text-white/15" />
-        <span className="absolute bottom-2 left-3 rounded-md bg-black/35 px-2 py-0.5 text-xs font-medium text-white">
+    <Card className="group flex flex-col overflow-hidden transition-[border-color,box-shadow] hover:border-accent/40 hover:shadow-md">
+      <Link to={courseLink(v, resumeId)} tabIndex={-1} aria-hidden className="relative flex h-36 items-center overflow-hidden border-b border-line bg-surface px-6">
+        <span className="text-5xl font-semibold tracking-tighter text-accent-strong/25">{v.title.trim().slice(0, 2).toLocaleUpperCase('pt-BR')}</span>
+        <GraduationCap className="absolute -right-3 -bottom-5 size-32 rotate-[-12deg] text-accent-strong/10 transition-transform group-hover:rotate-0" />
+        <span className="absolute top-4 left-5 rounded-full border border-line bg-bg px-2.5 py-1 text-[11px] font-semibold text-ink">
           {status === 'completed' ? 'Concluído' : status === 'in_progress' ? `${pct}% concluído` : 'Não iniciado'}
         </span>
       </Link>
-      <div className="flex flex-1 flex-col gap-3 p-4">
+      <div className="flex flex-1 flex-col gap-4 p-5">
         <div className="min-w-0">
           {source && <p className="truncate text-xs text-muted">{source}</p>}
-          <h3 className="mt-0.5 line-clamp-2 font-semibold text-ink">
+          <h3 className="mt-1 line-clamp-2 text-lg leading-snug font-semibold tracking-tight text-ink">
             <Link to={courseLink(v)} className="hover:underline">{v.title}</Link>
           </h3>
-          <p className="mt-1 text-xs text-muted">{v.total} aula(s){dur ? ` · ${dur} de vídeo` : ''}</p>
+          <p className="mt-2 text-xs text-muted">{v.total} {v.total === 1 ? 'aula' : 'aulas'}{dur ? ` · ${dur} de vídeo` : ''}</p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {(Object.entries(v.kinds) as Array<[MaterialKind, number]>).map(([k, n]) => <Badge key={k}>{KIND_LABELS[k]}: {n}</Badge>)}
@@ -60,9 +53,12 @@ function CourseCard({ v, source, resumeId }: { v: CourseView; source?: string; r
           </div>
           <Progress value={pct} className="h-1.5" label={`Progresso de ${v.title}`} />
         </div>
-        <Link to={courseLink(v, resumeId)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-semibold text-accent-ink hover:bg-accent-strong">
-          {status === 'completed' ? <CheckCircle2 className="size-4" aria-hidden /> : <PlayCircle className="size-4" aria-hidden />}
-          {status === 'completed' ? 'Rever' : status === 'in_progress' ? 'Continuar' : 'Começar'}
+        <Link to={courseLink(v, resumeId)} className="inline-flex min-h-11 items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-accent/40 hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+          <span className="inline-flex items-center gap-2">
+            {status === 'completed' ? <CheckCircle2 className="size-4" aria-hidden /> : <PlayCircle className="size-4" aria-hidden />}
+            {status === 'completed' ? 'Rever' : status === 'in_progress' ? 'Continuar' : 'Começar'}
+          </span>
+          <ArrowUpRight className="size-4 text-muted" aria-hidden />
         </Link>
       </div>
     </Card>
@@ -103,20 +99,35 @@ export default function CoursesPage() {
   const recent = lastStudied(data.views)
   const recentItem = recent ? resumeItem(recent, data.index) : null
   const missingTable = (data.error as { code?: string } | null)?.code === 'schema'
+  const totals = data.views.reduce((acc, v) => ({
+    lessons: acc.lessons + v.total,
+    done: acc.done + v.done,
+    inProgress: acc.inProgress + (courseStatus(v) === 'in_progress' ? 1 : 0),
+  }), { lessons: 0, done: 0, inProgress: 0 })
+  const hasFilters = Boolean(query.trim() || status !== 'all' || kind || sourceId)
+  const clearFilters = () => {
+    setQuery('')
+    setStatus('all')
+    setKind('')
+    setSourceId('')
+  }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Cursos e materiais"
-        description="Seus cursos e materiais do Google Drive, organizados em módulos e aulas. Os arquivos continuam no Drive."
+        description="Um lugar para organizar o que você aprende e retomar de onde parou. Seus arquivos continuam no Google Drive."
         actions={<Button variant="primary" icon={<FolderSync className="size-4" aria-hidden />} onClick={() => setSourcesOpen(true)}>Pastas do Drive</Button>}
       />
-      <p className="text-xs text-muted">
-        {backend.kind === 'local'
-          ? 'Modo local: o catálogo e o progresso ficam só neste navegador.'
-          : 'O catálogo e o progresso ficam na sua conta e sincronizam entre aparelhos.'}{' '}
-        Ver os arquivos exige internet e permissão no Drive para a conta Google deste navegador.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-3xl text-xs leading-relaxed text-muted">
+          {backend.kind === 'local'
+            ? 'Modo local: o catálogo e o progresso ficam só neste navegador.'
+            : 'O catálogo e o progresso ficam na sua conta e sincronizam entre aparelhos.'}{' '}
+          Ver os arquivos exige internet e permissão no Drive para a conta Google deste navegador.
+        </p>
+        {sources.length > 0 && <Switch checked={showHidden} onChange={setShowHidden} label="Mostrar ocultos" />}
+      </div>
 
       {data.isPending ? <Spinner /> : missingTable ? (
         <Card className="flex gap-3 p-4">
@@ -135,45 +146,72 @@ export default function CoursesPage() {
         />
       ) : (
         <>
+          <section aria-label="Resumo dos cursos" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              { label: 'No seu catálogo', value: data.views.length, detail: 'cursos organizados' },
+              { label: 'Em andamento', value: totals.inProgress, detail: 'para seguir aprendendo' },
+              { label: 'Aulas concluídas', value: totals.done, detail: `de ${totals.lessons} no catálogo` },
+              { label: 'Seu progresso', value: `${totals.lessons ? Math.round(totals.done / totals.lessons * 100) : 0}%`, detail: 'das aulas concluídas' },
+            ].map((stat) => (
+              <Card key={stat.label} className="p-4 sm:p-5">
+                <p className="text-xs font-medium text-muted">{stat.label}</p>
+                <p className="mt-3 text-3xl font-semibold tracking-tight text-ink tabular-nums">{stat.value}</p>
+                <p className="mt-1 text-xs text-muted">{stat.detail}</p>
+              </Card>
+            ))}
+          </section>
           {recent && recentItem && (
-            <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-              <PlayCircle className="size-8 shrink-0 text-accent-strong" aria-hidden />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold tracking-wide text-muted uppercase">Continuar estudando</p>
-                <p className="truncate font-semibold text-ink">{lessonOf(recent, recentItem.id)?.title ?? displayTitle(recentItem)}</p>
-                <p className="truncate text-xs text-muted">{recent.title} · {materialType(recentItem.mime_type).label}</p>
+            <Card className="relative overflow-hidden border-accent/25 bg-accent/5 p-5 sm:p-7">
+              <BookOpen className="pointer-events-none absolute -top-4 -right-3 size-36 -rotate-12 text-accent-strong/5" aria-hidden />
+              <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-accent/20 bg-bg text-accent-strong"><PlayCircle className="size-6" aria-hidden /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold tracking-[0.18em] text-accent-strong uppercase">Continuar estudando</p>
+                  <p className="mt-2 line-clamp-2 text-xl font-semibold tracking-tight text-ink">{lessonOf(recent, recentItem.id)?.title ?? displayTitle(recentItem)}</p>
+                  <p className="mt-2 text-sm text-muted">{recent.title} · {materialType(recentItem.mime_type).label}</p>
+                  <Progress value={recent.total ? recent.done / recent.total * 100 : 0} className="mt-4 h-1.5 max-w-sm" label={`Progresso de ${recent.title}`} />
+                </div>
+                <Link to={courseLink(recent, recentItem.id)} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-3 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">Continuar <ArrowUpRight className="size-4" aria-hidden /></Link>
               </div>
-              <Link to={courseLink(recent, recentItem.id)} className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-ink hover:bg-accent-strong">Continuar</Link>
             </Card>
           )}
 
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
-              <Input aria-label="Buscar curso ou aula" placeholder="Buscar curso ou aula" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Card className="space-y-4 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight text-ink">Explore seu catálogo</h2>
+                <p className="mt-1 text-xs text-muted">Encontre um curso, uma aula ou o material que precisa.</p>
+              </div>
+              {hasFilters && filtered.length > 0 && <Button size="sm" variant="ghost" icon={<X className="size-3.5" aria-hidden />} onClick={clearFilters}>Limpar filtros</Button>}
             </div>
-            <Segmented value={status} onChange={setStatus} options={STATUS_TABS} label="Situação" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
-            <Field label="Tipo de material">
-              {(id) => (
-                <Select id={id} value={kind} onChange={(e) => setKind(e.target.value as MaterialKind | '')}>
-                  <option value="">Todos</option>
-                  {(Object.keys(KIND_LABELS) as MaterialKind[]).map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
-                </Select>
-              )}
-            </Field>
-            {sources.length > 1 && (
-              <Field label="Pasta">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
+                <Input aria-label="Buscar curso ou aula" placeholder="Buscar curso ou aula" className="pl-9" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+              <Segmented value={status} onChange={setStatus} options={STATUS_TABS} label="Situação" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+              <Field label="Tipo de material">
                 {(id) => (
-                  <Select id={id} value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
-                    <option value="">Todas</option>
-                    {sources.map((s) => <option key={s.id} value={s.id}>{s.label ?? s.title}</option>)}
+                  <Select id={id} value={kind} onChange={(e) => setKind(e.target.value as MaterialKind | '')}>
+                    <option value="">Todos</option>
+                    {(Object.keys(KIND_LABELS) as MaterialKind[]).map((k) => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}
                   </Select>
                 )}
               </Field>
-            )}
-          </div>
+              {sources.length > 1 && (
+                <Field label="Pasta">
+                  {(id) => (
+                    <Select id={id} value={sourceId} onChange={(e) => setSourceId(e.target.value)}>
+                      <option value="">Todas</option>
+                      {sources.map((s) => <option key={s.id} value={s.id}>{s.label ?? s.title}</option>)}
+                    </Select>
+                  )}
+                </Field>
+              )}
+            </div>
+          </Card>
 
           {itemHits.length > 0 && (
             <Card className="p-3">
@@ -187,11 +225,10 @@ export default function CoursesPage() {
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted" aria-live="polite">{filtered.length} curso(s)</p>
-            <Switch checked={showHidden} onChange={setShowHidden} label="Mostrar ocultos" />
+            <p className="text-sm text-muted" aria-live="polite">{filtered.length} {filtered.length === 1 ? 'curso' : 'cursos'}{hasFilters ? ` de ${data.views.length}` : ' no seu catálogo'}</p>
           </div>
-          {filtered.length === 0 ? <p className="text-sm text-muted">Nada encontrado com esses filtros.</p> : (
-            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.length === 0 ? <EmptyState icon={<Search className="size-7" aria-hidden />} title="Nenhum curso encontrado" description="Experimente outro termo ou remova os filtros para ver seu catálogo." action={<Button onClick={clearFilters}>Limpar filtros</Button>} /> : (
+            <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {filtered.map((v) => <li key={v.course.id} className="grid"><CourseCard v={v} source={sources.length > 1 ? sourceName.get(v.course.source_id) : undefined} resumeId={resumeItem(v, data.index)?.id ?? null} /></li>)}
             </ul>
           )}

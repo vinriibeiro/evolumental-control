@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Play, Plus, Trash2, Volume2, VolumeX } from 'lucide-react'
+import { ArrowRight, Clock3, Play, Plus, Trash2, Volume2, VolumeX } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Card, Segmented } from '@/components/ui/layout'
@@ -92,10 +92,13 @@ export function TimerSetup() {
   }
 
   return (
-    <Card className="p-5 sm:p-6">
-      <div className="mb-5 flex items-start justify-between gap-3">
+    <Card className="overflow-hidden">
+      <div className="border-b border-line bg-surface/70 px-5 py-6 sm:px-7">
+        <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Nova sessão de estudo</h2>
+          <p className="mb-2 text-[10px] font-semibold tracking-[0.18em] text-muted uppercase">Prepare seu momento</p>
+          <h2 className="text-xl font-semibold tracking-tight text-ink">Nova sessão de estudo</h2>
+          <p className="mt-1.5 text-sm text-muted">Seu ritmo. Seu objetivo. Seu próximo passo.</p>
           {(planItem.data || cycleItem.data) && (
             <p className="mt-1 text-sm text-muted">{planItem.data ? 'Vinculada a um bloco do cronograma.' : 'Vinculada ao bloco atual do ciclo de estudos.'}</p>
           )}
@@ -108,9 +111,11 @@ export function TimerSetup() {
         >
           {settings.sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
         </IconButton>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 [&>*]:min-w-0">
+      <div className="grid grid-cols-1 gap-6 p-5 sm:p-7 [&>*]:min-w-0">
+        <div className="flex items-center gap-2 text-xs font-semibold text-muted"><span className="flex size-6 items-center justify-center rounded-full bg-accent/10 text-accent-strong">01</span> Defina sua intenção</div>
         <SubjectTopicSelect subjectId={link.subjectId} topicId={link.topicId} onChange={setLink} topicLabel="Tópico ou subtópico" />
 
         <fieldset>
@@ -124,7 +129,7 @@ export function TimerSetup() {
                 onClick={() => setActivity(a)}
                 className={cn(
                   'h-9 rounded-full border px-3.5 text-sm transition-colors',
-                  activity === a ? 'border-accent-strong bg-accent/40 font-medium text-ink' : 'border-line text-muted hover:text-ink',
+                  activity === a ? 'border-accent-strong bg-accent/10 font-semibold text-ink' : 'border-line text-muted hover:bg-surface hover:text-ink',
                 )}
               >
                 {ACTIVITY_LABELS[a]}
@@ -133,7 +138,8 @@ export function TimerSetup() {
           </div>
         </fieldset>
 
-        <div>
+        <div className="border-t border-line pt-6">
+          <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-muted"><span className="flex size-6 items-center justify-center rounded-full bg-accent/10 text-accent-strong">02</span> Encontre seu ritmo</div>
           <p className="mb-2 text-sm font-medium text-ink">Modo de contagem</p>
           <Segmented
             label="Modo de contagem"
@@ -148,7 +154,7 @@ export function TimerSetup() {
           />
         </div>
 
-        {mode === 'stopwatch' && <p className="text-sm text-muted">Contagem crescente, sem duração definida. Pause quando precisar: o tempo pausado não conta como estudo.</p>}
+        {mode === 'stopwatch' && <div className="flex items-start gap-3 rounded-xl border border-line bg-surface/60 p-4"><Clock3 className="mt-0.5 size-4 shrink-0 text-accent-strong" aria-hidden /><p className="text-sm leading-relaxed text-muted">Contagem crescente, sem duração definida. Pause quando precisar: o tempo pausado não conta como estudo.</p></div>}
 
         {mode === 'countdown' && (
           <div className="flex flex-wrap items-end gap-3">
@@ -157,7 +163,7 @@ export function TimerSetup() {
             </Field>
             <div className="flex flex-wrap gap-2 pb-0.5">
               {[25, 50, 60, 90].map((m) => (
-                <Button key={m} size="sm" onClick={() => setMinutes(String(m))}>
+                <Button key={m} size="sm" aria-pressed={Number(minutes) === m} variant={Number(minutes) === m ? 'primary' : 'secondary'} onClick={() => setMinutes(String(m))}>
                   {m} min
                 </Button>
               ))}
@@ -234,9 +240,10 @@ export function TimerSetup() {
           </p>
         )}
 
-        <Button variant="dark" size="lg" icon={<Play className="size-5" />} onClick={start} loading={actions.pending} className="w-full sm:w-auto sm:self-start">
-          Iniciar
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-5">
+          <p className="max-w-xs text-xs leading-relaxed text-muted">Você poderá pausar a qualquer momento e revisar o tempo antes de salvar.</p>
+          <Button variant="primary" size="lg" icon={<Play className="size-4" fill="currentColor" />} onClick={start} loading={actions.pending} className="w-full sm:w-auto">Iniciar<ArrowRight className="ml-2 size-4" aria-hidden /></Button>
+        </div>
       </div>
     </Card>
   )

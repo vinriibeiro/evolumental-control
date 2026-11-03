@@ -10,6 +10,16 @@ Aba **Biblioteca → Banco de questões**. Questões técnicas de TI (múltipla 
 - **Salvar em Desempenho** grava o resumo da sessão (total, certas e erradas) na aba Desempenho, em "Questões e desempenho", com a origem "Banco de questões". Isso sincroniza com a conta.
 - O **progresso por questão** (tentativas, última resposta, favoritas) fica salvo **neste aparelho** (localStorage, uma chave por conta). Em outro aparelho o progresso começa do zero.
 
+## Desafios de código
+
+Abra **Desafios de código** no topo do Banco de questões ou no atalho da Visão geral (`/banco-de-questoes/desafios`). O laboratório contém 60 exercícios autorais: Python, SQL e Git, cada um com quatro níveis e cinco desafios por nível. Os primeiros exercícios de Python incluem bom dia, saudação pelo nome, história com pausas, raiz quadrada e dobro de um número.
+
+Escolha uma linguagem e um nível, escreva seu rascunho e pratique no seu editor, terminal ou banco de treino. Dicas graduais, critérios de autoavaliação e solução comentada ajudam a conferir o raciocínio. O app não executa código ou comandos. **Gerar próximo desafio** escolhe o próximo exercício pendente do catálogo, sem IA. A conclusão e sua desmarcação são manuais.
+
+Rascunhos e conclusões ficam no localStorage deste navegador, separados por conta. Alterações em desafios diferentes são preservadas entre abas; cada aba mantém sua própria navegação. Se duas abas editarem o mesmo rascunho, vale a última gravação. Não há sincronização com a nuvem. A atualização do formato de armazenamento preserva os dados anteriores; se um registro antigo não puder ser lido, seu original permanece guardado e a tela informa o problema.
+
+Use **Exportar progresso e rascunhos** para baixar um JSON com o estado atual, os IDs e títulos dos exercícios e uma cópia do registro legado quando houver. A exportação inclui rascunhos em memória se o navegador não conseguir salvá-los. Estes dados **não entram no backup global** de Configurações; faça a exportação separada antes de limpar os dados do navegador. Não há importação automática do JSON nesta versão.
+
 ## De onde vêm as questões
 Os arquivos ficam em `public/questoes/` (um índice e um arquivo por subtema), carregados só quando o tema é aberto e guardados no cache do aparelho para uso sem internet.
 

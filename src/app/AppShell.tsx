@@ -1,13 +1,13 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronsLeft, ChevronsRight, CloudOff, LogOut, Menu, Pause, Play, Search, Settings, X } from 'lucide-react'
+import { ArrowUpRight, CalendarDays, ChevronsLeft, ChevronsRight, CloudOff, GraduationCap, Home, Layers, LogOut, Menu, Moon, Pause, Play, Search, Settings, Sun, Timer, X } from 'lucide-react'
 import { MENU, groupFor, tabsFor, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { IconButton } from '@/components/ui/Button'
-import { Spinner } from '@/components/ui/feedback'
+import { Spinner, useToast } from '@/components/ui/feedback'
 import { cn } from '@/lib/cn'
-import { useProfile, useApplyTheme, useSettings } from '@/hooks/useSettings'
+import { useProfile, useApplyTheme, useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useLiveSession } from '@/features/timer/useLiveSession'
 import { TimerAlerts } from '@/features/timer/TimerAlerts'
 import { useNow } from '@/hooks/useNow'
@@ -39,14 +39,58 @@ export function AppShell() {
   const [wide, setWide] = useState(readWide)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
   const topRef = useRef<HTMLDivElement>(null)
+  const mobileRef = useRef<HTMLElement>(null)
   const location = useLocation()
   const settings = useSettings()
+  const updateSettings = useUpdateSettings()
   const profileQuery = useProfile()
   const auth = useAuth()
+  const toast = useToast()
+  const dark = settings.theme === 'dark' || (settings.theme === 'system' && systemDark)
   useApplyTheme(profileQuery.isSuccess ? settings.theme : null)
 
   useEffect(() => setMobileOpen(false), [location.pathname])
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!media) return
+    const changed = () => setSystemDark(media.matches)
+    changed()
+    media.addEventListener('change', changed)
+    return () => media.removeEventListener('change', changed)
+  }, [])
+  useEffect(() => {
+    const desktop = window.matchMedia?.('(min-width: 1024px)')
+    if (!desktop) return
+    const closeOnDesktop = () => { if (desktop.matches) setMobileOpen(false) }
+    closeOnDesktop()
+    desktop.addEventListener('change', closeOnDesktop)
+    return () => desktop.removeEventListener('change', closeOnDesktop)
+  }, [])
+  useEffect(() => {
+    if (!mobileOpen) return
+    const previous = document.activeElement as HTMLElement | null
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    mobileRef.current?.querySelector<HTMLElement>('button, a[href]')?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false)
+      if (e.key !== 'Tab') return
+      const nodes = mobileRef.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled)')
+      if (!nodes?.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKey)
+      previous?.focus()
+    }
+  }, [mobileOpen])
   // Altura do topo fixo (cabeçalho + aviso), usada por telas de altura total como o editor de mapas.
   useEffect(() => {
     const el = topRef.current
@@ -89,15 +133,15 @@ export function AppShell() {
       {/* Barra lateral (desktop) */}
       <aside
         className={cn(
-          'app-sidebar sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200',
+          'app-sidebar sticky top-0 hidden h-dvh shrink-0 flex-col transition-[width] duration-200',
           !wide && 'lg:flex',
-          collapsed ? 'w-[72px]' : 'w-64',
+          collapsed ? 'w-[80px]' : 'w-[252px]',
         )}
         aria-label="Navegação principal"
       >
         <SidebarContent collapsed={collapsed} />
-        <div className="border-t border-line p-3">
-          <IconButton label={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => setCollapsed((c) => !c)} className="w-full">
+        <div className="border-t border-white/10 p-3">
+          <IconButton label={collapsed ? 'Expandir menu' : 'Recolher menu'} onClick={() => setCollapsed((c) => !c)} className="w-full !text-[var(--sidebar-muted)] hover:!bg-white/5">
             {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
           </IconButton>
         </div>
@@ -105,11 +149,11 @@ export function AppShell() {
 
       {/* Menu móvel */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu de navegação">
           <div className="absolute inset-0 bg-[var(--overlay)]" onClick={() => setMobileOpen(false)} aria-hidden />
-          <aside className="animate-fade-in absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col bg-surface shadow-xl" aria-label="Navegação principal">
+          <aside ref={mobileRef} className="app-sidebar animate-fade-in absolute inset-y-0 left-0 flex w-[min(20rem,85vw)] flex-col shadow-xl" aria-label="Navegação principal">
             <div className="absolute top-3 right-3">
-              <IconButton label="Fechar menu" onClick={() => setMobileOpen(false)}>
+              <IconButton label="Fechar menu" className="!text-white hover:!bg-white/10" onClick={() => setMobileOpen(false)}>
                 <X className="size-5" />
               </IconButton>
             </div>
@@ -120,7 +164,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div ref={topRef} className="app-top sticky top-0 z-30">
-        <header className="flex h-16 items-center gap-2 border-b border-line bg-bg/95 px-4 backdrop-blur sm:px-6">
+        <header className="flex h-[72px] items-center gap-2 border-b border-line bg-surface/95 px-4 backdrop-blur sm:gap-3 sm:px-7">
           <IconButton label="Abrir menu" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="size-5" />
           </IconButton>
@@ -135,41 +179,66 @@ export function AppShell() {
           <Link to="/" className="lg:hidden" aria-label="Início">
             <LogoMark className="size-8" />
           </Link>
-          <h1 className="min-w-0 flex-1 truncate text-base font-semibold text-ink max-sm:sr-only">{titleFor(location.pathname)}</h1>
+          <div className="min-w-0 flex-1 max-sm:sr-only">
+            <p className="text-[10px] font-medium tracking-[0.13em] text-muted uppercase max-md:hidden">Seu espaço de evolução</p>
+            <p className="truncate text-sm font-semibold text-ink">{titleFor(location.pathname)}</p>
+          </div>
           <LiveTimerChip />
           <button
             onClick={() => setSearchOpen(true)}
-            className="hidden h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-muted hover:text-ink md:flex"
+            className="hidden h-10 w-56 items-center gap-2 rounded-xl border border-line bg-bg px-3 text-xs text-muted transition-colors hover:border-accent/40 hover:text-ink md:flex xl:w-64"
           >
             <Search className="size-4" />
-            Pesquisar
-            <kbd className="rounded border border-line bg-bg px-1.5 text-[10px]">Ctrl K</kbd>
+            Buscar no seu espaço
+            <kbd className="ml-auto rounded border border-line bg-surface px-1.5 py-0.5 text-[9px]">Ctrl K</kbd>
           </button>
           <IconButton label="Pesquisar" className="md:hidden" onClick={() => setSearchOpen(true)}>
             <Search className="size-5" />
           </IconButton>
           <Notifications />
+          <IconButton
+            label={dark ? 'Ativar tema claro' : 'Ativar tema escuro'}
+            disabled={!profileQuery.isSuccess || updateSettings.isPending}
+            onClick={() => updateSettings.mutate({ theme: dark ? 'light' : 'dark' }, { onError: (error) => toast.error(error) })}
+            className="max-sm:hidden"
+          >
+            {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
+          </IconButton>
           <ProfileMenu />
         </header>
 
         {auth.mode === 'local' && (
-          <div className="flex items-start gap-2 border-b border-warning/30 bg-warning/10 px-4 py-2 text-xs text-ink sm:px-6">
-            <CloudOff className="mt-0.5 size-3.5 shrink-0 text-warning" />
+          <div className="flex items-center gap-2 border-b border-line bg-surface px-4 py-2 text-[11px] text-muted sm:px-7">
+            <CloudOff className="size-3.5 shrink-0" />
             <span>
-              <strong>Modo local:</strong> os dados ficam apenas neste navegador (IndexedDB), sem login real e sem sincronização com a nuvem. Configure o Supabase
-              para usar contas e sincronizar (veja o README).
+              <strong className="font-medium text-ink">Modo local:</strong> seus dados ficam neste navegador, sem sincronização.
             </span>
+            <Link to="/configuracoes" className="ml-auto shrink-0 font-medium text-accent-strong underline underline-offset-2">Gerenciar dados</Link>
           </div>
         )}
         </div>
 
-        <main id="conteudo" className={cn('mx-auto w-full min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8', wide ? 'max-w-none' : 'max-w-[1400px]')}>
+        <main id="conteudo" className={cn('mx-auto w-full min-w-0 flex-1 px-4 py-6 sm:px-7 sm:py-8 lg:px-9', wide ? 'max-w-none' : 'max-w-[1480px]')}>
           <SectionTabs pathname={location.pathname} />
           <Suspense fallback={<Spinner />}>
             <Outlet />
           </Suspense>
         </main>
       </div>
+
+      <nav aria-label="Navegação rápida" className="evl-mobile-nav fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-line bg-surface/95 px-2 pt-2 backdrop-blur lg:hidden">
+        {[
+          { to: '/', label: 'Início', icon: Home },
+          { to: '/calendario', label: 'Agenda', icon: CalendarDays },
+          { to: '/cronometro', label: 'Foco', icon: Timer },
+          { to: '/cursos', label: 'Cursos', icon: GraduationCap },
+        ].map((item) => (
+          <NavLink key={item.to} to={item.to} end={item.to === '/'} className={({ isActive }) => cn('flex min-h-12 min-w-12 flex-col items-center gap-1 rounded-xl px-3 py-1 text-[10px]', isActive ? 'font-semibold text-accent-strong' : 'text-muted')}>
+            <item.icon className="size-5" aria-hidden />{item.label}
+          </NavLink>
+        ))}
+        <button className="flex min-h-12 min-w-12 flex-col items-center gap-1 px-3 py-1 text-[10px] text-muted" onClick={() => setMobileOpen(true)} aria-label="Abrir menu completo"><Menu className="size-5" aria-hidden />Menu</button>
+      </nav>
 
       <TimerAlerts />
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -188,7 +257,7 @@ function SectionTabs({ pathname }: { pathname: string }) {
   }, [pathname, tabs.length])
   if (!tabs.length) return null
   return (
-    <nav ref={nav} aria-label="Seções" className="app-tabs scroll-thin relative -mt-1 mb-5 flex gap-1 overflow-x-auto border-b border-line">
+    <nav ref={nav} aria-label="Seções" className="app-tabs scroll-thin relative -mt-1 mb-7 flex gap-1 overflow-x-auto border-b border-line">
       {tabs.map((t) => (
         <NavLink
           key={t.to}
@@ -196,8 +265,8 @@ function SectionTabs({ pathname }: { pathname: string }) {
           end
           className={({ isActive }) =>
             cn(
-              '-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
-              isActive ? 'border-accent-strong text-ink' : 'border-transparent text-muted hover:text-ink',
+              '-mb-px shrink-0 border-b-2 px-3 pb-3 pt-2 text-xs font-medium whitespace-nowrap transition-colors',
+              isActive ? 'border-accent-strong text-accent-strong' : 'border-transparent text-muted hover:text-ink',
             )
           }
         >
@@ -213,13 +282,14 @@ function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: bool
   const current = groupFor(location.pathname)
   return (
     <>
-      <div className={cn('flex h-16 shrink-0 items-center', collapsed ? 'justify-center px-2' : 'px-4')}>
+      <div className={cn('flex h-[96px] shrink-0 items-center', collapsed ? 'justify-center px-2' : 'px-6')}>
         <Link to="/" aria-label="VLM Control — início">
           <Logo collapsed={collapsed} />
         </Link>
       </div>
-      <nav className="scroll-thin flex-1 overflow-y-auto px-3 py-2">
-        <ul className="flex flex-col gap-0.5">
+      <nav aria-label="Menu principal" className="scroll-thin flex-1 overflow-y-auto px-3 py-3">
+        {!collapsed && <p className="mb-3 px-3 text-[9px] font-semibold tracking-[0.18em] text-[var(--sidebar-muted)] uppercase">Seu dia, com direção</p>}
+        <ul className="flex flex-col gap-1.5">
           {MENU.map((item) => {
             const isActive = current === item
             return (
@@ -229,20 +299,32 @@ function SidebarContent({ collapsed, large }: { collapsed: boolean; large?: bool
                   aria-current={isActive ? 'page' : undefined}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    'flex items-center gap-3 rounded-lg font-medium transition-colors',
-                    large ? 'px-3 py-3 text-[15px]' : 'px-3 py-2 text-sm',
+                    'evl-sidebar-link flex items-center gap-3 rounded-xl font-medium transition-colors',
+                    large ? 'px-3 py-3 text-sm' : 'px-3 py-3 text-[13px]',
                     collapsed && 'justify-center px-0',
-                    isActive ? 'bg-accent/35 text-ink' : 'text-muted hover:bg-surface-2 hover:text-ink',
                   )}
                 >
-                  <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-ink')} aria-hidden />
+                  <item.icon className="size-[18px] shrink-0" aria-hidden />
                   {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
                 </Link>
               </li>
             )
           })}
         </ul>
+        {!collapsed && <>
+          <p className="mt-8 mb-3 px-3 text-[9px] font-semibold tracking-[0.18em] text-[var(--sidebar-muted)] uppercase">Continue explorando</p>
+          {[
+            { to: '/cursos', label: 'Meus cursos', icon: GraduationCap },
+            { to: '/flashcards', label: 'Flashcards', icon: Layers },
+          ].map((item) => <Link key={item.to} to={item.to} className="evl-sidebar-link mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px]" aria-current={location.pathname.startsWith(item.to) ? 'page' : undefined}><item.icon className="size-[17px]" aria-hidden />{item.label}<ArrowUpRight className="ml-auto size-3.5 opacity-50" aria-hidden /></Link>)}
+        </>}
       </nav>
+      {!collapsed && <div className="mx-4 mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-white/10 text-wheat"><Timer className="size-4" aria-hidden /></div>
+        <p className="text-[13px] font-medium">Um passo de cada vez.</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-[var(--sidebar-muted)]">Reserve um momento para o que você quer aprender.</p>
+        <Link to="/cronometro" className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-xs font-medium text-wheat">Entrar em foco<ArrowUpRight className="size-4" aria-hidden /></Link>
+      </div>}
     </>
   )
 }
