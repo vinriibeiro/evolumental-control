@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ExternalLink, Maximize, Minimize, MonitorPlay, PanelRightClose, PanelRightOpen, PlayCircle, Search, Settings2 } from 'lucide-react'
 import { VideoStudyTimer } from './VideoStudyTimer'
@@ -6,10 +6,11 @@ import { StudiedButton } from '@/components/StudiedButton'
 import { UNAVAILABLE_HINT, VideoFrame } from '@/components/VideoPlayer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
-import { EmptyState, QueryState, useToast } from '@/components/ui/feedback'
+import { EmptyState, QueryState } from '@/components/ui/feedback'
 import { Card, PageHeader, Progress } from '@/components/ui/layout'
 import { cn } from '@/lib/cn'
 import { useAll } from '@/hooks/data'
+import { useClassroomView } from '@/hooks/useClassroomView'
 import { nextInQueue, parseYoutube, type YoutubeRef } from '@/lib/video'
 import type { TopicStatus } from '@/types/db'
 import { loadPanelOpen, loadWatched, normalizeText, savePanelOpen, saveWatched } from '@/lib/videoProgress'
@@ -51,32 +52,7 @@ export default function VideosPage() {
   const [panelOpen, setPanelOpen] = useState(loadPanelOpen)
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const classroom = useRef<HTMLDivElement>(null)
-  const [theater, setTheater] = useState(false)
-  const [fullscreen, setFullscreen] = useState(false)
-  const toast = useToast()
-
-  useEffect(() => {
-    const changed = () => setFullscreen(document.fullscreenElement === classroom.current)
-    const escape = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.fullscreenElement) setTheater(false) }
-    document.addEventListener('fullscreenchange', changed)
-    document.addEventListener('keydown', escape)
-    return () => {
-      document.removeEventListener('fullscreenchange', changed)
-      document.removeEventListener('keydown', escape)
-    }
-  }, [])
-
-  const toggleFullscreen = async () => {
-    try {
-      if (document.fullscreenElement === classroom.current) await document.exitFullscreen()
-      else if (classroom.current?.requestFullscreen) await classroom.current.requestFullscreen()
-      else { setTheater(true); toast.info('Tela cheia indisponível neste navegador. Modo cinema ativado.') }
-    } catch {
-      setTheater(true)
-      toast.info('O navegador não permitiu a tela cheia. Modo cinema ativado.')
-    }
-  }
+  const { classroom, theater, setTheater, fullscreen, toggleFullscreen } = useClassroomView()
 
   // Lições com vídeo, na ordem das matérias e dos tópicos; a fila segue essa ordem.
   const lessons = useMemo<Lesson[]>(() => {

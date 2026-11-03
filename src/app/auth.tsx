@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { Session, User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import { LOCAL_USER_ID } from '@/lib/data/local'
+import { revokeDriveToken } from '@/lib/googleAuth'
 
 export type AuthMode = 'supabase' | 'local'
 
@@ -72,6 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { needsConfirmation: !data.session }
       },
       async signOut() {
+        // a autorização do Drive é desta pessoa: não pode sobrar para a próxima conta nesta aba
+        revokeDriveToken()
         if (!supabase) return
         await supabase.auth.signOut()
       },

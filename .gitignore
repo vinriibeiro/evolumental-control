@@ -25,4 +25,12 @@ Estudos/
 *.epub
 *.pdf
 
+# Cursos do Google Drive: os arquivos ficam SÓ no Drive (o app guarda referências e metadados)
+*.mp4
+*.webm
+*.mkv
+*.mov
+*.docx
+*.pptx
+
 tsconfig.tsbuildinfo

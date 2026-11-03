@@ -13,8 +13,10 @@ import { isTimerEnding } from '@/lib/timer/warning'
 import { unlockAudio } from '@/lib/timer/sound'
 import { formatClock } from '@/lib/time'
 import { cn } from '@/lib/cn'
+import type { ActivityType } from '@/types/db'
 
-export function VideoStudyTimer({ subjectId, topicId }: { subjectId: string; topicId: string }) {
+/** Temporizador da sala de estudos. Matéria e tópico são opcionais (ex.: curso do Drive sem vínculo). */
+export function VideoStudyTimer({ subjectId, topicId, activity = 'video' }: { subjectId: string | null; topicId: string | null; activity?: ActivityType }) {
   const live = useLiveSession()
   const actions = useSessionActions()
   const settings = useSettings()
@@ -71,7 +73,7 @@ export function VideoStudyTimer({ subjectId, topicId }: { subjectId: string; top
     setError(null)
     void act(async () => {
       try {
-        await actions.start({ subject_id: subjectId, topic_id: topicId, activity_type: 'video', mode: 'countdown', planned_minutes: value })
+        await actions.start({ subject_id: subjectId, topic_id: topicId, activity_type: activity, mode: 'countdown', planned_minutes: value })
       } catch (e) {
         actions.resetStartId()
         throw e

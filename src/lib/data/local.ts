@@ -31,12 +31,20 @@ const INDEXES: Record<TableName, string> = {
   mind_maps: 'id',
   study_goals: 'id',
   question_records: 'id, date, subject_id',
+  course_sources: 'id',
+  course_nodes: 'id, source_id, parent_id, drive_id',
+  course_progress: 'id, drive_id',
 }
+
+/** Tabelas da versão 1 do banco local (antes de Cursos). */
+const INDEXES_V1 = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !t.startsWith('course_')))
 
 class LocalDb extends Dexie {
   constructor(name: string) {
     super(name)
-    this.version(1).stores(INDEXES)
+    this.version(1).stores(INDEXES_V1)
+    // v2: cursos e materiais do Google Drive (tabelas novas; as existentes não mudam)
+    this.version(2).stores(INDEXES)
   }
   t(table: TableName): Table<AnyRow, string> {
     return this.table(table)

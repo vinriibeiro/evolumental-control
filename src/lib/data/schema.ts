@@ -46,6 +46,11 @@ export const RELATIONS: Relation[] = [
   { child: 'flashcard_reviews', column: 'card_id', parent: 'flashcards', onDelete: 'cascade' },
   { child: 'mind_maps', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
   { child: 'mind_maps', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
+  { child: 'course_nodes', column: 'source_id', parent: 'course_sources', onDelete: 'cascade' },
+  { child: 'course_nodes', column: 'parent_id', parent: 'course_nodes', onDelete: 'cascade' },
+  { child: 'course_nodes', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
+  { child: 'course_nodes', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
+  { child: 'course_progress', column: 'last_node_id', parent: 'course_nodes', onDelete: 'set null' },
 ]
 
 export const TABLES: TableName[] = [
@@ -67,6 +72,9 @@ export const TABLES: TableName[] = [
   'mind_maps',
   'study_goals',
   'question_records',
+  'course_sources',
+  'course_nodes',
+  'course_progress',
 ]
 
 /**
@@ -84,6 +92,7 @@ export const RESET_TABLES: TableName[] = [
   'calendar_tasks',
   'reviews',
   'study_goals',
+  'course_progress',
 ]
 
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
@@ -109,6 +118,9 @@ export const UNIQUE_RULES: Partial<Record<TableName, Array<{ name: string; colum
   ],
   study_session_pauses: [{ name: 'study_session_pauses_one_open', columns: ['session_id'], where: (r) => r.ended_at == null }],
   study_cycles: [{ name: 'study_cycles_one_active', columns: ['user_id'], where: (r) => r.status === 'active' }],
+  course_sources: [{ name: 'course_sources_folder_key', columns: ['user_id', 'drive_folder_id'], where: () => true }],
+  course_nodes: [{ name: 'course_nodes_placement_key', columns: ['user_id', 'source_id', 'placement_key'], where: () => true }],
+  course_progress: [{ name: 'course_progress_drive_key', columns: ['user_id', 'drive_id'], where: () => true }],
 }
 
 type Defaults = { [K in TableName]: Partial<Tables[K]> }
@@ -184,6 +196,26 @@ export const DEFAULTS: Defaults = {
   mind_maps: { description: null, folder: null, subject_id: null, topic_id: null, data: { nodes: [], edges: [] } },
   study_goals: { title: null, subject_id: null, status: 'active', end_date: null, previous_goal_id: null },
   question_records: { subject_id: null, topic_id: null, board: null, exam: null, source: null, notes: null },
+  course_sources: { label: null, config: { courseLevel: 1, excluded: [] }, last_sync_at: null, last_sync_status: 'never', last_sync_report: null },
+  course_nodes: {
+    parent_id: null,
+    drive_parent_id: null,
+    custom_title: null,
+    resource_key: null,
+    size_bytes: null,
+    duration_ms: null,
+    drive_modified_at: null,
+    via_shortcut: null,
+    sort_order: 0,
+    sort_manual: false,
+    parent_manual: false,
+    hidden: false,
+    status: 'available',
+    missing_since: null,
+    subject_id: null,
+    topic_id: null,
+  },
+  course_progress: { completed_at: null, last_opened_at: null, last_node_id: null },
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
@@ -205,4 +237,7 @@ export const TABLE_LABELS: Record<TableName, string> = {
   mind_maps: 'mapas mentais',
   study_goals: 'metas',
   question_records: 'registros de questões',
+  course_sources: 'fontes do Drive',
+  course_nodes: 'itens de cursos',
+  course_progress: 'progresso em cursos',
 }

@@ -20,6 +20,7 @@ describe('menu lateral agrupado', () => {
     expect(groupFor('/rotinas')?.label).toBe('Calendário')
     expect(groupFor('/audios')?.label).toBe('Biblioteca')
     expect(groupFor('/biblioteca/abc')?.label).toBe('Biblioteca')
+    expect(groupFor('/cursos/abc')?.label).toBe('Biblioteca')
     expect(groupFor('/materias/123')?.label).toBe('Biblioteca')
     expect(groupFor('/questoes')?.label).toBe('Biblioteca')
     expect(groupFor('/flashcards/revisar')?.label).toBe('Biblioteca')
@@ -28,7 +29,7 @@ describe('menu lateral agrupado', () => {
 
   it('mostra as abas só nas páginas principais do grupo', () => {
     expect(tabsFor('/calendario').map((t) => t.label)).toEqual(['Calendário', 'Rotinas'])
-    expect(tabsFor('/biblioteca').map((t) => t.label)).toEqual(['Matérias', 'Trilhas', 'Inglês', 'Livros', 'Áudios', 'Vídeos', 'Flashcards', 'Revisões', 'Banco de questões', 'Desempenho'])
+    expect(tabsFor('/biblioteca').map((t) => t.label)).toEqual(['Matérias', 'Trilhas', 'Inglês', 'Cursos', 'Livros', 'Áudios', 'Vídeos', 'Flashcards', 'Revisões', 'Banco de questões', 'Desempenho'])
     expect(tabsFor('/biblioteca/abc')).toEqual([])
     expect(tabsFor('/materias/123')).toEqual([])
     expect(tabsFor('/cronometro')).toEqual([])

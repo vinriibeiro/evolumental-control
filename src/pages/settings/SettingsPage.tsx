@@ -336,7 +336,12 @@ function DataSection() {
     try {
       const out: Record<string, unknown> = { exportado_em: new Date().toISOString(), aplicativo: 'VLM Control', versao: 1, perfil: await backend.getProfile() }
       for (const t of TABLES.filter((x) => x !== 'profiles' && x !== 'study_sessions' && x !== 'study_session_pauses')) {
-        out[t] = await fetchAll(backend, t as TableName)
+        try {
+          out[t] = await fetchAll(backend, t as TableName)
+        } catch (e) {
+          // tabela de um recurso cuja migração ainda não foi aplicada no Supabase (ex.: cursos): não impede o backup
+          if ((e as { code?: string })?.code !== 'schema') throw e
+        }
       }
       out.study_sessions = await fetchAllSessions(backend, {})
       downloadJson(out, `vlm-backup-${slugDate()}.json`)

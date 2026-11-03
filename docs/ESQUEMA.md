@@ -28,6 +28,9 @@ Fonte da verdade: `supabase/migrations/20261021000000_init.sql`. Os tipos TypeSc
 | `mind_maps` | (legado) Mapas mentais | Recurso removido da interface; a tabela e os dados antigos continuam no esquema e nos backups. |
 | `study_goals` | Metas | Indicador, período, alvo; ajustes criam nova versão (`previous_goal_id`) e encerram a anterior. |
 | `question_records` | Desempenho em questões | `correct + wrong ≤ total`. |
+| `course_sources` | Pastas do Google Drive cadastradas (migração `20261103000000_courses_drive`) | Única por `(user_id, drive_folder_id)`; mapeamento em `config`; resultado da última atualização. |
+| `course_nodes` | Catálogo: curso → módulos → aulas/materiais | Só metadados do Drive (ID, nome, MIME, tamanho); única por `(user_id, source_id, placement_key)`; nome personalizado, ordem/pasta manuais, oculto, `status` (`available/missing/excluded`), vínculo opcional com matéria/tópico. |
+| `course_progress` | Conclusão e último acesso por arquivo do Drive | Única por `(user_id, drive_id)`: sobrevive a reimportações e à remoção da fonte. |
 
 ## Política de exclusão
 
@@ -38,6 +41,8 @@ Fonte da verdade: `supabase/migrations/20261021000000_init.sql`. Os tipos TypeSc
 | Sessão | pausas | revisões que a referenciavam |
 | Cronograma / ciclo | seus blocos | sessões vinculadas |
 | Baralho | cartões e respostas | — |
+| Fonte do Drive | itens do catálogo (e subitens) | progresso (último item) |
+| Matéria / tópico | — | itens de cursos vinculados |
 
 A interface mostra essas contagens antes de confirmar e oferece arquivamento de matérias e baralhos.
 
