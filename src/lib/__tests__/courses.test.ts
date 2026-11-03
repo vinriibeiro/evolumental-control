@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { driveEmbedUrl, driveOpenUrl, isTrustedDriveUrl, materialType, naturalCompare, parseDriveFolder } from '../drive'
 import { crawlFolder, DriveApiError } from '../driveCrawl'
 import { buildPlan, reconcile } from '../courseImport'
-import { buildCatalog, breadcrumb, courseStatus, lastStudied, neighbors, resumeItem, progressIndex } from '../courseCatalog'
+import { buildCatalog, breadcrumb, courseStatus, lastStudied, lessonOf, modulePath, neighbors, remainingMs, resumeItem, progressIndex } from '../courseCatalog'
 import { createDriveClient } from '../driveApi'
 import { FakeDrive, fid, noSleep } from '@/test/fakeDrive'
 import type { CourseNode, CourseProgress, CourseSourceConfig } from '@/types/db'
@@ -326,5 +326,51 @@ describe('cliente HTTP do Drive', () => {
     await expect(client.getFile(FOLDER)).rejects.toMatchObject({ kind: 'rate' })
     await expect(client.listChildren("x' or '1'='1")).rejects.toBeInstanceOf(DriveApiError)
     await expect(createDriveClient(() => null, fetchImpl).listChildren(FOLDER)).rejects.toMatchObject({ kind: 'auth' })
+  })
+})
+
+describe('aulas (pasta com vídeo + materiais)', () => {
+  it('agrupa pastas-folha com até um vídeo; pastas com vários vídeos viram uma aula por vídeo', async () => {
+    const d = new FakeDrive()
+    const root = d.folder('Raiz')
+    const c = d.folder('Curso', root)
+    const mod = d.folder('01 - Módulo', c)
+    const a1 = d.folder('001 - Boas-vindas', mod)
+    d.file('01 - Boas-vindas.mp4', a1, 'video/mp4', fid('bv'), { durationMillis: '120000' })
+    d.file('Slides.pptx', a1, 'application/vnd.openxmlformats-officedocument.presentationml.presentation', fid('sl'))
+    const a2 = d.folder('002 - Aula em PDF', mod)
+    d.file('Aula_resumo.pdf', a2, 'application/pdf', fid('res'))
+    d.file('Aula_completo.pdf', a2, 'application/pdf', fid('comp'))
+    const many = d.folder('03 - Dois vídeos', c)
+    d.file('Parte 1.mp4', many, 'video/mp4', fid('pt1'), { durationMillis: '60000' })
+    d.file('Parte 2.mp4', many, 'video/mp4', fid('pt2'))
+    const crawl = await crawlFolder(d, root, { sleep: noSleep })
+    let k = 0
+    const r = reconcile([], buildPlan(crawl, CFG), crawl, 'src', 'x', () => `00000000-0000-4000-8000-${String(++k).padStart(12, '0')}`)
+    const [v] = buildCatalog(persist(r.inserts), [])
+    expect(v.lessons.map((l) => [l.title, l.primary.title, l.attachments.map((a) => a.title)])).toEqual([
+      ['001 - Boas-vindas', '01 - Boas-vindas.mp4', ['Slides.pptx']],
+      ['002 - Aula em PDF', 'Aula_completo.pdf', ['Aula_resumo.pdf']],
+      ['Parte 1.mp4', 'Parte 1.mp4', []],
+      ['Parte 2.mp4', 'Parte 2.mp4', []],
+    ])
+    expect(v.total).toBe(4)
+    expect(v.durationMs).toBe(180000)
+    expect(v.lessons.map((l) => l.number)).toEqual([1, 2, 3, 4])
+    expect(modulePath(v.outline, v.lessons[0].id).map((m) => m.title)).toEqual(['01 - Módulo'])
+    expect(lessonOf(v, v.lessons[0].attachments[0].id)?.title).toBe('001 - Boas-vindas')
+
+    // concluir a aula = concluir o conteúdo principal; o material aberto por último é retomado
+    const now = '2026-11-03T10:00:00Z'
+    const prog = (driveId: string, p: Partial<CourseProgress>): CourseProgress => ({ id: driveId, user_id: 'u', created_at: now, updated_at: now, drive_id: driveId, completed_at: null, last_opened_at: null, last_node_id: null, ...p })
+    const slides = v.lessons[0].attachments[0]
+    const progress = [prog(fid('sl'), { last_opened_at: now, last_node_id: slides.id })]
+    const [v2] = buildCatalog(persist(r.inserts), progress)
+    expect(resumeItem(v2, progressIndex(progress))?.id).toBe(slides.id)
+    const doneFirst = [...progress, prog(fid('bv'), { completed_at: now })]
+    const [v3] = buildCatalog(persist(r.inserts), doneFirst)
+    expect(v3.done).toBe(1)
+    expect(resumeItem(v3, progressIndex(doneFirst))?.title).toBe('Aula_completo.pdf')
+    expect(remainingMs(v3, progressIndex(doneFirst))).toBe(60000)
   })
 })

@@ -7,8 +7,8 @@ import { EmptyState, ErrorState, Spinner } from '@/components/ui/feedback'
 import { Badge, Card, PageHeader, Progress, Segmented } from '@/components/ui/layout'
 import { useBackend } from '@/app/data'
 import { useCourses } from '@/hooks/useCourses'
-import { courseStatus, displayTitle, lastStudied, resumeItem, type CourseStatusFilter, type CourseView } from '@/lib/courseCatalog'
-import { KIND_LABELS, materialType, type MaterialKind } from '@/lib/drive'
+import { courseStatus, displayTitle, lastStudied, lessonOf, resumeItem, type CourseStatusFilter, type CourseView } from '@/lib/courseCatalog'
+import { formatDuration, KIND_LABELS, materialType, type MaterialKind } from '@/lib/drive'
 import { normalizeText } from '@/lib/videoProgress'
 import { DriveSources } from './DriveSources'
 
@@ -21,32 +21,50 @@ const STATUS_TABS: Array<{ value: CourseStatusFilter; label: string }> = [
 
 export const courseLink = (v: CourseView, itemId?: string | null) => `/cursos/${v.course.id}${itemId ? `?item=${itemId}` : ''}`
 
+/** Cor estável por curso (para a capa), a partir do nome. */
+function coverHue(title: string) {
+  let h = 0
+  for (const ch of title) h = (h * 31 + ch.charCodeAt(0)) % 360
+  return h
+}
+
 function CourseCard({ v, source, resumeId }: { v: CourseView; source?: string; resumeId: string | null }) {
   const pct = v.total ? Math.round((v.done / v.total) * 100) : 0
   const status = courseStatus(v)
+  const hue = coverHue(v.title)
+  const dur = formatDuration(v.durationMs)
   return (
-    <Card className="flex flex-col gap-3 p-4">
-      <div className="min-w-0">
-        {source && <p className="truncate text-xs text-muted">{source}</p>}
-        <h3 className="mt-0.5 line-clamp-2 font-semibold text-ink">
-          <Link to={courseLink(v)} className="hover:underline">{v.title}</Link>
-        </h3>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {(Object.entries(v.kinds) as Array<[MaterialKind, number]>).map(([k, n]) => <Badge key={k}>{KIND_LABELS[k]}: {n}</Badge>)}
-        {v.missing > 0 && <Badge className="bg-warning/15 text-warning">{v.missing} não encontrado(s)</Badge>}
-      </div>
-      <div className="mt-auto space-y-1">
-        <div className="flex items-center justify-between text-xs text-muted">
-          <span>{v.done} de {v.total} concluído(s)</span>
-          <span className="tabular">{pct}%</span>
-        </div>
-        <Progress value={pct} className="h-1.5" label={`Progresso de ${v.title}`} />
-      </div>
-      <Link to={courseLink(v, resumeId)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-semibold text-accent-ink hover:bg-accent-strong">
-        {status === 'completed' ? <CheckCircle2 className="size-4" aria-hidden /> : <PlayCircle className="size-4" aria-hidden />}
-        {status === 'completed' ? 'Rever' : status === 'in_progress' ? 'Continuar' : 'Começar'}
+    <Card className="flex flex-col overflow-hidden">
+      <Link to={courseLink(v, resumeId)} tabIndex={-1} aria-hidden className="relative block h-24 overflow-hidden" style={{ background: `linear-gradient(135deg, hsl(${hue} 55% 42%), hsl(${(hue + 40) % 360} 60% 28%))` }}>
+        <GraduationCap className="absolute -right-3 -bottom-4 size-24 text-white/15" />
+        <span className="absolute bottom-2 left-3 rounded-md bg-black/35 px-2 py-0.5 text-xs font-medium text-white">
+          {status === 'completed' ? 'Concluído' : status === 'in_progress' ? `${pct}% concluído` : 'Não iniciado'}
+        </span>
       </Link>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="min-w-0">
+          {source && <p className="truncate text-xs text-muted">{source}</p>}
+          <h3 className="mt-0.5 line-clamp-2 font-semibold text-ink">
+            <Link to={courseLink(v)} className="hover:underline">{v.title}</Link>
+          </h3>
+          <p className="mt-1 text-xs text-muted">{v.total} aula(s){dur ? ` · ${dur} de vídeo` : ''}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.entries(v.kinds) as Array<[MaterialKind, number]>).map(([k, n]) => <Badge key={k}>{KIND_LABELS[k]}: {n}</Badge>)}
+          {v.missing > 0 && <Badge className="bg-warning/15 text-warning">{v.missing} não encontrado(s)</Badge>}
+        </div>
+        <div className="mt-auto space-y-1">
+          <div className="flex items-center justify-between text-xs text-muted">
+            <span>{v.done} de {v.total} concluída(s)</span>
+            <span className="tabular">{pct}%</span>
+          </div>
+          <Progress value={pct} className="h-1.5" label={`Progresso de ${v.title}`} />
+        </div>
+        <Link to={courseLink(v, resumeId)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-semibold text-accent-ink hover:bg-accent-strong">
+          {status === 'completed' ? <CheckCircle2 className="size-4" aria-hidden /> : <PlayCircle className="size-4" aria-hidden />}
+          {status === 'completed' ? 'Rever' : status === 'in_progress' ? 'Continuar' : 'Começar'}
+        </Link>
+      </div>
     </Card>
   )
 }
@@ -71,7 +89,7 @@ export default function CoursesPage() {
       if (status !== 'all' && courseStatus(v) !== status) return false
       if (kind && !v.kinds[kind]) return false
       if (!q) return true
-      return normalizeText(v.title).includes(q) || v.items.some((i) => normalizeText(displayTitle(i)).includes(q))
+      return normalizeText(v.title).includes(q) || v.lessons.some((l) => normalizeText(l.title).includes(q)) || v.items.some((i) => normalizeText(displayTitle(i)).includes(q))
     })
   }, [data.views, query, status, kind, sourceId])
 
@@ -79,7 +97,7 @@ export default function CoursesPage() {
   const itemHits = useMemo(() => {
     const q = normalizeText(query.trim())
     if (q.length < 2) return []
-    return filtered.flatMap((v) => v.items.filter((i) => normalizeText(displayTitle(i)).includes(q)).map((i) => ({ v, i }))).slice(0, 12)
+    return filtered.flatMap((v) => v.lessons.filter((l) => normalizeText(l.title).includes(q) || normalizeText(displayTitle(l.primary)).includes(q)).map((l) => ({ v, i: l.primary, title: l.title }))).slice(0, 12)
   }, [filtered, query])
 
   const recent = lastStudied(data.views)
@@ -122,7 +140,7 @@ export default function CoursesPage() {
               <PlayCircle className="size-8 shrink-0 text-accent-strong" aria-hidden />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold tracking-wide text-muted uppercase">Continuar estudando</p>
-                <p className="truncate font-semibold text-ink">{displayTitle(recentItem)}</p>
+                <p className="truncate font-semibold text-ink">{lessonOf(recent, recentItem.id)?.title ?? displayTitle(recentItem)}</p>
                 <p className="truncate text-xs text-muted">{recent.title} · {materialType(recentItem.mime_type).label}</p>
               </div>
               <Link to={courseLink(recent, recentItem.id)} className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-ink hover:bg-accent-strong">Continuar</Link>
@@ -161,8 +179,8 @@ export default function CoursesPage() {
             <Card className="p-3">
               <p className="mb-1 text-sm font-semibold text-ink">Aulas e materiais encontrados</p>
               <ul className="divide-y divide-line text-sm">
-                {itemHits.map(({ v, i }) => (
-                  <li key={i.id}><Link to={courseLink(v, i.id)} className="flex flex-wrap gap-x-2 py-1.5 hover:underline"><span className="text-ink">{displayTitle(i)}</span><span className="text-xs text-muted">{v.title} · {materialType(i.mime_type).label}</span></Link></li>
+                {itemHits.map(({ v, i, title }) => (
+                  <li key={i.id}><Link to={courseLink(v, i.id)} className="flex flex-wrap gap-x-2 py-1.5 hover:underline"><span className="text-ink">{title}</span><span className="text-xs text-muted">{v.title} · {materialType(i.mime_type).label}</span></Link></li>
                 ))}
               </ul>
             </Card>
