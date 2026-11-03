@@ -1,6 +1,4 @@
-import { useState } from 'react'
-import { AlertTriangle, ExternalLink, FileQuestion, RotateCw } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
+import { AlertTriangle, ExternalLink, FileQuestion } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { driveEmbedUrl, driveOpenUrl, isTrustedDriveUrl, materialType } from '@/lib/drive'
 import type { CourseNode } from '@/types/db'
@@ -28,8 +26,7 @@ export const DRIVE_VIEWER_HELP = [
  * drive.google.com/docs.google.com com ID validado. O app não sabe se o conteúdo carregou de fato, quanto foi
  * assistido ou lido: por isso a ajuda e o "Abrir no Drive" ficam sempre visíveis.
  */
-export function DriveViewer({ node, title, className }: { node: CourseNode; title: string; className?: string }) {
-  const [reload, setReload] = useState(0)
+export function DriveViewer({ node, title, className, frameClassName }: { node: CourseNode; title: string; className?: string; frameClassName?: string }) {
   const type = materialType(node.mime_type)
   const src = driveEmbedUrl(node.drive_id, node.mime_type, node.resource_key)
   const tall = type.kind !== 'video' && type.kind !== 'audio'
@@ -50,7 +47,7 @@ export function DriveViewer({ node, title, className }: { node: CourseNode; titl
   }
 
   return (
-    <div className={cn('bg-black', className)}>
+    <div className={cn('flex flex-col bg-black', className)}>
       {node.status === 'missing' && (
         <p role="status" className="flex items-start gap-2 bg-warning/15 px-4 py-2 text-sm text-ink">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
@@ -58,20 +55,14 @@ export function DriveViewer({ node, title, className }: { node: CourseNode; titl
         </p>
       )}
       <iframe
-        key={`${node.id}-${reload}`}
         src={src}
         title={`${type.label}: ${title}`}
-        className={cn('video-study-frame block w-full border-0 bg-white', tall ? 'h-[75dvh] min-h-[420px]' : 'aspect-video')}
+        className={cn('block w-full border-0', tall ? 'bg-white' : 'bg-black', frameClassName ?? (tall ? 'h-[78dvh] min-h-[420px]' : 'aspect-video max-h-[75dvh]'))}
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
         sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation allow-forms"
       />
-      <div className="flex justify-end bg-surface px-2 py-1">
-        <Button size="sm" variant="ghost" icon={<RotateCw className="size-3.5" aria-hidden />} onClick={() => setReload((n) => n + 1)}>
-          Recarregar visualizador
-        </Button>
-      </div>
     </div>
   )
 }

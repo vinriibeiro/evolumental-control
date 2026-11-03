@@ -81,6 +81,16 @@ Os endereços são montados pelo app a partir de IDs validados, só para `drive.
 
 A sala reaproveita o temporizador de foco (sessão ativa única e confirmação no Cronômetro), modo cinema e tela cheia da sala de vídeos. Com matéria/tópico vinculado (no item, módulo ou curso), o estudo é registrado nela.
 
+## Sala do curso (player)
+
+- **Aula como unidade:** uma pasta só com arquivos e no máximo um vídeo vira **uma aula**. O vídeo (ou, sem vídeo, o primeiro documento) é o conteúdo principal; os demais arquivos aparecem em **Materiais da aula** e nas abas acima do player. Pastas com vários vídeos viram uma aula por vídeo. O progresso conta aulas (conclusão do conteúdo principal).
+- **Palco:** abas Videoaula/materiais, **material ao lado do vídeo** (tela dividida, no computador), recarregar e "Abrir no Drive".
+- **Ações:** Anterior, Concluir/Desmarcar conclusão e **Concluir e avançar**; aviso ao concluir um módulo e o curso. No celular, barra fixa com Anterior / Concluir / Próxima.
+- **Conteúdo do curso:** módulos com progresso e duração (dos vídeos, informada pelo Drive), check clicável em cada aula, busca, "Só pendentes", rolagem até a aula atual e Organizar (renomear, ocultar, reordenar, vincular).
+- **Modo foco** (esconde o menu do app) e **tela cheia** (a sala inteira, com o player ocupando a altura), com cronômetro opcional (pode ser ocultado).
+- **Atalhos:** N próxima, P anterior, C concluir, M modo foco, F tela cheia, S conteúdo, Esc sai do modo foco — com o foco na página (se o player do Google estiver selecionado, as teclas vão para ele).
+- O player do Google não informa ao app quando o vídeo termina, então não há avanço automático no fim do vídeo nem retomada no minuto exato; velocidade, legenda e tela cheia do vídeo ficam nos controles do próprio player.
+
 ## Testes
 
 - `src/lib/__tests__/courses.test.ts`: links/IDs/domínios, tipos, ordem natural, leitura com paginação, novas tentativas, falhas parciais, atalhos e ciclos, limite; plano e reimportação (sem duplicar, renomear, mover, ordem e pasta manuais, removidos e restaurados, leitura parcial, exclusão no mapeamento, mesmo arquivo em dois lugares); progresso e retomada; cliente HTTP só de metadados.
