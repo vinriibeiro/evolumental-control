@@ -37,6 +37,7 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 | Ciclo de estudos | Vários ciclos, um ativo; blocos reordenáveis com peso, duração e intervalo; avanço pela execução registrada; decisão explícita em execuções parciais. |
 | Calendário / Planejamento | Grade de horários de 30 em 30 min (dia e semana) e visão mensal: clique num horário para criar um bloco, arraste para mover, puxe a borda para mudar a duração. Camadas (planejamento, histórico realizado, revisões, tarefas), minicalendário, Planejar (proposta automática), Replanejar (atrasados → próximo horário livre) e Remover. |
 | Flashcards | Baralhos e cartões ilimitados, pastas, tags, vínculo com matéria/tópico, importação CSV com prévia, exportação, revisão com repetição espaçada (SM-2 ajustável), modos vencidos/todos/aleatório/selecionados/contínuo, leitura por voz local (Web Speech API). |
+| Cursos e materiais | Catálogo de cursos a partir de pastas do Google Drive (os arquivos ficam no Drive; o app guarda só referências e progresso): importação assistida com prévia e "Atualizar do Drive" sem duplicar, módulos em qualquer profundidade, ordem natural, visualizador incorporado do Google para PDFs, vídeos e documentos, "Abrir no Drive" para os demais, concluir/desmarcar, progresso por curso, "Continuar estudando", vínculo com matérias e tópicos, temporizador, modo cinema e tela cheia (veja `docs/CURSOS.md`). |
 | Biblioteca | Leitor de livros EPUB estilo Kindle: estante com capas, páginas ou rolagem, temas claro/sépia/escuro, índice, marcadores e retomada de onde parou. Com Supabase, os livros ficam num espaço privado da conta e sincronizam entre aparelhos (veja `docs/BIBLIOTECA.md`). |
 | Revisões | Revisões planejadas × realizadas; concluir, adiar, cancelar, reabrir; agendamento automático após estudar um tópico. |
 | Questões | Registro por matéria/tópico/banca/concurso com validação; taxa de acertos, evolução e assuntos que exigem atenção. |
@@ -74,6 +75,7 @@ Copie `.env.example` para `.env.local`:
 |---|---|
 | `VITE_SUPABASE_URL` | URL do projeto (Project Settings → API → Project URL). |
 | `VITE_SUPABASE_ANON_KEY` | Chave pública **anon** (Project Settings → API). |
+| `VITE_GOOGLE_CLIENT_ID` | Opcional (Cursos do Drive): ID **público** do cliente OAuth, escopo só de leitura de metadados. Nunca coloque client secret ou chaves de serviço. Veja `docs/CURSOS.md`. |
 
 Nunca use a chave `service_role` em variáveis `VITE_*`: tudo que começa com `VITE_` vai para o navegador. A segurança dos dados vem das políticas RLS do banco, não do sigilo da chave anon.
 
@@ -143,6 +145,7 @@ Testes de ponta a ponta no navegador (modo local; requer `npm run dev` em outro 
 npm run test:e2e     # fluxos reais + todas as páginas em desktop e celular
 npm run screenshots  # capturas de estados com dados de exemplo
 npm run test:e2e:videos # sala de estudos: timer, tela cheia, cinema, recarga e celular
+npm run test:e2e:cursos # cursos do Drive (API do Google simulada): importar, aula, concluir, recarregar, reimportar, celular
 ```
 
 ### Estudar com vídeos

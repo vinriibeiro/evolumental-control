@@ -342,6 +342,87 @@ export interface QuestionRecord extends Owned {
   notes: string | null
 }
 
+// ---------------------------------------------------------------------
+// Cursos e materiais do Google Drive (só referências e metadados; os arquivos ficam no Drive)
+// ---------------------------------------------------------------------
+
+export type CourseSyncStatus = 'never' | 'ok' | 'partial' | 'failed'
+
+export interface CourseSourceConfig {
+  /** 0 = a própria pasta é um curso; 1 = cada subpasta do primeiro nível é um curso. */
+  courseLevel: 0 | 1
+  /** IDs de pastas do Drive deixadas de fora do catálogo. */
+  excluded: string[]
+}
+
+/** Relatório da última atualização (contagens e problemas), mostrado na tela. */
+export interface CourseSyncReport {
+  inserted?: number
+  updated?: number
+  missing?: number
+  restored?: number
+  excluded?: number
+  unverified?: number
+  failedFolders?: Array<{ id: string; name: string; message: string }>
+  skipped?: number
+  truncated?: boolean
+  error?: string
+}
+
+export interface CourseSource extends Owned {
+  drive_folder_id: string
+  /** Nome da pasta no Drive (atualizado a cada importação). */
+  title: string
+  /** Nome escolhido pelo usuário (opcional). */
+  label: string | null
+  config: CourseSourceConfig
+  last_sync_at: ISODateTime | null
+  last_sync_status: CourseSyncStatus
+  last_sync_report: CourseSyncReport | null
+}
+
+export type CourseNodeKind = 'course' | 'module' | 'item'
+/** available = visto na última leitura; missing = sumiu de uma pasta lida por completo (removido ou sem acesso); excluded = deixado de fora pelo mapeamento. */
+export type CourseNodeStatus = 'available' | 'missing' | 'excluded'
+
+export interface CourseNode extends Owned {
+  source_id: UUID
+  parent_id: UUID | null
+  kind: CourseNodeKind
+  drive_id: string
+  /** Pasta do Drive onde o item está (para a reconciliação). */
+  drive_parent_id: string | null
+  /** Posição no Drive (pasta/arquivo): reconhece o item em novas importações, mesmo renomeado. */
+  placement_key: string
+  /** Nome no Drive. */
+  title: string
+  /** Nome personalizado (tem prioridade sobre o do Drive e é preservado nas importações). */
+  custom_title: string | null
+  mime_type: string
+  resource_key: string | null
+  size_bytes: number | null
+  duration_ms: number | null
+  drive_modified_at: ISODateTime | null
+  via_shortcut: string | null
+  sort_order: number
+  /** Ordem/pasta definidas à mão: a importação não muda. */
+  sort_manual: boolean
+  parent_manual: boolean
+  hidden: boolean
+  status: CourseNodeStatus
+  missing_since: ISODateTime | null
+  subject_id: UUID | null
+  topic_id: UUID | null
+}
+
+/** Progresso por arquivo do Drive (o mesmo arquivo em dois lugares compartilha o progresso). */
+export interface CourseProgress extends Owned {
+  drive_id: string
+  completed_at: ISODateTime | null
+  last_opened_at: ISODateTime | null
+  last_node_id: UUID | null
+}
+
 export interface Tables {
   profiles: Profile
   subjects: Subject
@@ -361,6 +442,9 @@ export interface Tables {
   mind_maps: MindMap
   study_goals: StudyGoal
   question_records: QuestionRecord
+  course_sources: CourseSource
+  course_nodes: CourseNode
+  course_progress: CourseProgress
 }
 
 export type TableName = keyof Tables

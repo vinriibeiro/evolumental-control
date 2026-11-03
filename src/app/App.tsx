@@ -25,6 +25,8 @@ const RoutinesPage = lazy(() => import('@/pages/routines/RoutinesPage'))
 const EnglishPage = lazy(() => import('@/pages/english/EnglishPage'))
 const AudiosPage = lazy(() => import('@/pages/audios/AudiosPage'))
 const VideosPage = lazy(() => import('@/pages/videos/VideosPage'))
+const CoursesPage = lazy(() => import('@/pages/courses/CoursesPage'))
+const CoursePage = lazy(() => import('@/pages/courses/CoursePage'))
 const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
 const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
@@ -73,6 +75,8 @@ export function App() {
                   <Route path="ingles" element={<EnglishPage />} />
                   <Route path="audios" element={<AudiosPage />} />
                   <Route path="videos" element={<VideosPage />} />
+                  <Route path="cursos" element={<CoursesPage />} />
+                  <Route path="cursos/:id" element={<CoursePage />} />
                   <Route path="biblioteca" element={<LibraryPage />} />
                   <Route path="biblioteca/:id" element={<ReaderPage />} />
                   <Route path="flashcards" element={<DecksPage />} />

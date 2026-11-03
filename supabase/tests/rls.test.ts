@@ -388,3 +388,91 @@ describe('áudios dos tópicos (privados)', () => {
     })
   })
 })
+
+describe('cursos do Drive (catálogo e progresso por usuário)', () => {
+  // usuários próprios: testes anteriores excluem contas
+  const ALICE = '33333333-3333-4333-8333-333333333333'
+  const BOB = '44444444-4444-4444-8444-444444444444'
+  beforeAll(async () => {
+    await db.exec(`reset role; insert into auth.users (id, email) values ('${ALICE}', 'carol@example.com'), ('${BOB}', 'dave@example.com');`)
+  })
+  const PASTA = '1TestFolderAbcdefghijKLMNOP'
+  const ARQ = '1AbCdEfGhIjKlMnOpQrStUv'
+  const fonte = async (folder = PASTA) => (await db.query<{ id: string }>(`insert into public.course_sources (drive_folder_id, title) values ($1, 'Cursos') returning id`, [folder])).rows[0].id
+  const no = async (source: string, key: string, parent: string | null = null, kind = 'item') =>
+    (await db.query<{ id: string }>(
+      `insert into public.course_nodes (source_id, parent_id, kind, drive_id, placement_key, title, mime_type) values ($1, $2, $3, $4, $5, 'Aula 1', 'video/mp4') returning id`,
+      [source, parent, kind, ARQ, key],
+    )).rows[0].id
+
+  it('um usuário não vê, altera nem apaga o catálogo e o progresso de outro', async () => {
+    const { source, node } = await as(ALICE, async () => {
+      const source = await fonte()
+      const node = await no(source, `/${ARQ}`)
+      await db.query(`insert into public.course_progress (drive_id, completed_at, last_node_id) values ($1, now(), $2)`, [ARQ, node])
+      return { source, node }
+    })
+    await as(BOB, async () => {
+      for (const t of ['course_sources', 'course_nodes', 'course_progress']) expect((await db.query(`select * from public.${t}`)).rows).toHaveLength(0)
+      expect((await db.query(`update public.course_nodes set custom_title = 'hack' where id = $1`, [node])).affectedRows).toBe(0)
+      expect((await db.query(`delete from public.course_sources where id = $1`, [source])).affectedRows).toBe(0)
+      expect((await db.query(`update public.course_progress set completed_at = null`)).affectedRows).toBe(0)
+      // não dá para pendurar itens na fonte/pasta de outra pessoa, nem apontar o progresso para o item dela
+      await expect(no(source, `/x${ARQ}`)).rejects.toThrow()
+      await expect(db.query(`insert into public.course_progress (drive_id, last_node_id) values ($1, $2)`, [ARQ, node])).rejects.toThrow()
+      // a mesma pasta pode ser cadastrada por outro usuário, isolada
+      await fonte()
+    })
+    await as(ALICE, async () => {
+      expect((await db.query(`select * from public.course_progress`)).rows).toHaveLength(1)
+    })
+  })
+
+  it('não duplica fonte, posição nem progresso; valida IDs do Drive', async () => {
+    await as(ALICE, async () => {
+      const source = await fonte('1TestFolderZyxwvutsrqPONMLK')
+      await expect(fonte('1TestFolderZyxwvutsrqPONMLK')).rejects.toThrow()
+      await no(source, 'k1')
+      await expect(no(source, 'k1')).rejects.toThrow()
+      await expect(db.query(`insert into public.course_progress (drive_id) values ($1)`, [ARQ])).rejects.toThrow()
+      await expect(db.query(`insert into public.course_sources (drive_folder_id, title) values ('../../x', 'x')`)).rejects.toThrow()
+      await expect(db.query(`insert into public.course_nodes (source_id, kind, drive_id, placement_key, title, mime_type) values ($1, 'item', 'a b<script>', 'k2', 't', 'x')`, [source])).rejects.toThrow()
+      await expect(db.query(`insert into public.course_nodes (source_id, kind, drive_id, placement_key, title, mime_type, status) values ($1, 'item', $2, 'k3', 't', 'x', 'deleted')`, [source, ARQ])).rejects.toThrow()
+    })
+  })
+
+  it('apagar a fonte apaga o catálogo em cascata e mantém o progresso (vínculo nulo)', async () => {
+    await as(ALICE, async () => {
+      const source = await fonte('1ZZZZZZZZZZZZZZZZZZZZZ')
+      const course = await no(source, 'c', null, 'course')
+      const item = await no(source, 'c/i', course)
+      await db.query(`update public.course_progress set last_node_id = $1 where drive_id = $2`, [item, ARQ])
+      await db.query(`delete from public.course_sources where id = $1`, [source])
+      expect((await db.query(`select * from public.course_nodes where source_id = $1`, [source])).rows).toHaveLength(0)
+      const p = await db.query<{ last_node_id: string | null }>(`select last_node_id from public.course_progress where drive_id = $1`, [ARQ])
+      expect(p.rows[0].last_node_id).toBeNull()
+    })
+  })
+
+  it('anon não acessa e reset_my_data zera só o progresso dos cursos', async () => {
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
+    await expect(db.query(`select * from public.course_nodes`)).rejects.toThrow()
+    await db.exec(`reset role;`)
+    await as(ALICE, async () => {
+      const before = (await db.query(`select * from public.course_sources`)).rows.length
+      await db.query(`select public.reset_my_data()`)
+      expect((await db.query(`select * from public.course_progress`)).rows).toHaveLength(0)
+      expect((await db.query(`select * from public.course_sources`)).rows).toHaveLength(before)
+    })
+    await as(BOB, async () => {
+      // o progresso de Bob não foi tocado pelo reset de Alice (ele não tinha; cria e confere)
+      await db.query(`insert into public.course_progress (drive_id, completed_at) values ($1, now())`, [ARQ])
+    })
+    await as(ALICE, async () => {
+      await db.query(`select public.reset_my_data()`)
+    })
+    await as(BOB, async () => {
+      expect((await db.query(`select * from public.course_progress`)).rows).toHaveLength(1)
+    })
+  })
+})

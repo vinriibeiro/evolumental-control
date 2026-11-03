@@ -12,6 +12,7 @@ function toDataError(e: PostgrestError | Error | null): DataError {
   if (code === '23505') return new DataError('duplicate', 'Registro duplicado.')
   if (code === '23514' || code === '23502' || code === '22P02') return new DataError('validation', 'Dados inválidos: ' + msg)
   if (code === '23503') return new DataError('validation', 'Registro relacionado inexistente.')
+  if (code === 'PGRST205' || code === '42P01') return new DataError('schema', 'Tabela ausente no banco: aplique as migrações pendentes do Supabase.')
   if (code === '42501' || code === 'PGRST301' || /JWT/i.test(msg)) return new DataError('auth', 'Sessão expirada ou sem permissão. Entre novamente.')
   if (/fetch|network|Failed to fetch/i.test(msg)) return new DataError('network', 'Falha de conexão. Verifique a internet e tente novamente.')
   return new DataError('unknown', msg || 'Erro ao acessar o servidor.')

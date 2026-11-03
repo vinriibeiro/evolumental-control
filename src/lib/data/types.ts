@@ -58,7 +58,7 @@ export interface DataBackend {
 }
 
 export class DataError extends Error {
-  code: 'duplicate' | 'not_found' | 'validation' | 'network' | 'auth' | 'unknown'
+  code: 'duplicate' | 'not_found' | 'validation' | 'network' | 'auth' | 'schema' | 'unknown'
   constructor(code: DataError['code'], message: string) {
     super(message)
     this.code = code
