@@ -2,23 +2,27 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Paleta oficial VLM Control. Os tokens mudam no tema escuro. */
+/* Parchment, floresta e trigo: uma identidade calma para estudar. */
 :root {
-  --bg: #ffffff;
-  --surface: #f8f6f2;
-  --surface-2: #f2eee7;
-  --border: #eae2d7;
-  --muted: #6b6259;
-  --ink: #3b2b20;
-  --accent: #deb887;
-  --accent-strong: #c99c5f;
-  --accent-ink: #3b2b20;
+  --bg: #f7f8f5;
+  --surface: #ffffff;
+  --surface-2: #edf1eb;
+  --border: #e1e6de;
+  --muted: #637067;
+  --ink: #21382d;
+  --accent: #2b624c;
+  --accent-strong: #204d3b;
+  --accent-ink: #ffffff;
   --wheat: #f5deb3;
   --success: #4f7a55;
   --danger: #b4483c;
   --warning: #a8741f;
   --info: #4f6d8a;
-  --overlay: rgba(59, 43, 32, 0.35);
+  --overlay: rgba(13, 30, 23, 0.48);
+  --sidebar: #183d2e;
+  --sidebar-ink: #f1f5ec;
+  --sidebar-muted: #b4c7b8;
+  --card-shadow: 0 3px 16px rgba(28, 56, 41, 0.025);
   /* Séries categóricas (validadas para daltonismo; ordem fixa) */
   --series-1: #2a78d6;
   --series-2: #eb6834;
@@ -28,26 +32,30 @@
   --series-6: #008300;
   --series-7: #6250d6;
   --series-8: #e34948;
-  --chart-grid: #efe9df;
+  --chart-grid: #e9eee7;
   color-scheme: light;
 }
 
 .dark {
-  --bg: #17120e;
-  --surface: #211a15;
-  --surface-2: #2a221b;
-  --border: #3a3027;
-  --muted: #b5a899;
-  --ink: #f3ebdf;
-  --accent: #deb887;
-  --accent-strong: #e8c99c;
-  --accent-ink: #2a1e15;
+  --bg: #111c16;
+  --surface: #18271f;
+  --surface-2: #24362b;
+  --border: #304237;
+  --muted: #b0bfb2;
+  --ink: #edf3e9;
+  --accent: #a6d1ae;
+  --accent-strong: #bde0bc;
+  --accent-ink: #172e20;
   --wheat: #f5deb3;
   --success: #86b38c;
   --danger: #e08376;
   --warning: #e0b066;
   --info: #8fb0cf;
   --overlay: rgba(0, 0, 0, 0.55);
+  --sidebar: #101e17;
+  --sidebar-ink: #edf3e9;
+  --sidebar-muted: #a7bfae;
+  --card-shadow: none;
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -56,7 +64,7 @@
   --series-6: #008300;
   --series-7: #9085e9;
   --series-8: #e66767;
-  --chart-grid: #2c241d;
+  --chart-grid: #304237;
   color-scheme: dark;
 }
 
@@ -92,12 +100,42 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  line-height: 1.55;
+}
+
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), a, summary { cursor: pointer; }
+::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.evl-card { box-shadow: var(--card-shadow); }
+.evl-page-header h1 { font-weight: 650; }
+.app-sidebar { background: var(--sidebar); color: var(--sidebar-ink); }
+.app-sidebar .scroll-thin { scrollbar-color: #668271 transparent; }
+.app-sidebar .brand-wordmark { color: var(--sidebar-ink); }
+.app-sidebar .brand-subtitle { color: var(--sidebar-muted); }
+.evl-sidebar-link { color: var(--sidebar-muted); }
+.evl-sidebar-link:hover { background: #ffffff0b; color: var(--sidebar-ink); }
+.evl-sidebar-link[aria-current='page'] { background: #ffffff13; color: var(--sidebar-ink); box-shadow: inset 3px 0 0 #dec493; }
+.evl-sidebar-link[aria-current='page'] svg { color: #ead2a4; }
+.evl-hero { background: #e9eee4; color: #21382d; }
+.dark .evl-hero { background: #213a2b; color: #edf3e9; }
+.evl-kicker { font-size: 10px; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; }
+.evl-tool-link { transition: border-color 160ms ease, transform 160ms ease; }
+.evl-tool-link:hover { border-color: var(--accent); transform: translateY(-2px); }
+.evl-mobile-nav { padding-bottom: env(safe-area-inset-bottom); }
+@media (max-width: 1023px) {
+  #conteudo { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+  body > div:last-child [aria-live='polite'] { bottom: 5rem; }
 }
 
 *:focus-visible {
   outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
   border-radius: 6px;
+}
+
+.app-sidebar :focus-visible,
+section[aria-labelledby='proximo-passo'] :focus-visible {
+  outline-color: #ead2a4;
 }
 
 /* Itens de grid podem encolher: evita que textos/controles alarguem a página. */
@@ -124,6 +162,7 @@ body:has(.video-classroom) .global-timer-alert {
 body:has(.video-classroom[data-theater='true']) .app-sidebar,
 body:has(.video-classroom[data-theater='true']) .app-top,
 body:has(.video-classroom[data-theater='true']) .app-tabs,
+body:has(.video-classroom[data-theater='true']) .evl-mobile-nav,
 body:has(.video-classroom[data-theater='true']) .video-page > :first-child {
   display: none;
 }
@@ -213,6 +252,7 @@ body:has(.video-classroom[data-theater='true']) #conteudo {
 @media print {
   aside,
   header,
+  .evl-mobile-nav,
   .no-print {
     display: none !important;
   }

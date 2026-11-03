@@ -34,7 +34,7 @@ const clockSeconds = async () => {
 await step('abre o app em modo local', async () => {
   await page.goto(BASE)
   await page.getByText('Modo local:').waitFor()
-  await page.getByRole('heading', { name: 'Visão geral' }).first().waitFor()
+  await page.getByRole('heading', { level: 1, name: /Bom dia|Boa tarde|Boa noite/ }).waitFor()
 })
 
 await step('cria matéria', async () => {

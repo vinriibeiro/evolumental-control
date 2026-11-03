@@ -27,8 +27,11 @@ const AudiosPage = lazy(() => import('@/pages/audios/AudiosPage'))
 const VideosPage = lazy(() => import('@/pages/videos/VideosPage'))
 const CoursesPage = lazy(() => import('@/pages/courses/CoursesPage'))
 const CoursePage = lazy(() => import('@/pages/courses/CoursePage'))
+const CoursePdfReaderPage = lazy(() => import('@/pages/courses/CoursePdfReaderPage'))
 const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
 const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
+const PdfReaderPage = lazy(() => import('@/pages/library/PdfReaderPage'))
+const ChallengesPage = lazy(() => import('@/pages/challenges/ChallengesPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -77,7 +80,9 @@ export function App() {
                   <Route path="videos" element={<VideosPage />} />
                   <Route path="cursos" element={<CoursesPage />} />
                   <Route path="cursos/:id" element={<CoursePage />} />
+                  <Route path="cursos/:id/pdf/:itemId" element={<CoursePdfReaderPage />} />
                   <Route path="biblioteca" element={<LibraryPage />} />
+                  <Route path="biblioteca/pdf/:id" element={<PdfReaderPage />} />
                   <Route path="biblioteca/:id" element={<ReaderPage />} />
                   <Route path="flashcards" element={<DecksPage />} />
                   <Route path="flashcards/revisar" element={<StudyCardsPage />} />
@@ -85,6 +90,7 @@ export function App() {
                   <Route path="revisoes" element={<ReviewsPage />} />
                   <Route path="questoes" element={<QuestionsPage />} />
                   <Route path="banco-de-questoes" element={<QuestionBankPage />} />
+                  <Route path="banco-de-questoes/desafios" element={<ChallengesPage />} />
                   <Route path="metas" element={<GoalsPage />} />
                   <Route path="relatorios" element={<ReportsPage />} />
                   <Route path="configuracoes" element={<SettingsPage />} />

@@ -76,7 +76,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface/60 px-5 py-4 sm:px-7">
         <span className="size-2.5 shrink-0 rounded-full" style={{ background: lookups.subjectColor(s.subject_id) }} />
         <span className="min-w-0 truncate text-sm font-medium text-ink">
           {lookups.subjectName(s.subject_id)}
@@ -87,10 +87,15 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
         <Badge>{MODE_LABELS[s.mode]}</Badge>
       </div>
 
-      <div className="flex flex-col items-center px-4 py-8 sm:py-10">
-        <div className="relative flex aspect-square w-full max-w-[22rem] items-center justify-center">
+      <div className="flex flex-col items-center px-4 py-7 sm:py-9">
+        <span className={cn('mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium', paused ? 'border-line bg-surface text-muted' : 'border-accent/25 bg-accent/10 text-ink')}>
+          <span className={cn('size-1.5 rounded-full', paused ? 'bg-muted' : 'bg-accent-strong')} aria-hidden />
+          {inBreak ? 'Intervalo para recarregar' : paused ? 'Seu tempo está pausado' : 'Um momento só para aprender'}
+        </span>
+        <div className="relative flex aspect-square w-full max-w-[22rem] items-center justify-center rounded-full bg-surface/50">
           <svg viewBox="0 0 200 200" className="absolute inset-0 size-full -rotate-90" aria-hidden>
-            <circle cx="100" cy="100" r="92" fill="none" stroke="var(--border)" strokeWidth="6" />
+            <circle cx="100" cy="100" r="82" fill="none" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="1 5" />
+            <circle cx="100" cy="100" r="92" fill="none" stroke="var(--border)" strokeWidth="3" />
             {ringPct != null && (
               <circle
                 cx="100"
@@ -98,7 +103,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
                 r="92"
                 fill="none"
                 stroke={st.phase?.kind === 'break' ? 'var(--info)' : 'var(--accent-strong)'}
-                strokeWidth="6"
+                strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={2 * Math.PI * 92}
                 strokeDashoffset={2 * Math.PI * 92 * (1 - ringPct)}
@@ -112,7 +117,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
             </p>
             <p
               className={cn('tabular w-full font-semibold tracking-tight text-ink', paused && !inBreak && 'opacity-60')}
-              style={{ fontSize: 'clamp(2.4rem, 11vw, 4.5rem)', lineHeight: 1.05 }}
+              style={{ fontSize: 'clamp(2.2rem, 9vw, 3.8rem)', lineHeight: 1.2 }}
               aria-live="off"
             >
               {formatClock(mainSeconds)}
@@ -154,7 +159,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
           </div>
         )}
 
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-7 flex w-full max-w-sm flex-wrap items-center justify-center gap-3 [&>button]:flex-1">
           {inBreak ? (
             <Button variant="primary" size="lg" icon={<Play className="size-5" />} onClick={() => act(() => actions.nextPhase(s))} loading={actions.pending}>
               Encerrar pausa
@@ -173,7 +178,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
           </Button>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-1">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-1 rounded-xl border border-line bg-surface/50 p-1.5">
           {hasPhase && !st.due && (s.mode === 'pomodoro' || s.mode === 'intervals') && next && (
             <Button size="sm" variant="ghost" icon={<SkipForward className="size-4" />} onClick={() => act(() => actions.nextPhase(s))} disabled={actions.pending}>
               Pular fase
@@ -211,8 +216,8 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
             {settings.sound ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
           </IconButton>
         </div>
-        <p className="mt-4 text-xs text-muted">
-          Iniciada às {formatTime(new Date(s.started_at).getTime(), settings.timezone, settings.hourFormat)} · Barra de espaço pausa e continua
+        <p className="mt-5 text-center text-[11px] leading-relaxed text-muted">
+          Iniciada às {formatTime(new Date(s.started_at).getTime(), settings.timezone, settings.hourFormat)}<span className="mx-2" aria-hidden>·</span><kbd className="rounded border border-line bg-surface px-1.5 py-0.5 font-sans">Espaço</kbd> pausa e continua
         </p>
       </div>
 

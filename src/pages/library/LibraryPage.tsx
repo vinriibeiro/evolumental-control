@@ -1,15 +1,25 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Cloud, CloudOff, Library, Plus, Search, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { ArrowUpRight, BookOpen, Cloud, CloudOff, Library, Plus, Search, ShieldCheck, Trash2, TriangleAlert, X } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
-import { Card, PageHeader, Progress } from '@/components/ui/layout'
+import { Card, PageHeader, Progress, Segmented } from '@/components/ui/layout'
 import { EmptyState, QueryState, errorMessage, useConfirm, useToast } from '@/components/ui/feedback'
 import { useLibrary } from '@/hooks/useLibrary'
 import { filterShelf, formatSize, inProgress, sortShelf } from '@/lib/library'
 import { cloudErrorMessage, type BookRecord } from '@/services/library'
 import { BookCover } from './BookCover'
+import { PdfShelf } from './PdfShelf'
+
+type ShelfFilter = 'all' | 'reading' | 'not_started' | 'completed'
+
+const SHELF_FILTERS: Array<{ value: ShelfFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'reading', label: 'Em leitura' },
+  { value: 'not_started', label: 'Não iniciados' },
+  { value: 'completed', label: 'Concluídos' },
+]
 
 function CloudBadge({ book, cloudOn }: { book: BookRecord; cloudOn: boolean }) {
   if (!cloudOn) return null
@@ -45,6 +55,7 @@ export default function LibraryPage() {
   const confirm = useConfirm()
   const fileInput = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<ShelfFilter>('all')
   const queryKey = ['library', 'books', library.dbName]
 
   const books = useQuery({
@@ -100,8 +111,20 @@ export default function LibraryPage() {
   })
 
   const shelf = useMemo(() => sortShelf(books.data?.books ?? []), [books.data])
-  const visible = useMemo(() => filterShelf(shelf, query), [shelf, query])
+  const visible = useMemo(() => filterShelf(shelf, query).filter((b) => {
+    if (status === 'reading') return inProgress(b)
+    if (status === 'completed') return b.progress >= 100
+    if (status === 'not_started') return !b.lastReadAt && b.progress < 100
+    return true
+  }), [shelf, query, status])
   const reading = useMemo(() => shelf.filter(inProgress).slice(0, 3), [shelf])
+  const readingCount = shelf.filter(inProgress).length
+  const completedCount = shelf.filter((b) => b.progress >= 100).length
+  const hasFilters = Boolean(query.trim() || status !== 'all')
+  const clearFilters = () => {
+    setQuery('')
+    setStatus('all')
+  }
 
   const onPick = (list: FileList | null) => {
     const files = Array.from(list ?? [])
@@ -132,9 +155,14 @@ export default function LibraryPage() {
     <div>
       <PageHeader
         title="Biblioteca"
-        description="Seus livros em EPUB para ler aqui mesmo, no estilo Kindle: continua de onde parou, com marcadores e temas."
+        description="Seus PDFs e livros, em um só espaço. Leia, marque o que importa e retome de onde parou."
         actions={addButton}
       />
+      <PdfShelf />
+      <div className="mb-5">
+        <h2 className="text-lg font-semibold tracking-tight text-ink">Livros em EPUB</h2>
+        <p className="mt-1 text-sm text-muted">Sua estante com temas de leitura, marcadores e progresso.</p>
+      </div>
       <input
         ref={fileInput}
         type="file"
@@ -164,21 +192,42 @@ export default function LibraryPage() {
           />
         ) : (
           <div className="space-y-8">
-            {reading.length > 0 && !query && (
+            <section aria-label="Resumo da biblioteca" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[
+                { label: 'Na sua estante', value: shelf.length, detail: 'livros para explorar' },
+                { label: 'Em leitura', value: readingCount, detail: 'leituras em andamento' },
+                { label: 'Concluídos', value: completedCount, detail: 'leituras finalizadas' },
+                { label: 'Para começar', value: shelf.length - readingCount - completedCount, detail: 'novas descobertas' },
+              ].map((stat) => (
+                <Card key={stat.label} className="p-4 sm:p-5">
+                  <p className="text-xs font-medium text-muted">{stat.label}</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight text-ink tabular-nums">{stat.value}</p>
+                  <p className="mt-1 text-xs text-muted">{stat.detail}</p>
+                </Card>
+              ))}
+            </section>
+            {reading.length > 0 && !hasFilters && (
               <section aria-labelledby="continuar">
-                <h2 id="continuar" className="mb-3 text-sm font-semibold text-ink">
-                  Continuar lendo
-                </h2>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mb-4 flex items-center gap-3">
+                  <span className="flex size-9 items-center justify-center rounded-xl bg-accent/10 text-accent-strong"><BookOpen className="size-4" aria-hidden /></span>
+                  <div>
+                    <h2 id="continuar" className="text-base font-semibold tracking-tight text-ink">Continuar lendo</h2>
+                    <p className="mt-0.5 text-xs text-muted">Sua próxima página está esperando.</p>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {reading.map((b) => (
-                    <Link key={b.id} to={`/biblioteca/${b.id}`} aria-label={`Continuar lendo ${b.title}`} className="block">
-                      <Card className="flex gap-3 p-3 transition-colors hover:bg-surface">
-                        <BookCover book={b} className="w-16 shrink-0" />
+                    <Link key={b.id} to={`/biblioteca/${b.id}`} aria-label={`Continuar lendo ${b.title}`} className="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+                      <Card className="flex h-full gap-4 border-accent/20 bg-accent/5 p-4 transition-colors hover:border-accent/40">
+                        <BookCover book={b} className="w-20 shrink-0 shadow-sm" />
                         <div className="min-w-0 flex-1 self-center">
-                          <p className="line-clamp-2 text-sm font-medium text-ink">{b.title}</p>
-                          <p className="mt-0.5 truncate text-xs text-muted">{b.author}</p>
-                          <Progress value={b.progress} className="mt-3" label={`Progresso de ${b.title}`} />
-                          <p className="mt-1 text-xs text-muted">{b.progress}% lido</p>
+                          <p className="line-clamp-2 text-sm leading-snug font-semibold text-ink">{b.title}</p>
+                          <p className="mt-1 truncate text-xs text-muted">{b.author}</p>
+                          <Progress value={b.progress} className="mt-4 h-1.5" label={`Progresso de ${b.title}`} />
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted">{b.progress}% lido</p>
+                            <ArrowUpRight className="size-4 text-accent-strong transition-transform group-hover:translate-x-0.5" aria-hidden />
+                          </div>
                         </div>
                       </Card>
                     </Link>
@@ -188,25 +237,35 @@ export default function LibraryPage() {
             )}
 
             <section aria-labelledby="estante">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 id="estante" className="text-sm font-semibold text-ink">
-                  Estante · {shelf.length} {shelf.length === 1 ? 'livro' : 'livros'}
-                </h2>
-                <div className="relative w-full sm:w-72">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
-                  <Input className="pl-9" placeholder="Buscar por título ou autor" aria-label="Buscar livro" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <Card className="mb-6 space-y-4 p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                  <h2 id="estante" className="text-base font-semibold tracking-tight text-ink">
+                    Estante · {shelf.length} {shelf.length === 1 ? 'livro' : 'livros'}
+                  </h2>
+                  <p className="mt-1 text-xs text-muted">Organizada pela sua leitura mais recente.</p>
+                  </div>
+                  <div className="relative w-full sm:w-72">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
+                    <Input className="pl-9" placeholder="Buscar por título ou autor" aria-label="Buscar livro" value={query} onChange={(e) => setQuery(e.target.value)} />
+                  </div>
                 </div>
-              </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Segmented value={status} onChange={setStatus} options={SHELF_FILTERS} label="Situação da leitura" />
+                  {hasFilters && visible.length > 0 && <Button size="sm" variant="ghost" icon={<X className="size-3.5" aria-hidden />} onClick={clearFilters}>Limpar filtros</Button>}
+                </div>
+              </Card>
+              {hasFilters && visible.length > 0 && <p className="mb-4 text-xs text-muted" aria-live="polite">{visible.length} {visible.length === 1 ? 'livro encontrado' : 'livros encontrados'}</p>}
               {visible.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">Nenhum livro encontrado para "{query}".</p>
+                <EmptyState icon={<Search className="size-7" aria-hidden />} title="Nenhum livro encontrado" description={query.trim() ? `Nenhum título ou autor corresponde a “${query.trim()}” com os filtros atuais.` : 'Não há livros com essa situação de leitura. Experimente outro filtro.'} action={<Button onClick={clearFilters}>Limpar filtros</Button>} />
               ) : (
-                <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                <ul className="grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                   {visible.map((b) => (
                     <li key={b.id} className="group relative flex flex-col">
                       <Link to={`/biblioteca/${b.id}`} aria-label={`Abrir ${b.title}`} className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
-                        <BookCover book={b} className="transition-transform group-hover:-translate-y-0.5 group-hover:shadow-md" />
-                        <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-ink">{b.title}</p>
-                        <p className="mt-0.5 truncate text-xs text-muted">{b.author}</p>
+                        <div className="rounded-2xl border border-line bg-surface p-3 sm:p-4"><BookCover book={b} className="shadow-sm transition-transform group-hover:-translate-y-1 group-hover:shadow-md" /></div>
+                        <p className="mt-3 line-clamp-2 text-sm font-semibold leading-snug text-ink">{b.title}</p>
+                        <p className="mt-1 truncate text-xs text-muted">{b.author}</p>
                       </Link>
                       <div className="mt-2 flex items-center gap-2">
                         <Progress value={b.progress} className="h-1.5 flex-1" label={`Progresso de ${b.title}`} />
@@ -220,7 +279,7 @@ export default function LibraryPage() {
                         label={`Remover ${b.title}`}
                         size="sm"
                         variant="secondary"
-                        className="absolute right-1 top-1 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
+                        className="absolute right-2 top-2 opacity-100 sm:opacity-0 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100"
                         onClick={() => void askRemove(b)}
                       >
                         <Trash2 className="size-4" aria-hidden />
@@ -238,7 +297,7 @@ export default function LibraryPage() {
         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
         {cloudOn ? (
           <span>
-            Seus livros ficam num espaço privado da sua conta (só você acessa, depois do login) e aparecem em qualquer aparelho em que você entrar. Eles também ficam guardados no aparelho, para
+            Seus livros em EPUB ficam num espaço privado da sua conta (só você acessa, depois do login) e aparecem em qualquer aparelho em que você entrar. Eles também ficam guardados no aparelho, para
             ler sem internet. Livros com mais de 50 MB ficam só no aparelho em que foram adicionados.
           </span>
         ) : (

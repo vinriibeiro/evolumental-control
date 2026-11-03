@@ -9,7 +9,7 @@ Aba **Biblioteca → Cursos** (`/cursos`): catálogo de cursos montado a partir 
 | **Google Drive** | Os arquivos (vídeos, PDFs, documentos…). Continuam lá, com as permissões de sempre. |
 | **App (local ou Supabase)** | Só referências: IDs do Drive, nomes, tipos (MIME), tamanho, hierarquia, ordem, nome personalizado, ocultação, vínculo com matéria/tópico e o progresso (concluído, último acesso). |
 
-O app **não** copia, baixa, faz cache, converte nem retransmite arquivos (sem proxy, sem Supabase Storage, sem base64). O carregamento acontece direto do Google para o navegador, no visualizador incorporado.
+A visualização padrão carrega o arquivo diretamente no visualizador incorporado do Google. Para PDFs, **Ler e marcar PDF** abre o leitor próprio após autorização de leitura: os bytes são carregados pela API do Drive somente na memória da aba; as marcações ficam separadas no navegador. Não há cópia persistente do arquivo do curso, proxy, upload ou alteração do original no Drive. Veja [Leitor PDF](LEITOR-PDF.md) para configuração, exportação e limites.
 
 - **Modo local:** catálogo e progresso ficam no IndexedDB **deste navegador**.
 - **Supabase:** tabelas `course_sources`, `course_nodes` e `course_progress`, com RLS por usuário; sincronizam entre aparelhos da mesma conta.

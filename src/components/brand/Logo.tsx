@@ -22,7 +22,7 @@ export function LogoMark({ variant = 'tile', className, title = 'VLM Control' }:
       <title>{title}</title>
       {variant === 'tile' ? (
         <>
-          <rect width="64" height="64" rx="14" fill="#3B2B20" />
+          <rect width="64" height="64" rx="18" fill="#234F3B" />
           <g transform="translate(6.4 6.4) scale(0.8)" fill="none" stroke="#F5DEB3" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round">
             {strokes}
           </g>
@@ -40,8 +40,8 @@ export function LogoMark({ variant = 'tile', className, title = 'VLM Control' }:
 export function Wordmark({ className, compact }: { className?: string; compact?: boolean }) {
   return (
     <span className={cn('flex min-w-0 flex-col leading-none', className)}>
-      <span className="truncate text-[15px] font-bold tracking-tight text-ink">VLM</span>
-      {!compact && <span className="mt-1 text-[10px] font-medium tracking-[0.28em] text-muted">CONTROL</span>}
+      <span className="brand-wordmark truncate text-[21px] font-bold tracking-[-0.05em] text-ink">VLM<span className="ml-1.5 font-normal tracking-tight">Control</span></span>
+      {!compact && <span className="brand-subtitle mt-1.5 text-[9px] font-medium tracking-[0.2em] text-muted">ESPAÇO PARA EVOLUIR</span>}
     </span>
   )
 }
@@ -49,7 +49,7 @@ export function Wordmark({ className, compact }: { className?: string; compact?:
 export function Logo({ className, collapsed }: { className?: string; collapsed?: boolean }) {
   return (
     <span className={cn('flex min-w-0 items-center gap-2.5', className)}>
-      <LogoMark className="size-9" />
+      <LogoMark className="size-10" />
       {!collapsed && <Wordmark />}
     </span>
   )
