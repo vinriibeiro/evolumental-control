@@ -5,6 +5,7 @@ export interface ChallengeState {
   level: ChallengeLevel
   selectedId: string | null
   completed: string[]
+  verified: string[]
   drafts: Record<string, string>
 }
 
@@ -20,10 +21,11 @@ export interface ChallengePatch {
   selectedId?: string | null
   drafts?: Record<string, string>
   completed?: Record<string, boolean>
+  verified?: Record<string, boolean>
 }
 
 export function initialChallengeState(): ChallengeState {
-  return { track: 'python', level: 'first_steps', selectedId: null, completed: [], drafts: {} }
+  return { track: 'python', level: 'first_steps', selectedId: null, completed: [], verified: [], drafts: {} }
 }
 
 /** Aceita apenas desafios conhecidos; evita duplicar progresso ao recuperar dados locais. */
@@ -45,6 +47,7 @@ export function parseChallengeState(raw: string | null): ChallengeState {
     level: LEVELS.some((level) => level.value === saved.level) ? saved.level as ChallengeLevel : initial.level,
     selectedId: typeof saved.selectedId === 'string' && known.has(saved.selectedId) ? saved.selectedId : null,
     completed: [...new Set(Array.isArray(saved.completed) ? saved.completed.filter((id): id is string => typeof id === 'string' && known.has(id)) : [])],
+    verified: [],
     drafts,
   }
 }
@@ -76,24 +79,38 @@ export function readChallengeState(storage: ChallengeStorage, scope: string): { 
   if (LEVELS.some((item) => item.value === level)) state.level = level as ChallengeLevel
   if (selected === null || (typeof selected === 'string' && knownIds.has(selected))) state.selectedId = selected
   const completed = new Set(state.completed)
+  const verified = new Set<string>()
   for (const id of knownIds) {
     const draft = read(`draft:${id}`)
     const done = read(`completed:${id}`)
     if (typeof draft === 'string') state.drafts[id] = draft
     if (done === true) completed.add(id)
     if (done === false) completed.delete(id)
+    if (read(`verified:${id}`) === true) verified.add(id)
   }
-  return { state: { ...state, completed: [...completed] }, warning }
+  return { state: { ...state, completed: [...completed], verified: [...verified] }, warning }
 }
 
 export function mergeChallengePatches(earlier: ChallengePatch, latest: ChallengePatch): ChallengePatch {
-  return { ...earlier, ...latest, drafts: { ...earlier.drafts, ...latest.drafts }, completed: { ...earlier.completed, ...latest.completed } }
+  return {
+    ...earlier,
+    ...latest,
+    drafts: { ...earlier.drafts, ...latest.drafts },
+    completed: { ...earlier.completed, ...latest.completed },
+    verified: { ...earlier.verified, ...latest.verified },
+  }
 }
 
 export function applyChallengePatch(state: ChallengeState, patch: ChallengePatch): ChallengeState {
   const completed = new Set(state.completed)
   for (const [id, done] of Object.entries(patch.completed ?? {})) {
     if (knownIds.has(id)) { if (done) completed.add(id); else completed.delete(id) }
+  }
+  const verified = new Set(state.verified)
+  for (const [id, passed] of Object.entries(patch.verified ?? {})) {
+    if (!knownIds.has(id)) continue
+    if (passed) verified.add(id)
+    else verified.delete(id)
   }
   return {
     ...state,
@@ -102,6 +119,7 @@ export function applyChallengePatch(state: ChallengeState, patch: ChallengePatch
     ...(patch.selectedId !== undefined ? { selectedId: patch.selectedId } : {}),
     drafts: { ...state.drafts, ...patch.drafts },
     completed: [...completed],
+    verified: [...verified],
   }
 }
 
@@ -117,12 +135,15 @@ export function persistChallengePatch(storage: ChallengeStorage, scope: string, 
   for (const [id, done] of Object.entries(patch.completed ?? {})) {
     if (knownIds.has(id)) storage.setItem(`${prefix}completed:${id}`, JSON.stringify(done))
   }
+  for (const [id, passed] of Object.entries(patch.verified ?? {})) {
+    if (knownIds.has(id)) storage.setItem(`${prefix}verified:${id}`, JSON.stringify(passed))
+  }
 }
 
 export function challengeBackup(state: ChallengeState, preservedLegacy: string | null = null) {
   return {
     format: 'vlm-challenges', schemaVersion: 2, exportedAt: new Date().toISOString(), state, preservedLegacy,
-    exercises: CHALLENGES.filter((item) => state.completed.includes(item.id) || item.id in state.drafts)
+    exercises: CHALLENGES.filter((item) => state.completed.includes(item.id) || state.verified.includes(item.id) || item.id in state.drafts)
       .map((item) => ({ id: item.id, title: item.title, track: item.track, level: item.level })),
   }
 }

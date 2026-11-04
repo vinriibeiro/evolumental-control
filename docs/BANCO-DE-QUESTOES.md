@@ -14,7 +14,9 @@ Aba **Biblioteca → Banco de questões**. Questões técnicas de TI (múltipla 
 
 Abra **Desafios de código** no topo do Banco de questões ou no atalho da Visão geral (`/banco-de-questoes/desafios`). O laboratório contém 60 exercícios autorais: Python, SQL e Git, cada um com quatro níveis e cinco desafios por nível. Os primeiros exercícios de Python incluem bom dia, saudação pelo nome, história com pausas, raiz quadrada e dobro de um número.
 
-Escolha uma linguagem e um nível, escreva seu rascunho e pratique no seu editor, terminal ou banco de treino. Dicas graduais, critérios de autoavaliação e solução comentada ajudam a conferir o raciocínio. O app não executa código ou comandos. **Gerar próximo desafio** escolhe o próximo exercício pendente do catálogo, sem IA. A conclusão e sua desmarcação são manuais.
+Escolha uma linguagem e estude o conceito, o exemplo explicado e a pergunta de compreensão. Em seguida escreva a solução e use **Testar solução**. O resultado mostra os casos aprovados e o que revisar. A aprovação registra o progresso e oferece a próxima etapa, inclusive quando ela pertence a outro nível. O histórico anterior de autoavaliação fica identificado separadamente.
+
+Python e SQLite executam em ambiente isolado no navegador. O primeiro teste carrega os arquivos do runtime. Git valida os comandos e as etapas de um cenário simulado, com um comando por linha. Dicas graduais e solução comentada ficam disponíveis em cada prática.
 
 Rascunhos e conclusões ficam no localStorage deste navegador, separados por conta. Alterações em desafios diferentes são preservadas entre abas; cada aba mantém sua própria navegação. Se duas abas editarem o mesmo rascunho, vale a última gravação. Não há sincronização com a nuvem. A atualização do formato de armazenamento preserva os dados anteriores; se um registro antigo não puder ser lido, seu original permanece guardado e a tela informa o problema.
 

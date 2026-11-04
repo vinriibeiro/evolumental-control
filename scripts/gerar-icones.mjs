@@ -17,7 +17,7 @@ const STROKES = `
 // "any": cantos arredondados, símbolo grande. "maskable": fundo cheio e
 // símbolo dentro da zona segura (80% central), pois o sistema recorta o ícone.
 const svg = (kind) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
-  <rect width="64" height="64" rx="${kind === 'any' ? 14 : 0}" fill="#3B2B20"/>
+  <rect width="64" height="64" rx="${kind === 'any' ? 14 : 0}" fill="#234F3B"/>
   <g transform="translate(${kind === 'any' ? '6.4 6.4) scale(0.8' : '12.8 12.8) scale(0.6'})" fill="none" stroke="#F5DEB3" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">${STROKES}</g>
 </svg>`
 

@@ -8,25 +8,26 @@ import { extname, join } from 'node:path'
 
 const pdfjsDirectory = fileURLToPath(new URL('./node_modules/pdfjs-dist/', import.meta.url))
 const pdfAssetDirectories = ['cmaps', 'standard_fonts', 'wasm'] as const
+const practiceDirectory = fileURLToPath(new URL('./node_modules/pyodide/', import.meta.url))
+const practiceFiles = new Set(['pyodide.mjs', 'pyodide.asm.mjs', 'pyodide.asm.wasm', 'python_stdlib.zip', 'pyodide-lock.json'])
 
-/** Recursos auxiliares do leitor; ficam nas dependências e no build, sem binários no Git. */
-function pdfAssets(): Plugin {
+/** Recursos do leitor e do laboratório são copiados das dependências para o build. */
+function runtimeAssets(): Plugin {
   return {
-    name: 'pdfjs-assets',
+    name: 'runtime-assets',
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         if (request.method !== 'GET' && request.method !== 'HEAD') return next()
-        const match = /^\/pdfjs\/(cmaps|standard_fonts|wasm)\/([A-Za-z0-9_.-]+)$/.exec((request.url ?? '').split('?')[0])
-        if (!match) return next()
-        const [, directory, name] = match
-        if (name === '.' || name === '..') {
-          response.statusCode = 404
-          return response.end('Recurso não encontrado')
-        }
+        const path = (request.url ?? '').split('?')[0]
+        const pdf = /^\/pdfjs\/(cmaps|standard_fonts|wasm)\/([A-Za-z0-9_.-]+)$/.exec(path)
+        const practice = /^\/practice-runtime\/([A-Za-z0-9_.-]+)$/.exec(path)
+        const filename = pdf && !['.', '..'].includes(pdf[2]) ? join(pdfjsDirectory, pdf[1], pdf[2])
+          : practice && practiceFiles.has(practice[1]) ? join(practiceDirectory, practice[1]) : null
+        if (!filename) return next()
         try {
-          const source = readFileSync(join(pdfjsDirectory, directory, name))
-          const mime: Record<string, string> = { '.wasm': 'application/wasm', '.js': 'text/javascript', '.ttf': 'font/ttf', '.otf': 'font/otf' }
-          response.setHeader('Content-Type', mime[extname(name)] ?? 'application/octet-stream')
+          const source = readFileSync(filename)
+          const mime: Record<string, string> = { '.wasm': 'application/wasm', '.js': 'text/javascript', '.mjs': 'text/javascript', '.ttf': 'font/ttf', '.otf': 'font/otf', '.zip': 'application/zip', '.json': 'application/json' }
+          response.setHeader('Content-Type', mime[extname(filename)] ?? 'application/octet-stream')
           response.setHeader('Content-Length', source.length)
           response.end(request.method === 'HEAD' ? undefined : source)
         } catch {
@@ -42,12 +43,15 @@ function pdfAssets(): Plugin {
           this.emitFile({ type: 'asset', fileName: `pdfjs/${directory}/${file.name}`, source: readFileSync(join(pdfjsDirectory, directory, file.name)) })
         }
       }
+      for (const name of practiceFiles) {
+        this.emitFile({ type: 'asset', fileName: `practice-runtime/${name}`, source: readFileSync(join(practiceDirectory, name)) })
+      }
     },
   }
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), pdfAssets()],
+  plugins: [react(), tailwindcss(), runtimeAssets()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
