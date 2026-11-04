@@ -18,6 +18,7 @@ import { addManualSession } from '@/services/sessions'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/cn'
 import type { Flashcard } from '@/types/db'
+import { QuestionTranslation } from './QuestionTranslation'
 
 type Mode = 'vencidos' | 'todos' | 'aleatorio' | 'selecionados' | 'continuo'
 const MODE_TITLES: Record<Mode, string> = {
@@ -204,9 +205,10 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || continuous) return
+      const target = e.target instanceof Element ? e.target : null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]') || continuous) return
       if ((e.code === 'Space' || e.key === 'Enter') && !revealed) {
+        if (target?.closest('button, a[href]')) return
         e.preventDefault()
         reveal()
       } else if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
@@ -287,6 +289,7 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
           </div>
           <p className="text-xs font-medium tracking-wide text-muted uppercase">Pergunta</p>
           <p className="mt-2 text-lg leading-relaxed break-words whitespace-pre-wrap text-ink sm:text-xl">{card.front}</p>
+          {!continuous && card.front.trim() && <QuestionTranslation key={`${idx}:${card.id}`} question={card.front} />}
           {revealed ? (
             <div className="animate-fade-in mt-6 border-t border-line pt-6">
               <p className="text-xs font-medium tracking-wide text-muted uppercase">Resposta</p>

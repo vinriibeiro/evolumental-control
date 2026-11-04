@@ -4,7 +4,7 @@ import { cn } from '@/lib/cn'
  * Símbolo VLM Control: livro aberto (conhecimento), relógio (tempo) e
  * seta ascendente (evolução) — o ponteiro do relógio é a própria seta.
  * Cor institucional: Wheat #F5DEB3. A variante "tile" aplica o símbolo sobre
- * fundo marrom profundo para garantir contraste em fundos claros.
+ * fundo verde floresta para garantir contraste em fundos claros.
  */
 export function LogoMark({ variant = 'tile', className, title = 'VLM Control' }: { variant?: 'tile' | 'plain'; className?: string; title?: string }) {
   const strokes = (

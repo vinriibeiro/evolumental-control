@@ -69,6 +69,15 @@ describe('persistência independente de desafios', () => {
     expect(storage.getItem(challengeStorageKey('conta'))).toBe(legacy)
   })
 
+  it('preserva autoavaliações anteriores e registra aprovações por teste separadamente', () => {
+    const storage = makeStorage().instance()
+    storage.setItem(challengeStorageKey('conta'), JSON.stringify({ completed: [first.id], drafts: { [first.id]: 'Tentativa anterior' } }))
+    persistChallengePatch(storage, 'conta', { verified: { [second.id]: true } })
+    expect(readChallengeState(storage, 'conta').state).toMatchObject({
+      completed: [first.id], verified: [second.id], drafts: { [first.id]: 'Tentativa anterior' },
+    })
+  })
+
   it('mantém o original inválido após leitura e após uma nova edição', () => {
     const shared = makeStorage()
     const storage = shared.instance()
