@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, BookOpen, CheckCircle2, Copy, Lightbulb, Play, Square, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge, Card } from '@/components/ui/layout'
 import { useToast } from '@/components/ui/feedback'
 import { LEVELS, TRACKS, type Challenge } from './catalog'
-import { checkGit, gitContext, gitSolution, type PracticeResult } from './gitPractice'
+import { checkGit, gitContext, gitSolution } from './gitPractice'
 import { LESSONS, type LessonCheckpoint } from './lessons'
+import { CaseDetailView } from './PracticeFeedback'
+import type { PracticeResult } from './practiceTypes'
+import type { Variation } from './variations'
 
 function Checkpoint({ checkpoint }: { checkpoint: LessonCheckpoint }) {
   const [answer, setAnswer] = useState<number | null>(null)
@@ -32,6 +35,9 @@ function Checkpoint({ checkpoint }: { checkpoint: LessonCheckpoint }) {
   )
 }
 
+const HINT_LABELS = ['Dica 1 · O conceito', 'Dica 2 · A estratégia']
+const HINT_ACTIONS = ['Dica 1: o conceito', 'Dica 2: a estratégia']
+
 function Prompt({ challenge }: { challenge: Challenge }) {
   const taskSeparator = '\n\nTarefa\n'
   if (challenge.track === 'git') {
@@ -57,18 +63,23 @@ function Prompt({ challenge }: { challenge: Challenge }) {
   return <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink">{task}</p>
 }
 
-export function ExercisePractice({ challenge, draft, verified, legacyDone, onDraft, onPassed, onNext, nextTitle }: {
-  challenge: Challenge
+export function ExercisePractice({ challenge, draft, verified, legacyDone, onDraft, onPassed, onFailed, onNext, nextTitle, nextLabel = 'Próxima etapa', notice }: {
+  challenge: Challenge | Variation
   draft: string
   verified: boolean
   legacyDone: boolean
   onDraft: (value: string) => void
   onPassed: () => void
+  /** Chamado quando o teste roda e o aluno ainda não acertou (nunca em falha do ambiente). */
+  onFailed?: () => void
   onNext: () => void
   nextTitle?: string
+  nextLabel?: string
+  notice?: ReactNode
 }) {
   const toast = useToast()
-  const lesson = LESSONS[challenge.id]
+  const variation = 'baseId' in challenge
+  const lesson = LESSONS['baseId' in challenge ? challenge.baseId : challenge.id]
   const execution = useRef<AbortController | null>(null)
   const [hints, setHints] = useState(0)
   const [running, setRunning] = useState(false)
@@ -92,6 +103,7 @@ export function ExercisePractice({ challenge, draft, verified, legacyDone, onDra
       if (attempt.signal.aborted) return
       setResult(checked)
       if (checked.passed) onPassed()
+      else onFailed?.()
     } catch (cause) {
       if (!attempt.signal.aborted) setError(cause instanceof Error ? cause.message : 'Não foi possível testar. Tente novamente.')
     } finally {
@@ -122,9 +134,11 @@ export function ExercisePractice({ challenge, draft, verified, legacyDone, onDra
       <header className="border-b border-line p-5 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <Badge className="bg-accent/10 text-accent-strong">{TRACKS.find((track) => track.value === challenge.track)?.label} · {LEVELS.find((level) => level.value === challenge.level)?.label}</Badge>
+          {variation && <Badge className="bg-warning/10 text-warning">Revisão · variação</Badge>}
           {verified && <Badge className="bg-success/10 text-success">Prática aprovada</Badge>}
           {legacyDone && !verified && <Badge>Autoavaliação anterior</Badge>}
         </div>
+        {notice && <div className="mt-3">{notice}</div>}
         <h2 tabIndex={-1} className="mt-3 text-2xl font-semibold tracking-tight text-ink">{challenge.title}</h2>
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted">
           <span>1. Aprenda o conceito</span><span>2. Resolva o exercício</span><span>3. Teste e avance</span>
@@ -159,10 +173,13 @@ export function ExercisePractice({ challenge, draft, verified, legacyDone, onDra
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" loading={running} disabled={running || !draft.trim()} icon={<Play className="size-4" aria-hidden />} onClick={() => void test()}>{running ? 'Executando testes…' : 'Testar solução'}</Button>
           {running && <Button icon={<Square className="size-3.5" aria-hidden />} onClick={cancel}>Cancelar teste</Button>}
-          <Button icon={<Lightbulb className="size-4" aria-hidden />} disabled={hints >= challenge.hints.length} onClick={() => setHints(hints + 1)}>{hints ? 'Próxima dica' : 'Mostrar dica'}</Button>
+          <Button icon={<Lightbulb className="size-4" aria-hidden />} disabled={hints >= challenge.hints.length} onClick={() => setHints(hints + 1)}>{hints >= challenge.hints.length ? 'Sem mais dicas' : HINT_ACTIONS[hints] ?? 'Próxima dica'}</Button>
         </div>
         {running && challenge.track !== 'git' && <p role="status" className="text-xs leading-relaxed text-muted">Preparando o ambiente isolado do navegador. Isso pode levar até um minuto; você pode cancelar a qualquer momento.</p>}
-        {hints > 0 && <ol className="list-inside list-decimal space-y-2 rounded-xl border border-line bg-surface-2 p-4 text-sm text-muted">{challenge.hints.slice(0, hints).map((hint) => <li key={hint}>{hint}</li>)}</ol>}
+        {hints > 0 && <div className="space-y-2 rounded-xl border border-line bg-surface-2 p-4 text-sm text-muted" aria-live="polite">
+          <ol className="space-y-2">{challenge.hints.slice(0, hints).map((hint, index) => <li key={hint}><strong className="block text-xs text-ink">{HINT_LABELS[index] ?? `Dica ${index + 1}`}</strong>{hint}{index === 0 && lesson ? ' Releia “Aprenda o conceito” acima.' : ''}</li>)}</ol>
+          {hints >= challenge.hints.length && <p className="border-t border-line pt-2 text-xs">Ainda travado? A solução comentada continua disponível logo abaixo, quando você quiser consultar.</p>}
+        </div>}
         {error && <p role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">{error}</p>}
         {result && <div className="space-y-3 rounded-xl border border-line p-4" aria-live="polite">
           <p className={`flex items-center gap-2 text-sm font-semibold ${result.passed ? 'text-success' : 'text-danger'}`}>
@@ -170,7 +187,10 @@ export function ExercisePractice({ challenge, draft, verified, legacyDone, onDra
             {result.passed ? 'Você acertou' : 'A solução precisa de ajustes'}
           </p>
           <p className="text-sm text-muted">{result.summary}</p>
-          <ul className="space-y-2">{result.cases.map((item, index) => <li key={`${item.label}-${index}`} className="rounded-lg bg-surface-2 p-3 text-sm"><strong className={item.passed ? 'text-success' : 'text-danger'}>{item.passed ? 'Passou' : 'Falhou'}</strong> <span className="text-ink">· {item.label}</span><p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted">{item.feedback}</p></li>)}</ul>
+          <ul className="space-y-2">{result.cases.map((item, index) => <li key={`${item.label}-${index}`} className="rounded-lg bg-surface-2 p-3 text-sm"><strong className={item.passed ? 'text-success' : 'text-danger'}>{item.passed ? 'Passou' : 'Falhou'}</strong> <span className="text-ink">· {item.label}</span>
+            {(item.passed || !item.detail?.explanation) && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted">{item.feedback}</p>}
+            {item.detail && <CaseDetailView detail={item.detail} passed={item.passed} />}
+          </li>)}</ul>
           {result.output && <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-surface-2 p-3 font-mono text-xs text-ink"><code>{result.output}</code></pre>}
         </div>}
         <details className="rounded-xl border border-line">
@@ -180,7 +200,7 @@ export function ExercisePractice({ challenge, draft, verified, legacyDone, onDra
             <Button size="sm" icon={<Copy className="size-3.5" aria-hidden />} onClick={() => void copy(solution)}>Copiar solução</Button>
           </div>
         </details>
-        {verified && nextTitle && <Button variant="primary" icon={<ArrowRight className="size-4" aria-hidden />} onClick={onNext}>Próxima etapa · {nextTitle}</Button>}
+        {verified && (nextTitle || variation) && <Button variant="primary" icon={<ArrowRight className="size-4" aria-hidden />} onClick={onNext}>{nextTitle ? `${nextLabel} · ${nextTitle}` : nextLabel}</Button>}
       </section>
     </Card>
   )

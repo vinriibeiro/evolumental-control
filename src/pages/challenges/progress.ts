@@ -1,4 +1,6 @@
 import { CHALLENGES, LEVELS, TRACKS, type Challenge, type ChallengeLevel, type ChallengeTrack } from './catalog'
+import { parseReviewRecord, type ReviewRecord } from './review'
+import { VARIATIONS } from './variations'
 
 export interface ChallengeState {
   track: ChallengeTrack
@@ -7,12 +9,17 @@ export interface ChallengeState {
   completed: string[]
   verified: string[]
   drafts: Record<string, string>
+  /** Erros por conceito (fila de revisão). Chaves novas, separadas de rascunhos e aprovações. */
+  reviews: Record<string, ReviewRecord>
+  /** Rascunhos das variações de revisão, por id da variação. */
+  reviewDrafts: Record<string, string>
 }
 
 export const challengeStorageKey = (scope: string) => `${scope}:challenges:v1`
 export const challengeStoragePrefix = (scope: string) => `${scope}:challenges:v2:`
 type ChallengeStorage = Pick<Storage, 'getItem' | 'setItem'>
 const knownIds = new Set(CHALLENGES.map((challenge) => challenge.id))
+const variationIds = new Set(VARIATIONS.map((variation) => variation.id))
 
 /** Somente propriedades explicitamente alteradas são gravadas. */
 export interface ChallengePatch {
@@ -22,10 +29,12 @@ export interface ChallengePatch {
   drafts?: Record<string, string>
   completed?: Record<string, boolean>
   verified?: Record<string, boolean>
+  reviews?: Record<string, ReviewRecord>
+  reviewDrafts?: Record<string, string>
 }
 
 export function initialChallengeState(): ChallengeState {
-  return { track: 'python', level: 'first_steps', selectedId: null, completed: [], verified: [], drafts: {} }
+  return { track: 'python', level: 'first_steps', selectedId: null, completed: [], verified: [], drafts: {}, reviews: {}, reviewDrafts: {} }
 }
 
 /** Aceita apenas desafios conhecidos; evita duplicar progresso ao recuperar dados locais. */
@@ -49,6 +58,8 @@ export function parseChallengeState(raw: string | null): ChallengeState {
     completed: [...new Set(Array.isArray(saved.completed) ? saved.completed.filter((id): id is string => typeof id === 'string' && known.has(id)) : [])],
     verified: [],
     drafts,
+    reviews: {},
+    reviewDrafts: {},
   }
 }
 
@@ -87,6 +98,12 @@ export function readChallengeState(storage: ChallengeStorage, scope: string): { 
     if (done === true) completed.add(id)
     if (done === false) completed.delete(id)
     if (read(`verified:${id}`) === true) verified.add(id)
+    const review = parseReviewRecord(read(`review:${id}`))
+    if (review) state.reviews[id] = review
+  }
+  for (const id of variationIds) {
+    const draft = read(`reviewdraft:${id}`)
+    if (typeof draft === 'string') state.reviewDrafts[id] = draft
   }
   return { state: { ...state, completed: [...completed], verified: [...verified] }, warning }
 }
@@ -98,6 +115,8 @@ export function mergeChallengePatches(earlier: ChallengePatch, latest: Challenge
     drafts: { ...earlier.drafts, ...latest.drafts },
     completed: { ...earlier.completed, ...latest.completed },
     verified: { ...earlier.verified, ...latest.verified },
+    reviews: { ...earlier.reviews, ...latest.reviews },
+    reviewDrafts: { ...earlier.reviewDrafts, ...latest.reviewDrafts },
   }
 }
 
@@ -120,6 +139,8 @@ export function applyChallengePatch(state: ChallengeState, patch: ChallengePatch
     drafts: { ...state.drafts, ...patch.drafts },
     completed: [...completed],
     verified: [...verified],
+    reviews: { ...state.reviews, ...Object.fromEntries(Object.entries(patch.reviews ?? {}).filter(([id]) => knownIds.has(id))) },
+    reviewDrafts: { ...state.reviewDrafts, ...Object.fromEntries(Object.entries(patch.reviewDrafts ?? {}).filter(([id]) => variationIds.has(id))) },
   }
 }
 
@@ -137,6 +158,12 @@ export function persistChallengePatch(storage: ChallengeStorage, scope: string, 
   }
   for (const [id, passed] of Object.entries(patch.verified ?? {})) {
     if (knownIds.has(id)) storage.setItem(`${prefix}verified:${id}`, JSON.stringify(passed))
+  }
+  for (const [id, record] of Object.entries(patch.reviews ?? {})) {
+    if (knownIds.has(id)) storage.setItem(`${prefix}review:${id}`, JSON.stringify(record))
+  }
+  for (const [id, text] of Object.entries(patch.reviewDrafts ?? {})) {
+    if (variationIds.has(id)) storage.setItem(`${prefix}reviewdraft:${id}`, JSON.stringify(text))
   }
 }
 

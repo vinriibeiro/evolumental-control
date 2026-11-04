@@ -4,12 +4,12 @@ export interface PythonCase {
   check: string
 }
 
-const printNumber = (label: string, input: string[], value: number): PythonCase => ({
+export const printNumber = (label: string, input: string[], value: number): PythonCase => ({
   label,
   input,
   check: `expect_number(output, ${value})`,
 })
-const expectWord = (input: string, word: string): PythonCase => ({
+export const expectWord = (input: string, word: string): PythonCase => ({
   label: `Entrada ${input}`,
   input: [input],
   check: `assert output.strip().casefold() == "${word}".casefold(), "Confira a palavra impressa para esta entrada."`,

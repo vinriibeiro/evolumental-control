@@ -11,6 +11,7 @@ import json
 import math
 import os
 from pathlib import Path
+import pprint
 import re
 import sqlite3
 import sys
@@ -39,9 +40,28 @@ def numeric_output(output):
     return [float(value.replace(",", ".")) for value in re.findall(r"(?<!\w)[+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+)(?:[eE][+-]?\d+)?", output)]
 
 
+class CaseMismatch(AssertionError):
+    """Divergência com valores obtido e esperado, exibidos lado a lado ao aluno."""
+    def __init__(self, message, got, expected):
+        super().__init__(message)
+        self.got = got
+        self.expected = expected
+
+
+def format_value(value, limit=600):
+    text = value if isinstance(value, str) else pprint.pformat(value, width=60, compact=True)
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def number_text(value):
+    return str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+
+
 def expect_number(output, expected):
     values = numeric_output(output)
-    assert values and is_close(values[-1], expected, abs_tol=1e-9), f"O resultado esperado para esta entrada é {expected}."
+    if not (values and is_close(values[-1], expected, abs_tol=1e-9)):
+        shown = output.strip() or "(nada foi impresso)"
+        raise CaseMismatch(f"O resultado esperado para esta entrada é {number_text(expected)}.", shown, number_text(expected))
 
 
 def expect_error(error, fn, *args):
@@ -115,25 +135,134 @@ PYTHON_HINTS = (
 )
 
 
+BRACKETS = {"(": "parêntese", "[": "colchete", "{": "chave"}
+STATEMENTS = {
+    "'if' statement": "o if", "'elif' statement": "o elif", "'else' statement": "o else", "'for' statement": "o for",
+    "'while' statement": "o while", "'try' statement": "o try", "'except' statement": "o except", "'with' statement": "o with",
+    "function definition": "a definição da função (def)", "class definition": "a definição da classe (class)",
+}
+SYNTAX_MESSAGES = (
+    (r"'(.)' was never closed", lambda m: f"O {BRACKETS.get(m[1], 'delimitador')} “{m[1]}” aberto aqui nunca foi fechado. Feche-o antes do fim da instrução."),
+    (r"unterminated string literal", lambda m: "O texto entre aspas não foi fechado. Termine o texto com a mesma aspa, na mesma linha."),
+    (r"unterminated triple-quoted string", lambda m: "O texto com aspas triplas não foi fechado. Termine-o com as mesmas três aspas."),
+    (r"expected ':'", lambda m: "Falta o sinal de dois-pontos (:) no fim desta linha."),
+    (r"expected an indented block after (.+?) on line (\d+)", lambda m: f"Depois de {STATEMENTS.get(m[1], m[1])} (linha {m[2]}), o bloco precisa de recuo. Use 4 espaços."),
+    (r"unexpected indent", lambda m: "Esta linha tem mais recuo do que o esperado. Alinhe-a com o bloco anterior."),
+    (r"unindent does not match", lambda m: "O recuo desta linha não coincide com nenhum bloco anterior. Use sempre 4 espaços por nível."),
+    (r"Missing parentheses in call to 'print'", lambda m: "Em Python 3, print é uma função: escreva print(...) com parênteses."),
+    (r"'return' outside function", lambda m: "return só pode ser usado dentro de uma função (def)."),
+    (r"invalid character '(.+?)' \(U\+([0-9A-F]+)\)", lambda m: f"O caractere «{m[1]}» não é aceito no código. Troque aspas curvas e traços especiais por aspas retas (\" ou ') e sinais comuns."),
+    (r"invalid decimal literal", lambda m: "Há um número colado em letras (como 2x). Separe com um operador, por exemplo 2 * x."),
+    (r"cannot assign to (.+?) here", lambda m: f"Não é possível atribuir um valor a {m[1]}. Para comparar, use ==; para guardar um valor, use um nome de variável à esquerda do =."),
+    (r"expected 'except' or 'finally' block", lambda m: "O bloco try precisa de um except (ou finally) logo depois."),
+    (r"positional argument follows keyword argument", lambda m: "Argumentos nomeados (nome=valor) devem vir depois dos posicionais."),
+    (r"invalid syntax", lambda m: "O Python não entendeu esta instrução. Confira palavras-chave, vírgulas, dois-pontos, operadores e fechamento de parênteses."),
+)
+RUNTIME_MESSAGES = (
+    (NameError, r"name '(.+?)' is not defined", lambda m: f"O nome “{m[1]}” não existe neste ponto. Crie a variável ou função antes de usá-la e confira a grafia."),
+    (ZeroDivisionError, r".*", lambda m: "Houve divisão por zero."),
+    (ValueError, r"invalid literal for int\(\) with base 10: (.+)", lambda m: f"Não é possível converter {m[1]} para inteiro. Verifique se o texto lido contém só dígitos."),
+    (ValueError, r"could not convert string to float: (.+)", lambda m: f"Não é possível converter {m[1]} para número decimal."),
+    (TypeError, r"unsupported operand type\(s\) for (.+?): '(.+?)' and '(.+?)'", lambda m: f"A operação {m[1]} não aceita {m[2]} com {m[3]}. Converta os valores para o mesmo tipo (int() ou float())."),
+    (TypeError, r"can only concatenate str \(not \"(.+?)\"\) to str", lambda m: f"Só é possível juntar texto com texto, mas veio {m[1]}. Converta com str() ou use uma f-string."),
+    (TypeError, r"missing (\d+) required positional argument", lambda m: "A função foi chamada com menos argumentos do que declara."),
+    (TypeError, r"'(.+?)' object is not callable", lambda m: f"Um valor do tipo {m[1]} foi usado como função. Confira se um nome de função foi sobrescrito por uma variável."),
+    (IndexError, r".*", lambda m: "O índice está fora dos limites da sequência."),
+    (KeyError, r".*", lambda m: "A chave procurada não existe no dicionário."),
+    (AttributeError, r"'(.+?)' object has no attribute '(.+?)'", lambda m: f"Um valor do tipo {m[1]} não tem o atributo ou método “{m[2]}”."),
+    (EOFError, r".*", lambda m: "O código chamou input() mais vezes do que o teste fornece."),
+    (RecursionError, r".*", lambda m: "A recursão não termina. Defina um caso-base."),
+)
+
+
+def translate_message(pairs, message):
+    for pattern, build in pairs:
+        found = re.search(pattern, message)
+        if found:
+            return build(found)
+    return ""
+
+
+def translate_runtime(exc):
+    message = str(exc)
+    for kind, pattern, build in RUNTIME_MESSAGES:
+        if isinstance(exc, kind):
+            found = re.search(pattern, message)
+            if found:
+                return build(found)
+    return ""
+
+
 def explain_python_error(exc, source):
-    """Mostra só o trecho do código do aluno, com uma dica em português."""
+    """Localiza a linha do aluno e explica a mensagem em português; retorna (texto, detalhe)."""
     hint = next((text for kind, text in PYTHON_HINTS if isinstance(exc, kind)), "")
     lines = source.splitlines()
 
     def line_text(number):
         return lines[number - 1].strip() if number and 0 < number <= len(lines) else ""
 
-    if isinstance(exc, SyntaxError):
+    syntax = isinstance(exc, SyntaxError)
+    if syntax:
         number = exc.lineno
-        detail = f"{type(exc).__name__}: {exc.msg}"
+        original = f"{type(exc).__name__}: {exc.msg}"
+        explanation = translate_message(SYNTAX_MESSAGES, exc.msg or "") or "O Python não conseguiu interpretar este trecho. Confira a escrita desta linha."
+        kind = "Erro de indentação" if isinstance(exc, IndentationError) else "Erro de sintaxe"
+        code = (exc.text or "").strip() or line_text(number)
     else:
         frames = [frame for frame in traceback.extract_tb(exc.__traceback__) if frame.filename == "exercicio.py"]
         number = frames[-1].lineno if frames else None
-        detail = "".join(traceback.format_exception_only(type(exc), exc)).strip()
+        original = "".join(traceback.format_exception_only(type(exc), exc)).strip()
         if not frames:
-            return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, limit=-3))
-    where = f"Linha {number}: {line_text(number)}\n" if number and line_text(number) else ""
-    return f"{where}{detail}" + (f"\nDica: {hint}" if hint else "")
+            return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__, limit=-3)), {"kind": "Erro durante a execução", "original": original}
+        explanation = translate_runtime(exc) or hint
+        kind = "Erro durante a execução"
+        code = line_text(number)
+    where = f"Linha {number}: {code}\n" if number and code else ""
+    text = f"{where}{explanation}\n{original}" if syntax else f"{where}{original}" + (f"\nDica: {hint}" if hint else "")
+    detail = {"kind": kind, "explanation": explanation, "original": original}
+    if number:
+        detail["line"] = number
+    if code:
+        detail["code"] = code[:300]
+    return text, detail
+
+
+class CheckRewriter(ast.NodeTransformer):
+    """Registra os dois lados de `assert a == b` para mostrar obtido e esperado."""
+    def visit_Assert(self, node):
+        test = node.test
+        if isinstance(test, ast.Compare) and len(test.ops) == 1 and isinstance(test.ops[0], ast.Eq):
+            call = ast.Call(
+                func=ast.Name("_compare", ast.Load()),
+                args=[test.left, test.comparators[0], ast.Constant(ast.unparse(test.left))],
+                keywords=[],
+            )
+            node.test = ast.copy_location(call, test)
+        return node
+
+
+def prepare_check(source):
+    tree = ast.fix_missing_locations(CheckRewriter().visit(ast.parse(source, "<check>")))
+    return compile(tree, "<check>", "exec")
+
+
+def mismatch_detail(exc, mismatch, case, output, message):
+    """Entrada de exemplo, saída obtida e saída esperada de uma verificação que falhou."""
+    typed = case.get("input") or []
+    detail = {"kind": "Resultado diferente do esperado", "explanation": message}
+    if isinstance(exc, CaseMismatch):
+        detail.update(kind="Saída diferente do esperado", got=format_value(exc.got), expected=format_value(exc.expected))
+    elif mismatch:
+        detail.update(kind="Resultado diferente do esperado", got=format_value(mismatch["got"]), expected=format_value(mismatch["expected"]))
+        if not typed:
+            detail["input"] = mismatch["call"][:400]
+    elif output.strip():
+        detail.update(kind="Saída fora do esperado", got=format_value(output))
+    if typed:
+        detail["input"] = "\n".join(typed) if any(typed) else "(apenas Enter)"
+    elif "input" not in detail and not mismatch and "got" in detail:
+        detail["input"] = "(nenhuma entrada)"
+    return detail
 
 
 async def evaluate_python_case(source, case, challenge_id):
@@ -177,6 +306,15 @@ async def evaluate_python_case(source, case, challenge_id):
     student.__dict__["__builtins__"] = dict(vars(builtins), input=simulated_input)
     cwd = os.getcwd()
     error = None
+    detail = None
+    mismatch = {}
+
+    def compare(left, right, text):
+        equal = left == right
+        if not equal:
+            mismatch.update(got=left, expected=right, call=text)
+        return equal
+
     try:
         tree = ast.parse(source, "exercicio.py")
         running_async = challenge_id == "python-advanced-4"
@@ -202,15 +340,21 @@ async def evaluate_python_case(source, case, challenge_id):
                     if challenge_id != "python-advanced-5" or exc.code not in (None, 0):
                         raise AssertionError(f"O programa encerrou com código {exc.code}.") from exc
                 output = out.getvalue()
-                checks = dict(globals(), student=student, output=output, pauses=pauses, timings=timings, tree=tree)
-                exec(case["check"], checks)
+                checks = dict(globals(), student=student, output=output, pauses=pauses, timings=timings, tree=tree, _compare=compare)
+                exec(prepare_check(case["check"]), checks)
             finally:
                 os.chdir(cwd)
     except AssertionError as exc:
         error = str(exc) or "O resultado não atende a este cenário. Confira as entradas e a regra do exercício."
+        detail = mismatch_detail(exc, mismatch, case, out.getvalue(), error)
     except BaseException as exc:
-        error = explain_python_error(exc, source)
-    return {"label": case["label"], "passed": error is None, "feedback": (error or "Resultado correto.")[:1600]}, out.getvalue()
+        error, detail = explain_python_error(exc, source)
+        if out.getvalue().strip():
+            detail["got"] = out.getvalue()[:1500]
+    result = {"label": case["label"], "passed": error is None, "feedback": (error or "Resultado correto.")[:1600]}
+    if detail and error is not None:
+        result["detail"] = detail
+    return result, out.getvalue()
 
 
 def sql_statements(source):
@@ -264,6 +408,7 @@ REQUIRED_ALIASES = {
     "sql-first_steps-5": {"total_pessoas"},
     "sql-basic-2": {"valor_estoque_centavos"},
     "sql-basic-3": {"quantidade_produtos"},
+    "sql-basic-3~v1": {"quantidade_chamados"},
     "sql-basic-4": {"quantidade_produtos"},
     "sql-intermediate-3": {"total_pago_centavos"},
     "sql-intermediate-5": {"mes", "quantidade", "total_centavos"},
@@ -283,22 +428,64 @@ def sql_tokens(source):
     return re.sub(r"""--[^\n]*|/\*[\s\S]*?\*/|'(?:''|[^'])*'|"(?:""|[^"])*"|\x60[^\x60]*\x60|\[[^\]]*\]""", " ", source).upper()
 
 
+class SqlMismatch(AssertionError):
+    """Divergência de SQL com tipo, explicação e as duas tabelas para comparação."""
+    def __init__(self, kind, message, got, expected):
+        super().__init__(message)
+        self.kind = kind
+        self.got = got
+        self.expected = expected
+
+
+def table_detail(result):
+    columns, rows = result
+    return {
+        "columns": list(columns)[:12],
+        "rows": [[("NULL" if value is None else str(value))[:60] for value in row[:12]] for row in rows[:6]],
+        "total": len(rows),
+    }
+
+
 def compare_sql(connection, source, reference, exercise):
-    expected_cols, expected_rows = execute_readonly(connection, reference)
-    columns, rows = execute_readonly(connection, source)
-    assert len(columns) == len(expected_cols), f"Retorne exatamente {len(expected_cols)} colunas, na ordem pedida."
+    expected = execute_readonly(connection, reference)
+    got = execute_readonly(connection, source)
+    expected_cols, expected_rows = expected
+    columns, rows = got
+
+    def mismatch(kind, message):
+        return SqlMismatch(kind, message, got, expected)
+
+    if len(columns) != len(expected_cols):
+        missing = [name for name in expected_cols if name not in columns]
+        extra = [name for name in columns if name not in expected_cols]
+        parts = [f"O enunciado pede {len(expected_cols)} coluna(s) e sua consulta retornou {len(columns)}."]
+        if len(columns) < len(expected_cols):
+            parts.append("Faltam colunas: " + (", ".join(missing) if missing else "confira o enunciado") + ".")
+        else:
+            parts.append("Há colunas a mais: " + (", ".join(extra) if extra else "confira o enunciado") + ".")
+        raise mismatch("Colunas diferentes do esperado", " ".join(parts))
     for index, name in enumerate(expected_cols):
-        if name in REQUIRED_ALIASES.get(exercise, set()):
-            assert columns[index] == name, f"Use o alias {name} na coluna {index + 1}."
+        if name in REQUIRED_ALIASES.get(exercise, set()) and columns[index] != name:
+            raise mismatch("Nome de coluna diferente", f"Dê o apelido {name} (AS {name}) à coluna {index + 1}. Hoje ela se chama {columns[index]}.")
+    if columns != expected_cols and len(set(columns)) == len(columns) and set(columns) == set(expected_cols):
+        raise mismatch("Colunas fora de ordem", "As colunas certas estão presentes, mas em outra ordem. Siga a ordem citada no enunciado.")
     if exercise == "sql-advanced-3":
         rows_equal = sorted(rows, key=repr) == sorted(expected_rows, key=repr)
     else:
         rows_equal = rows == expected_rows
     if not rows_equal and sorted(rows, key=repr) == sorted(expected_rows, key=repr):
-        raise AssertionError("As linhas estão certas, mas a ordem é diferente da pedida. Sem ORDER BY o SQL não garante a ordem: ordene exatamente como o enunciado indica.")
-    assert rows_equal, f"Resultado diferente do esperado. Esperado (até 5 linhas): {expected_rows[:5]!r}. Seu resultado (até 5 linhas): {rows[:5]!r}."
+        raise mismatch("Ordem incorreta", "As linhas estão certas, mas a ordem é diferente da pedida. Sem ORDER BY o SQL não garante a ordem: ordene exatamente como o enunciado indica.")
+    if not rows_equal:
+        if len(rows) < len(expected_rows):
+            message = f"Faltam {len(expected_rows) - len(rows)} linha(s) no seu resultado. Revise filtros (WHERE/HAVING) e junções que descartam linhas."
+        elif len(rows) > len(expected_rows):
+            message = f"Há {len(rows) - len(expected_rows)} linha(s) a mais. Revise filtros, junções que repetem linhas e a necessidade de DISTINCT ou GROUP BY."
+        else:
+            message = "O número de linhas está certo, mas há valores diferentes. Compare as células destacadas."
+        raise mismatch("Resultado divergente", message)
     for pattern in REQUIRED_SQL.get(exercise, ()):
-        assert re.search(pattern, sql_tokens(source)), "A consulta precisa usar a técnica pedida no enunciado."
+        if not re.search(pattern, sql_tokens(source)):
+            raise mismatch("Técnica pedida ausente", "A consulta precisa usar a técnica pedida no enunciado, mesmo que o resultado já pareça igual.")
     return columns, rows
 
 
@@ -355,7 +542,7 @@ def display_rows(result):
 
 
 def explain_sql_error(connection, message):
-    """Traduz erros comuns do SQLite e mostra o que existe no banco de treino."""
+    """Traduz erros comuns do SQLite; retorna (tipo, explicação)."""
     def available(kind):
         connection.set_authorizer(None)
         tables = [row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
@@ -366,30 +553,30 @@ def explain_sql_error(connection, message):
     try:
         found = re.search(r"no such table: (\S+)", message)
         if found:
-            return f'A tabela "{found[1]}" não existe neste exercício. Tabelas disponíveis: {available("tables")}. Confira a grafia.'
+            return "Tabela inexistente", f'A tabela "{found[1]}" não existe neste exercício. Tabelas disponíveis: {available("tables")}. Confira a grafia.'
         found = re.search(r"no such column: (\S+)", message)
         if found:
-            return f'A coluna "{found[1]}" não existe. Colunas disponíveis: {available("columns")}.'
+            return "Coluna inexistente", f'A coluna "{found[1]}" não existe. Colunas disponíveis: {available("columns")}.'
         found = re.search(r"ambiguous column name: (\S+)", message)
         if found:
-            return f'A coluna "{found[1]}" existe em mais de uma tabela. Indique de qual tabela ela vem, por exemplo apelido.{found[1]}.'
+            return "Coluna ambígua", f'A coluna "{found[1]}" existe em mais de uma tabela. Indique de qual tabela ela vem, por exemplo apelido.{found[1]}.'
     except sqlite3.Error:
         pass
     found = re.search(r'near "([^"]*)": syntax error', message)
     if found:
-        return f'Erro de sintaxe perto de "{found[1]}". Confira a grafia das palavras-chave (SELECT, FROM, WHERE...), as vírgulas entre colunas e os parênteses.'
+        return "Erro de sintaxe", f'Erro de sintaxe perto de "{found[1]}". Confira a grafia das palavras-chave (SELECT, FROM, WHERE...), as vírgulas entre colunas e os parênteses.'
     if "incomplete input" in message:
-        return "A consulta está incompleta. Confira se falta alguma cláusula (como FROM ou ORDER BY), algum parêntese ou o ponto e vírgula final."
+        return "Erro de sintaxe", "A consulta está incompleta. Confira se falta alguma cláusula (como FROM ou ORDER BY), algum parêntese ou o ponto e vírgula final."
     if "aggregate" in message and "WHERE" in message:
-        return "Funções de agregação, como COUNT e SUM, não podem ficar no WHERE. Use HAVING para filtrar grupos."
+        return "Agregação no lugar errado", "Funções de agregação, como COUNT e SUM, não podem ficar no WHERE. Use HAVING para filtrar grupos."
     if "misuse of aggregate" in message:
-        return "Uma função de agregação foi usada onde não é permitida. Para filtrar o resultado de COUNT ou SUM, use HAVING."
+        return "Agregação no lugar errado", "Uma função de agregação foi usada onde não é permitida. Para filtrar o resultado de COUNT ou SUM, use HAVING."
     found = re.search(r"no such function: (\S+)", message)
     if found:
-        return f'A função "{found[1]}" não existe no SQLite. Confira a grafia.'
+        return "Função inexistente", f'A função "{found[1]}" não existe no SQLite. Confira a grafia.'
     if "unrecognized token" in message:
-        return "Há um trecho que o SQLite não reconhece. Textos devem ficar entre aspas simples, como 'Ana'."
-    return message
+        return "Erro de sintaxe", "Há um trecho que o SQLite não reconhece. Textos devem ficar entre aspas simples, como 'Ana'."
+    return "Erro ao executar o SQL", message
 
 
 def evaluate_sql_case(request, variant, label):
@@ -404,11 +591,16 @@ def evaluate_sql_case(request, variant, label):
         return {"label": label, "passed": True, "feedback": "Resultado correto no banco de treino."}, display_rows(result)
     except (AssertionError, ValueError, sqlite3.Error) as exc:
         error = str(exc) or "A consulta não atende a este cenário."
-        if "not authorized" in error:
+        detail = {"kind": "Consulta fora do formato pedido", "explanation": error}
+        if isinstance(exc, SqlMismatch):
+            detail = {"kind": exc.kind, "explanation": error, "gotTable": table_detail(exc.got), "expectedTable": table_detail(exc.expected)}
+        elif "not authorized" in error:
             error = "Este exercício limita as instruções às operações pedidas no enunciado."
+            detail = {"kind": "Instrução não permitida", "explanation": error}
         elif isinstance(exc, sqlite3.Error):
-            error = explain_sql_error(connection, error)
-        return {"label": label, "passed": False, "feedback": error[:1600]}, ""
+            kind, error = explain_sql_error(connection, error)
+            detail = {"kind": kind, "explanation": error, "original": str(exc)[:300]}
+        return {"label": label, "passed": False, "feedback": error[:1600], "detail": detail}, ""
     finally:
         connection.close()
 

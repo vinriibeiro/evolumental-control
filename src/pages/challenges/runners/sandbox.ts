@@ -1,6 +1,6 @@
 import workerSource from './runtime.mjs?raw'
 import evaluator from './evaluate.py?raw'
-import type { PracticeResult } from './index'
+import { sanitizeDetail, type PracticeResult } from '../practiceTypes'
 
 // O iframe tem origem opaca. Os blobs só podem ser lidos pelo próprio sandbox.
 // A página pai transfere bytes públicos do runtime, sem tokens, URLs ou dados de conta.
@@ -53,6 +53,17 @@ function validResult(value: unknown): value is PracticeResult {
     entry && typeof entry.label === 'string' && entry.label.length <= 160 &&
     typeof entry.passed === 'boolean' && typeof entry.feedback === 'string' && entry.feedback.length <= 1_600,
   ) && result.passed === result.cases.every((entry) => entry.passed)
+}
+
+/** O detalhe vem do Python do sandbox: só campos conhecidos e limitados chegam à interface. */
+function clean(result: PracticeResult): PracticeResult {
+  return {
+    ...result,
+    cases: result.cases.map(({ label, passed, feedback, detail }) => {
+      const safe = passed ? undefined : sanitizeDetail(detail)
+      return safe ? { label, passed, feedback, detail: safe } : { label, passed, feedback }
+    }),
+  }
 }
 
 async function loadRuntime(signal: AbortSignal) {
@@ -134,7 +145,7 @@ export function runSandbox(request: unknown, signal?: AbortSignal): Promise<Prac
             clearTimeout(timer)
             timer = setTimeout(expire, executionBudget)
           } else if (data?.kind === 'result') {
-            finish(running && validResult(data.result) ? data.result : new Error('O ambiente retornou um resultado inválido.'))
+            finish(running && validResult(data.result) ? clean(data.result) : new Error('O ambiente retornou um resultado inválido.'))
           } else if (data?.kind === 'error') {
             finish(new Error(typeof data.message === 'string' && data.message ? data.message.slice(0, 1000) : 'Não foi possível executar neste navegador.'))
           }

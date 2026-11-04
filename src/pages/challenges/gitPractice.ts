@@ -1,17 +1,9 @@
 import type { Challenge } from './catalog'
+import { describeChanges, repoTimeline } from './gitStates'
+import type { PracticeCase, PracticeResult } from './practiceTypes'
+import type { Variation } from './variations'
 
-export interface PracticeCase {
-  label: string
-  passed: boolean
-  feedback: string
-}
-
-export interface PracticeResult {
-  passed: boolean
-  summary: string
-  cases: PracticeCase[]
-  output?: string
-}
+export type { PracticeCase, PracticeResult } from './practiceTypes'
 
 const recoveryHash = 'c0ffee2'
 
@@ -39,6 +31,13 @@ const scenarios: Record<string, { start: string; effects: string[] }> = {
   'git-advanced-4': { start: 'HEAD voltou para main. O commit da descoberta está no reflog.', effects: [`${recoveryHash} HEAD@{1}: commit: Descoberta em detached HEAD`, 'recuperada aponta para o commit da descoberta. main mantém sua referência.', 'O conteúdo de descoberta.txt está acessível pela branch recuperada.', 'Histórico de ambas as branches conferido.'] },
   'git-advanced-5': { start: 'Existe uma área de trabalho em main. notas.txt está rastreado.', effects: ['Segunda área criada em revisar-notas.', 'notas.txt foi editado na segunda área.', 'Alteração preparada no índice de revisar-notas.', 'Commit de revisão criado em revisar-notas.', 'Duas áreas: pasta inicial [main] e treino-worktree-notas [revisar-notas].', 'main'] },
 }
+
+// Variações de revisão: outro estado inicial e outros nomes, mesmas regras do simulador.
+Object.assign(scenarios, {
+  'git-first_steps-5~v1': { start: 'main contém um commit que rastreia agenda.txt. diario.txt ainda não existe.', effects: ['diario.txt foi criado.', 'Área de preparação: diario.txt.', 'Novo commit contém diario.txt.', 'd1a0002 Registra diario'] },
+  'git-basic-3~v1': { start: 'main rastreia agenda.txt. O índice está limpo.', effects: ['anotacoes.txt criado.', 'relatorio.txt criado.', 'Somente relatorio.txt foi preparado.', 'Commit criado com relatorio.txt.', '?? anotacoes.txt'] },
+  'git-basic-4~v1': { start: 'Você está em main, que tem dois commits e rastreia notas.txt.', effects: ['Branch estudo/sql criada e selecionada.', 'notas.txt alterado em estudo/sql.', 'notas.txt preparado.', 'Novo commit em estudo/sql. main aponta para o commit anterior.', 'estudo/sql'] },
+})
 
 export function gitContext(challenge: Challenge) {
   return scenarios[challenge.id]?.start ?? ''
@@ -234,6 +233,7 @@ function matches(actual: Command, expected: Command, id: string) {
   return false
 }
 
+const shown = (command: Command) => command.words.join(' ') + (command.redirect ? ` ${command.redirect.operator} ${command.redirect.path}` : '')
 const gitSubcommand = (words: string[]) => words[0] === 'git' ? (words[1] === '-C' ? words[3] : words[1]) : undefined
 
 function action(command: Command) {
@@ -275,9 +275,12 @@ function stepFeedback(expected: Command, actual: Command | undefined, id: string
   return `Revise a etapa ${step}. “${actual.words.join(' ')}” não corresponde à operação pedida neste cenário.`
 }
 
-export function checkGit(challenge: Challenge, source: string): PracticeResult {
+export function checkGit(challenge: Challenge | Variation, source: string): PracticeResult {
   const scenario = scenarios[challenge.id]
   if (!scenario) throw new Error('Cenário de treino indisponível.')
+  // As regras especiais do simulador pertencem ao conceito, não à variação.
+  const ruleId = 'baseId' in challenge ? challenge.baseId : challenge.id
+  const states = repoTimeline(challenge.id)
   let submitted: Command[]
   try { submitted = commandLines(source) }
   catch (error) {
@@ -287,17 +290,26 @@ export function checkGit(challenge: Challenge, source: string): PracticeResult {
   const cases: PracticeCase[] = []
   for (let i = 0; i < expected.length; i++) {
     const label = action(expected[i])
-    if (!submitted[i] || !matches(submitted[i], expected[i], challenge.id)) {
-      cases.push({ label, passed: false, feedback: stepFeedback(expected[i], submitted[i], challenge.id, i + 1) })
+    const before = states?.[i]
+    const after = states?.[i + 1]
+    const typed = submitted[i] ? shown(submitted[i]) : undefined
+    if (!submitted[i] || !matches(submitted[i], expected[i], ruleId)) {
+      const detail = before && after ? { repo: { step: i + 1, total: expected.length, command: typed, before, after, changes: describeChanges(before, after) } } : undefined
+      cases.push({ label, passed: false, feedback: stepFeedback(expected[i], submitted[i], ruleId, i + 1), ...(detail ? { detail: { kind: 'Fora do caminho', ...detail } } : {}) })
       return { passed: false, summary: `O simulador parou na etapa ${i + 1} de ${expected.length}.`, cases }
     }
-    const feedback = challenge.id === 'git-intermediate-2' && i === 3
+    const feedback = ruleId === 'git-intermediate-2' && i === 3
       ? `stash@{0}: ${normalized(submitted[1].words).at(-1)}`
       : scenario.effects[i]
-    cases.push({ label, passed: true, feedback })
+    cases.push({ label, passed: true, feedback, ...(before && after ? { detail: { repo: { step: i + 1, total: expected.length, command: typed, changes: describeChanges(before, after) } } } : {}) })
   }
   if (submitted.length > expected.length) {
-    cases.push({ label: 'Finalizar o cenário', passed: false, feedback: 'As etapas pedidas passaram. Retire os comandos extras para confirmar apenas o fluxo de treino.' })
+    const final = states?.[expected.length]
+    cases.push({
+      label: 'Finalizar o cenário', passed: false,
+      feedback: 'As etapas pedidas passaram. Retire os comandos extras para confirmar apenas o fluxo de treino.',
+      ...(final ? { detail: { kind: 'Comando a mais', repo: { step: expected.length + 1, total: expected.length, command: shown(submitted[expected.length]), before: final, changes: ['O cenário já estava concluído neste ponto: nenhum comando adicional é necessário.'] } } } : {}),
+    })
     return { passed: false, summary: 'O roteiro contém comandos além do cenário.', cases }
   }
   return { passed: true, summary: 'Os comandos atingiram o objetivo do cenário.', cases }

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronRight, Code2, Database, Download, GitBranch, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -10,6 +10,9 @@ import { downloadJson, slugDate } from '@/lib/download'
 import { challengeBackup, challengeStorageKey } from './progress'
 import { useChallengeProgress } from './useChallengeProgress'
 import { ExercisePractice } from './ExercisePractice'
+import { ReviewPanel } from './ReviewPanel'
+import { buildReviewQueue, isOpen, withMiss, withResolution, type ReviewItem } from './review'
+import { variationFor } from './variations'
 
 const TRACK_ICONS = { python: Code2, sql: Database, git: GitBranch }
 const LEVEL_GOALS: Record<ChallengeTrack, Record<ChallengeLevel, string>> = {
@@ -47,18 +50,40 @@ function ChallengeWorkspace({ scope }: { scope: string }) {
   const firstPending = trackItems.find((challenge) => !done.has(challenge.id))
   const next = trackItems.slice(trackItems.indexOf(selected) + 1).find((challenge) => !done.has(challenge.id)) ?? firstPending
   const track = TRACKS.find((item) => item.value === state.track)!
+  // Conceito cuja variação de revisão está aberta; a navegação normal fecha a revisão.
+  const [reviewing, setReviewing] = useState<string | null>(null)
+  const [reviewPassed, setReviewPassed] = useState<string[]>([])
+  const variation = reviewing ? variationFor(reviewing) : undefined
+  const queue = useMemo(() => buildReviewQueue({ reviews: state.reviews, drafts: state.drafts, verified: state.verified }), [state.reviews, state.drafts, state.verified])
+  const go = (patch: Parameters<typeof update>[0]) => {
+    setReviewing(null)
+    update(patch)
+  }
+  const focusLesson = () => requestAnimationFrame(() => {
+    lesson.current?.scrollIntoView({ block: 'start' })
+    lesson.current?.querySelector('h2')?.focus({ preventScroll: true })
+  })
   const chooseFilters = (track: ChallengeTrack, level?: ChallengeLevel) => {
     const candidates = CHALLENGES.filter((challenge) => challenge.track === track && (!level || challenge.level === level))
     const target = candidates.find((challenge) => !done.has(challenge.id)) ?? candidates[0]
-    update({ track, level: target.level, selectedId: target.id })
+    go({ track, level: target.level, selectedId: target.id })
   }
   const selectNext = () => {
     if (!next || next.id === selected.id) return
-    update({ level: next.level, selectedId: next.id })
-    requestAnimationFrame(() => {
-      lesson.current?.scrollIntoView({ block: 'start' })
-      lesson.current?.querySelector('h2')?.focus({ preventScroll: true })
-    })
+    go({ level: next.level, selectedId: next.id })
+    focusLesson()
+  }
+  const retry = (item: ReviewItem) => {
+    if (item.variation) setReviewing(item.id)
+    else go({ track: item.challenge.track, level: item.challenge.level, selectedId: item.id })
+    focusLesson()
+  }
+  const dismiss = (item: ReviewItem) => update({ reviews: { [item.id]: withResolution(state.reviews[item.id]) } })
+  const missed = (id: string) => update({ reviews: { [id]: withMiss(state.reviews[id]) } })
+  const passedOriginal = (id: string) => {
+    const record = state.reviews[id]
+    // Sem variação, repetir o original é a única forma de encerrar a pendência.
+    update({ verified: { [id]: true }, ...(record && isOpen(record) && !variationFor(id) ? { reviews: { [id]: withResolution(record) } } : {}) })
   }
   const exportProgress = () => {
     try {
@@ -96,10 +121,12 @@ function ChallengeWorkspace({ scope }: { scope: string }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Segmented value={state.level} onChange={(level) => chooseFilters(state.track, level)} options={LEVELS} label="Nível de dificuldade" />
-          {firstPending && firstPending.id !== selected.id && <Button icon={<ArrowRight className="size-4" aria-hidden />} onClick={() => update({ level: firstPending.level, selectedId: firstPending.id })}>Retomar trilha</Button>}
+          {firstPending && firstPending.id !== selected.id && <Button icon={<ArrowRight className="size-4" aria-hidden />} onClick={() => go({ level: firstPending.level, selectedId: firstPending.id })}>Retomar trilha</Button>}
         </div>
         <p className="text-sm text-muted">{LEVEL_GOALS[state.track][state.level]}</p>
       </Card>
+
+      <ReviewPanel items={queue} activeId={reviewing} onRetry={retry} onDismiss={dismiss} />
 
       <div className="grid items-start gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
         <Card className="overflow-hidden">
@@ -109,12 +136,28 @@ function ChallengeWorkspace({ scope }: { scope: string }) {
             <Progress value={levelDone / items.length * 100} className="mt-3 h-1.5" label="Progresso no nível selecionado" />
           </div>
           <ol className="space-y-1 p-2">
-            {items.map((challenge, index) => <li key={challenge.id}><button type="button" aria-current={selected.id === challenge.id ? 'step' : undefined} onClick={() => update({ selectedId: challenge.id })} className={`flex w-full items-start gap-3 rounded-xl px-3 py-3.5 text-left transition-colors ${selected.id === challenge.id ? 'bg-accent/10 text-ink' : 'text-muted hover:bg-surface'}`}><span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${done.has(challenge.id) ? 'bg-accent text-accent-ink' : 'border border-line bg-bg'}`}>{done.has(challenge.id) ? <CheckCircle2 className="size-3.5" aria-label="Concluído" /> : String(index + 1).padStart(2, '0')}</span><span className="flex-1 text-sm leading-relaxed font-medium">{challenge.title}</span>{selected.id === challenge.id && <ChevronRight className="mt-1 size-3.5 shrink-0 text-accent-strong" aria-hidden />}</button></li>)}
+            {items.map((challenge, index) => <li key={challenge.id}><button type="button" aria-current={selected.id === challenge.id ? 'step' : undefined} onClick={() => go({ selectedId: challenge.id })} className={`flex w-full items-start gap-3 rounded-xl px-3 py-3.5 text-left transition-colors ${selected.id === challenge.id ? 'bg-accent/10 text-ink' : 'text-muted hover:bg-surface'}`}><span className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${done.has(challenge.id) ? 'bg-accent text-accent-ink' : 'border border-line bg-bg'}`}>{done.has(challenge.id) ? <CheckCircle2 className="size-3.5" aria-label="Concluído" /> : String(index + 1).padStart(2, '0')}</span><span className="flex-1 text-sm leading-relaxed font-medium">{challenge.title}</span>{selected.id === challenge.id && <ChevronRight className="mt-1 size-3.5 shrink-0 text-accent-strong" aria-hidden />}</button></li>)}
           </ol>
           {levelDone === items.length && <p className="border-t border-line px-5 py-4 text-xs leading-relaxed text-accent-strong">Nível concluído. Continue pela próxima etapa ou revise uma prática.</p>}
         </Card>
         <div ref={lesson} className="min-w-0 scroll-mt-24">
-          <ExercisePractice
+          {variation ? <ExercisePractice
+            key={variation.id}
+            challenge={variation}
+            draft={state.reviewDrafts[variation.id] ?? variation.starter}
+            verified={reviewPassed.includes(variation.id)}
+            legacyDone={false}
+            nextLabel="Voltar à trilha"
+            notice={<p className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs leading-relaxed text-ink"><strong>Revisão do conceito: {variation.concept}.</strong> Este exercício usa outros dados e outro contexto que o original “{CHALLENGES.find((item) => item.id === variation.baseId)?.title}”. Seu progresso e seu rascunho originais não são alterados.</p>}
+            onDraft={(draft) => update({ reviewDrafts: { [variation.id]: draft } })}
+            onFailed={() => missed(variation.baseId)}
+            onPassed={() => {
+              setReviewPassed((ids) => [...new Set([...ids, variation.id])])
+              update({ reviews: { [variation.baseId]: withResolution(state.reviews[variation.baseId]) } })
+              toast.success(`Conceito revisado: ${variation.concept}.`)
+            }}
+            onNext={() => setReviewing(null)}
+          /> : <ExercisePractice
             key={selected.id}
             challenge={selected}
             draft={state.drafts[selected.id] ?? selected.starter}
@@ -122,9 +165,10 @@ function ChallengeWorkspace({ scope }: { scope: string }) {
             legacyDone={state.completed.includes(selected.id)}
             nextTitle={next?.id !== selected.id ? next?.title : undefined}
             onDraft={(draft) => update({ drafts: { [selected.id]: draft } })}
-            onPassed={() => update({ verified: { [selected.id]: true } })}
+            onFailed={() => missed(selected.id)}
+            onPassed={() => passedOriginal(selected.id)}
             onNext={selectNext}
-          />
+          />}
         </div>
       </div>
     </div>
