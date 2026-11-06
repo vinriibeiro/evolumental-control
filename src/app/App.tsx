@@ -33,6 +33,7 @@ const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
 const PdfReaderPage = lazy(() => import('@/pages/library/PdfReaderPage'))
 const ChallengesPage = lazy(() => import('@/pages/challenges/ChallengesPage'))
 const SettingsPage = lazy(() => import('@/pages/settings/SettingsPage'))
+const CguPlanPage = lazy(() => import('@/pages/cgu/CguPlanPage'))
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
@@ -94,6 +95,7 @@ export function App() {
                   <Route path="metas" element={<GoalsPage />} />
                   <Route path="relatorios" element={<ReportsPage />} />
                   <Route path="configuracoes" element={<SettingsPage />} />
+                  <Route path="cgu" element={<CguPlanPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>

@@ -29,6 +29,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: '/', label: 'Visão geral', icon: LayoutDashboard },
   { to: '/espaco', label: 'Meu espaço de estudos', icon: Home },
+  { to: '/cgu', label: 'Plano CGU 2026', icon: Target },
   { to: '/materias', label: 'Matérias e tópicos', icon: BookOpen },
   { to: '/trilhas', label: 'Trilhas', icon: Route },
   { to: '/rotinas', label: 'Rotinas', icon: ListChecks },
@@ -70,7 +71,7 @@ export interface MenuGroup {
 
 /** Menu lateral enxuto: cada item agrupa páginas parecidas, que aparecem como abas. */
 export const MENU: MenuGroup[] = [
-  { label: 'Visão geral', icon: LayoutDashboard, to: '/', tabs: [{ to: '/', label: 'Visão geral' }, { to: '/espaco', label: 'Meu espaço' }] },
+  { label: 'Visão geral', icon: LayoutDashboard, to: '/', tabs: [{ to: '/', label: 'Visão geral' }, { to: '/espaco', label: 'Meu espaço' }, { to: '/cgu', label: 'Plano CGU' }] },
   {
     label: 'Calendário',
     icon: CalendarDays,

@@ -1,8 +1,10 @@
 # Programa do concurso CGU 2026 — AFFC, especialidade TI – Ciência de Dados
 
-Fonte: Edital nº 1 – CGU – AFFC, de 8 de outubro de 2026 (DOU de 9/10/2026), item 15.2; retificado pelo Edital nº 2, de 14/10/2026 (retificação não incorporada aqui). Banca: Cebraspe. Provas: 13/12/2026. Texto extraído do PDF oficial: https://cdn.cebraspe.org.br/concursos/CGU_26_AFFC/arquivos/C7A60D15CB0DDDFA92233056D728C555505D6B935D7048646D49445EB346F825.pdf
+Fonte: Edital nº 1 – CGU – AFFC, de 8 de outubro de 2026 (DOU de 9/10/2026), item 15.2. Edital nº 2, de 14/10/2026 (conferido em 06/11/2026 no PDF oficial): retifica **somente** o subitem 6.2.4 (pagamento da GRU) e datas do Anexo I sobre atendimento especializado; **não altera** os itens 15.2.2, 15.2.3 e 15.2.4 nem a data da prova. Até 06/11/2026 não havia outra retificação publicada em https://www.cebraspe.org.br/concursos/cgu_26_affc. Banca: Cebraspe. Provas: 13/12/2026 (objetivas de manhã, 5h; discursiva à tarde, 3h30). Texto extraído do PDF oficial: https://cdn.cebraspe.org.br/concursos/CGU_26_AFFC/arquivos/C7A60D15CB0DDDFA92233056D728C555505D6B935D7048646D49445EB346F825.pdf
 
 **Pontuação da prova objetiva (certo/errado):** P1 (básicos): 40 itens × 1,00; P2 (complementares): 40 itens × 1,00; P3 (específicos): 90 itens × 2,00. Item errado desconta o mesmo valor do certo. Mínimos: NP1 ≥ 8, NP2 ≥ 12, NP3 ≥ 54, total ≥ 78 (de 260).
+
+**Prova discursiva (P4, item 9 do edital):** 100 pontos = (a) questão sobre conhecimentos complementares, até 30 linhas, 30 pontos, NQ1 = NC − 6×NE÷TL; (b) situação-problema sobre conhecimentos específicos do cargo, até 60 linhas, 70 pontos, NQ2 = NC − 14×NE÷TL. NC = nota de conteúdo, NE = nº de erros de língua, TL = linhas escritas. Aprovação: NFPD = NQ1 + NQ2 ≥ 50. Só é corrigida a discursiva de quem for aprovado nas objetivas (item 9.7.1).
 
 | Bloco | Tema (campo `tema`) | Prefixo | Alvo de questões | Subtemas |
 |---|---|---|---:|---:|

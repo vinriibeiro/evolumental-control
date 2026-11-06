@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Checkbox, Textarea } from '@/components/ui/Field'
 import { Badge, Card, CardHeader, ColorDot, PageHeader, Progress } from '@/components/ui/layout'
 import { Spinner, useToast } from '@/components/ui/feedback'
+import { CguToday } from '@/components/CguToday'
 import { TodayRoutine } from '@/components/TodayRoutine'
 import { useAll, useCount, useUpdate } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
@@ -110,6 +111,7 @@ export default function WorkspacePage() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <CguToday />
         <TodayRoutine />
 
         <Card>
