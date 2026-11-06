@@ -1,11 +1,12 @@
 {
  "fonte": {
-  "edital": "Edital nº 1 – CGU – AFFC, de 8 de outubro de 2026 (DOU de 9/10/2026), item 15.2; retificado pelo Edital nº 2, de 14/10/2026 (retificação não incorporada aqui)",
+  "edital": "Edital nº 1 – CGU – AFFC, de 8 de outubro de 2026 (DOU de 9/10/2026), item 15.2. Edital nº 2, de 14/10/2026, retifica só o subitem 6.2.4 e datas de atendimento especializado do Anexo I (conferido em 06/11/2026): conteúdo programático e data da prova inalterados",
   "cargo": "Auditor Federal de Finanças e Controle – Especialidade: Tecnologia da Informação – Ciência de Dados",
   "banca": "Cebraspe",
   "prova": "13/12/2026",
   "pdf": "https://cdn.cebraspe.org.br/concursos/CGU_26_AFFC/arquivos/C7A60D15CB0DDDFA92233056D728C555505D6B935D7048646D49445EB346F825.pdf",
-  "pontuacao": "P1 (básicos): 40 itens × 1,00; P2 (complementares): 40 itens × 1,00; P3 (específicos): 90 itens × 2,00. Item errado desconta o mesmo valor do certo. Mínimos: NP1 ≥ 8, NP2 ≥ 12, NP3 ≥ 54, total ≥ 78 (de 260)."
+  "pontuacao": "P1 (básicos): 40 itens × 1,00; P2 (complementares): 40 itens × 1,00; P3 (específicos): 90 itens × 2,00. Item errado desconta o mesmo valor do certo. Mínimos: NP1 ≥ 8, NP2 ≥ 12, NP3 ≥ 54, total ≥ 78 (de 260).",
+  "discursiva": "P4: 100 pontos = questão de 30 linhas (complementares, 30 pts, NQ1 = NC − 6×NE÷TL) + situação-problema de 60 linhas (específicos, 70 pts, NQ2 = NC − 14×NE÷TL); aprovação com NFPD ≥ 50."
  },
  "temas": [
   {
