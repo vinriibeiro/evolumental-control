@@ -2,7 +2,8 @@
 //
 // Fontes conferidas em 06/11/2026: Edital nº 1 (PDF oficial) e Edital nº 2 (retificação só do subitem 6.2.4 e de datas de
 // atendimento especializado; conteúdo programático e data da prova inalterados). Materiais: pastas reais do Google Drive do
-// usuário (IDs conferidos pelo conector do Drive em 06/11/2026). O progresso de cada aula fica em Cursos (importar a pasta).
+// usuário (IDs conferidos arquivo a arquivo pelo conector do Drive em 06/11/2026; as pastas Avaliação, Otimização, Transformação,
+// Engenharia de Prompt, Modelagem Lógica e DAMA só têm apostila em PDF). O progresso de cada aula fica em Cursos (importar a pasta).
 
 export type CguBlock = 'P1' | 'P2' | 'P3' | 'P4' | 'Geral'
 export type CguTaskKind = 'diagnostico' | 'aula' | 'leitura' | 'questoes' | 'revisao' | 'discursiva' | 'simulado'
@@ -85,6 +86,7 @@ export const CGU_FOLDERS = {
   big: { id: '1WgBJCboBdKfMex-MZmgwMbpFHi1Ofcat', name: 'Ciclo Básico › Banco de Dados › 11- Big Data e Data Mining' },
   nosql: { id: '1tXzep4aQAvbtwzM9NzAEM_StAw0wy_4L', name: 'Ciclo Básico › Banco de Dados › 12- Bancos de Dados NoSQL' },
   dama: { id: '16FlhoJMjt5NAEoB2rW4d_dxzze0NwB_Z', name: 'Ciclo Básico › Banco de Dados › 15- Governança de Dados - DAMA DMBOK' },
+  ageis: { id: '1R4TViIgBrCob3gSF40KYOKI4E8_9jMRV', name: 'Ciclo Avançado › Gestão e Governança › 04- Gestão de Projeto - Metodologias Ágeis' },
 } satisfies Record<string, Folder>
 const F = CGU_FOLDERS
 
@@ -104,9 +106,6 @@ const video = (day: number, block: CguBlock, f: Folder, driveId: string, title: 
   task(day, block, 'aula', title, f.name, until, minutes, { kind: 'drive', driveId, folderId: f.id, folder: f.name, media: 'video' })
 const pdf = (day: number, block: CguBlock, f: Folder, driveId: string, title: string, until: string, minutes: number) =>
   task(day, block, 'leitura', title, f.name, until, minutes, { kind: 'drive', driveId, folderId: f.id, folder: f.name, media: 'pdf' })
-/** Pasta cujas aulas ainda não foram conferidas uma a uma ("A verificar"): abre a pasta no catálogo. */
-const folder = (day: number, block: CguBlock, f: Folder, title: string, until: string, minutes: number) =>
-  task(day, block, 'aula', title, f.name, until, minutes, { kind: 'drive', driveId: f.id, folderId: f.id, folder: f.name, media: 'folder' })
 const KIND_TITLE: Partial<Record<CguTaskKind, string>> = { questoes: 'Questões', simulado: 'Simulado', diagnostico: 'Diagnóstico' }
 const banco = (day: number, block: CguBlock, tema: string, subtemas: string[], quantidade: number, minutes: number, kind: CguTaskKind = 'questoes') =>
   task(
@@ -176,7 +175,8 @@ function build(): CguDay[] {
   )
   add(
     'Machine learning (P3) + Transparência (P2)',
-    folder(5, 'P3', F.ml, 'Aula · Machine Learning (1ª aula da pasta)', 'Primeiro vídeo da pasta até o fim. Anote supervisionado × não supervisionado, sobreajuste.', 60),
+    video(5, 'P3', F.ml, '1c7me4kBi90bBctsvpQVf910X04ndtK4_', 'Aula · Machine Learning conceitos gerais (01)', 'Até o fim (~45 min). Anote supervisionado × não supervisionado.', 45),
+    video(5, 'P3', F.ml, '1FV-rXzYbIOIJdapkzuyhMugWndKd-8AR', 'Aula · Underfit × Overfit (02)', 'Até o fim (~20 min): viés, variância, sobreajuste.', 20),
     banco(5, 'P3', T.ml, ['1 Seleção e construção de modelos'], 20, 35),
     banco(5, 'P2', T.tra, [], 15, 25),
     revisao(5, 'Revisão rápida', 'Refaça os erros dos dias 3 e 4.', 20),
@@ -198,7 +198,8 @@ function build(): CguDay[] {
   // Semana 2
   add(
     'SQL analítico (P3) + Administração (P1)',
-    folder(8, 'P3', F.sql2, 'Aula · SQL parte 2 (junções, agregações, janelas)', 'Primeiro vídeo da pasta até o fim; procure CTE e funções de janela.', 60),
+    video(8, 'P3', F.sql2, '12HWqZULMUuzWK2d6GXIfPBT6RZ6YHL8j', 'Aula · SQL JOIN (06)', 'Até o fim (~25 min).', 25),
+    video(8, 'P3', F.sql2, '1czbXJUbPgAplsoFpPfMn6vNLCN6qh1uB', 'Aula · SQL cláusulas de agrupamento (03)', 'Até o fim (~30 min): GROUP BY, HAVING, agregações.', 35),
     banco(8, 'P3', T.eng, ['2 SQL e consultas analíticas'], 20, 35),
     banco(8, 'P1', T.adm, [], 15, 25),
     revisao(8, 'Revisão', 'Erros de SQL dos dias 3 e 8.', 20),
@@ -208,25 +209,30 @@ function build(): CguDay[] {
     video(9, 'P3', F.py, '1OJhK03R8A1ws4GoSk8W69l_EKOo5etjl', 'Aula · Python parte 05 (condicionais)', 'Até o fim.', 30),
     video(9, 'P3', F.py, '15gF1a41_0vfs-bXuT8cJHlXsYnxKtUDO', 'Aula · Python parte 06 (repetição)', 'Até o fim.', 35),
     video(9, 'P3', F.py, '1-BfanuzRejtBZpeTMnFxxcVXNTrCCr2w', 'Aula · Python parte 07 (funções)', 'Até o minuto 40.', 40),
+    video(9, 'P3', F.py, '1k_XZ8tVgLzX_chf5_Tmah3sligvPaOBr', 'Aula · Python parte 09 (tratamento de exceções)', 'Até o fim (~15 min).', 15),
     banco(9, 'P3', T.sta, ['4 Programação para análise'], 15, 25),
     banco(9, 'P2', T.evi, [], 15, 25),
   )
   add(
     'Discursiva (parte 2) + MLOps',
     discursiva(10, 2, 'Situação-problema: órgão quer priorizar fiscalizações com um modelo de risco; discuta validação, vazamento de informação, métricas, revisão humana e contestação (P3 · ML/Ops)', 90),
+    video(10, 'P3', F.big, '1cqlfKX2el5HfBPnjD36zydEUIajlw9zE', 'Aula · CRISP-DM (04)', 'Até o fim (~15 min): fases do ciclo de vida de um projeto de dados.', 15),
     banco(10, 'P3', T.ops, ['1 Ciclo de vida e MLOps'], 15, 25),
     revisao(10, 'Revisão', 'Erros de ML e Python da semana.', 30),
   )
   add(
     'Validação e métricas (P3) + Estado e democracia (P1)',
-    folder(11, 'P3', F.aval, 'Aula · Avaliação de modelos preditivos', 'Primeiro vídeo da pasta até o fim. Anote precisão, sensibilidade, especificidade, calibração.', 60),
+    pdf(11, 'P3', F.aval, '1cl3YWFHUib6svWfrKytK--Vwgz3DJsyj', 'Leitura · apostila Avaliação de Modelos Preditivos (001.pdf)', 'Matriz de confusão, precisão, sensibilidade, especificidade, ROC, validação cruzada. Marque dúvidas.', 35),
+    video(11, 'P3', F.ml, '1ZClUtCc2j_k0RZr1asYJ8FiiaHeVpfsq', 'Aula · Regressão logística (12)', 'Até o fim (~15 min).', 15),
+    video(11, 'P3', F.ml, '15rg2fDzo9LIZ0i0ZdtNO74a4Y1Wk4wWG', 'Aula · Árvores de decisão (13)', 'Até o fim (~25 min).', 25),
     banco(11, 'P3', T.ml, ['2 Validação e generalização', '3 Métricas e efeitos das decisões'], 25, 45),
     banco(11, 'P1', T.dem, [], 15, 25),
   )
   add(
     'Modelagem e arquiteturas de dados (P3) + Governança (P2)',
-    folder(12, 'P3', F.multi, 'Aula · Modelo multidimensional (DW, data mart)', 'Primeiro vídeo da pasta até o fim.', 45),
-    folder(12, 'P3', F.mlog, 'Aula · Modelo relacional e normalização', 'Só o vídeo sobre normalização.', 35),
+    video(12, 'P3', F.multi, '1Iz2hPh4RKUkZVUi-ep9DquOxInp_G-Mk', 'Aula · Modelo multidimensional conceitos gerais (01)', 'Até o fim (~30 min): DW, data mart, fato e dimensão.', 30),
+    video(12, 'P3', F.multi, '18ejzNgAUnkKmGRLBlXqII2_YWtz5-8ru', 'Aula · Esquemas dimensionais (04)', 'Até o fim (~15 min): estrela e floco de neve.', 15),
+    pdf(12, 'P3', F.mlog, '1LVCwBdDZ_8hLRmep13fuPIl_Cfo6l0se', 'Leitura · apostila Modelo Relacional (001.pdf)', 'Só o trecho de normalização e integridade.', 30),
     banco(12, 'P3', T.eng, ['1 Modelagem e arquiteturas'], 20, 35),
     banco(12, 'P2', T.gov, [], 15, 25),
   )
@@ -253,8 +259,8 @@ function build(): CguDay[] {
   // Semana 3
   add(
     'Redes neurais e PLN (P3) + Sociedade (P1)',
-    folder(15, 'P3', F.rn, 'Aula · Redes neurais', 'Primeiro vídeo até o fim (perceptron, ativação, retropropagação em nível conceitual).', 50),
-    folder(15, 'P3', F.pln, 'Aula · Processamento de linguagem natural', 'Primeiro vídeo até o fim (embeddings, similaridade).', 40),
+    video(15, 'P3', F.rn, '10ub2NJDIXloGxIXCtgQcmSw8RGCMh24c', 'Aula · Redes neurais conceitos gerais (01)', 'Até o fim (~50 min): perceptron, camadas, retropropagação em nível conceitual.', 50),
+    video(15, 'P3', F.pln, '1vd1umrDviqVqOf8iwWJYj1oKD-e97bYB', 'Aula · PLN conceitos gerais (01)', 'Até o minuto 40 (embeddings, similaridade).', 40),
     banco(15, 'P3', T.ml, ['4 Redes neurais', '5 Linguagem natural e modelos generativos'], 25, 45),
     banco(15, 'P1', T.soc, [], 15, 25),
   )
@@ -262,7 +268,8 @@ function build(): CguDay[] {
     'Operação e governança de soluções (P3) + Direito público (P2)',
     banco(16, 'P3', T.ops, ['1 Ciclo de vida e MLOps', '2 Sustentação de soluções analíticas'], 25, 45),
     task(16, 'P3', 'leitura', 'Leitura · edital cguops (itens 3 a 5)', 'Plano CGU → Edital → Operação, governança e gestão de soluções de dados e IA', 'Leia os itens 3, 4 e 5 e escreva 1 frase por subitem (governança, produtos de dados, contratação).', 40, { kind: 'route', to: '/cgu#edital' }),
-    video(16, 'P3', F.py, '19ijZXFXOIybUTvSdBirMyU-GEmu6boRy', 'Aula · Python parte 08 (orientação a objetos)', 'Até o fim.', 35),
+    video(16, 'P3', F.ageis, '1iFADEn4LiI5CpVB_SUmD6zQpUmqQ8RKI', 'Aula · Scrum (02)', 'Até o minuto 35: papéis, eventos e artefatos (edital cguops 4.4).', 35),
+    video(16, 'P3', F.ageis, '1QKYq1pQzoMgrg95zjBmJDiy7cunwhRc1', 'Aula · Kanban (04)', 'Até o fim (~20 min).', 20),
     banco(16, 'P2', T.dir, [], 15, 25),
   )
   add(
@@ -274,8 +281,9 @@ function build(): CguDay[] {
   )
   add(
     'Ingestão, Big Data e NoSQL (P3) + Auditoria (P2)',
-    folder(18, 'P3', F.big, 'Aula · Big Data e Data Mining', 'Primeiro vídeo até o fim (lote × fluxo, particionamento).', 45),
-    folder(18, 'P3', F.nosql, 'Aula · Bancos NoSQL', 'Primeiro vídeo até o fim (documental, chave-valor, consistência).', 40),
+    video(18, 'P3', F.big, '1EmIf6OSEujWevSTDqVTXPOgy2IYpWH0n', 'Aula · Big Data (01)', 'Até o fim (~30 min): volume, processamento em lote e fluxo.', 30),
+    video(18, 'P3', F.nosql, '1dwE4yYPeluF2Jo84L1T_f52O7ZV05FA_', 'Aula · NoSQL conceitos gerais (01)', 'Até o minuto 40: consistência, escalabilidade.', 40),
+    video(18, 'P3', F.nosql, '1s3Ip7uH6XPLjh3EDrX-GRJsJW_uZBqmf', 'Aula · Tipos de NoSQL (02)', 'Até o fim (~25 min): documental, chave-valor, colunar, grafos.', 25),
     banco(18, 'P3', T.eng, ['3 Ingestão e integração', '4 Processamento distribuído'], 25, 45),
     banco(18, 'P2', T.aud, [], 15, 25),
   )
@@ -302,29 +310,30 @@ function build(): CguDay[] {
   // Semana 4
   add(
     'Governança de dados (P3) + Evidências (P2)',
-    folder(22, 'P3', F.dama, 'Aula · Governança de dados (DAMA-DMBOK)', 'Primeiro vídeo até o fim (metadados, catálogo, linhagem, qualidade).', 55),
+    pdf(22, 'P3', F.dama, '1q5p_yaLBGbBIDleIvomH1ls4EWgkLFWQ', 'Leitura · apostila Governança de Dados DAMA-DMBOK (001.pdf)', 'Metadados, catálogo, linhagem e dimensões de qualidade. Marque dúvidas no leitor.', 50),
     banco(22, 'P3', T.eng, ['5 Qualidade e rastreabilidade', '6 Compartilhamento e proteção'], 25, 45),
     banco(22, 'P2', T.evi, [], 15, 25),
     revisao(22, 'Revisão', 'Erros do dia 21.', 20),
   )
   add(
     'Otimização, LLMs e agentes (P3) + Estado e democracia (P1)',
-    folder(23, 'P3', F.otim, 'Aula · Otimização de modelos', 'Primeiro vídeo até o fim.', 40),
-    folder(23, 'P3', F.prompt, 'Aula · Engenharia de prompt (LLMs, RAG)', 'Primeiro vídeo até o fim.', 40),
+    pdf(23, 'P3', F.otim, '13ggU7FbX5aHiO-8WIGlEY9mXZCXEAGmw', 'Leitura · apostila Otimização de Modelos Preditivos', 'Regularização, hiperparâmetros, validação cruzada.', 30),
+    pdf(23, 'P3', F.prompt, '1TxfMm-Sg7MnFM1Xg1nmxkiXE6yZwc30x', 'Leitura · apostila Engenharia de Prompt', 'Prompts, RAG, alucinações e limites (edital cguml 5 e 6).', 30),
+    video(23, 'P3', F.rn, '1FZwrxEbSyL-3sj0EdO1wJhRP-TvSVWWu', 'Aula · Tipos de redes neurais (04)', 'Até o minuto 40: convolucionais, recorrentes, transformers.', 40),
     banco(23, 'P3', T.ml, ['5 Linguagem natural e modelos generativos', '6 Agentes e uso seguro de ferramentas'], 25, 45),
     banco(23, 'P1', T.dem, [], 15, 25),
   )
   add(
     'Gestão e contratação de soluções (P3) + P2',
     banco(24, 'P3', T.ops, ['3 Governança e responsabilidade', '4 Gestão de produtos de dados', '5 Contratação e controle de soluções'], 30, 55),
-    video(24, 'P3', F.sql1, '1QLMYhqQkFlIgGW0lzOhyfJjAQ8n-WSyQ', 'Aula · SQL questões resolvidas (08)', 'Resolva antes de ver cada resposta.', 45),
+    video(24, 'P3', F.sql2, '1g5lc-cv5TFslMF9ZfVlZzK43xbpQ1S-R', 'Aula · SQL subconsultas (04)', 'Até o minuto 40; depois resolva 5 questões do subtema 2 de Engenharia.', 40),
     banco(24, 'P2', T.gov, [], 10, 15),
     banco(24, 'P2', T.tra, [], 10, 15),
     revisao(24, 'Revisão', 'Erros de operação e SQL.', 20),
   )
   add(
     'Preparação de dados (P3) + P1',
-    folder(25, 'P3', F.transf, 'Aula · Transformação de dados', 'Primeiro vídeo até o fim (ausentes, outliers, normalização, vazamento).', 50),
+    pdf(25, 'P3', F.transf, '1NG2uZWQgrdkaOwz_N0Bky4ObGQc2E7KM', 'Leitura · apostila Transformação de Dados', 'Ausentes, outliers, codificação, normalização e vazamento de informação.', 45),
     banco(25, 'P3', T.sta, ['5 Preparação e transformação'], 20, 35),
     banco(25, 'P3', T.eng, ['3 Ingestão e integração'], 15, 25),
     banco(25, 'P1', T.soc, [], 8, 12),
