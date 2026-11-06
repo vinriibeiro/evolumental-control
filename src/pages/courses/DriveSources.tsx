@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2, CloudDownload, FolderPlus, KeyRound, LogOut, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -13,7 +13,7 @@ import { FOLDER_MIME, KIND_LABELS, parseDriveFolder, type MaterialKind } from '@
 import { crawlFolder, type CrawlResult } from '@/lib/driveCrawl'
 import { createDriveClient } from '@/lib/driveApi'
 import { buildPlan, reconcile } from '@/lib/courseImport'
-import { currentDriveToken, envClientId, getClientId, isClientId, requestDriveToken, revokeDriveToken, saveClientId } from '@/lib/googleAuth'
+import { currentDriveToken, envClientId, getClientId, isClientId, requestDriveToken, revokeDriveToken, saveClientId, startDriveRedirect } from '@/lib/googleAuth'
 import { addSource, applySync, COURSE_TABLES, sourceConfig, removeSource } from '@/services/courses'
 import type { CourseNode, CourseSource, CourseSourceConfig } from '@/types/db'
 
@@ -54,6 +54,16 @@ function GoogleConnection({ connected, onConnected }: { connected: boolean; onCo
       setBusy(false)
     }
   }
+  /** Sem janela pop-up: a aba inteira vai ao Google e volta para /cursos. */
+  const connectHere = () => {
+    if (!valid) return
+    try {
+      if (!fromEnv) saveClientId(clientId)
+      startDriveRedirect(clientId)
+    } catch (e) {
+      toast.error(e)
+    }
+  }
   return (
     <section aria-label="Conexão com o Google Drive" className="space-y-3 rounded-lg border border-line p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -66,6 +76,15 @@ function GoogleConnection({ connected, onConnected }: { connected: boolean; onCo
           <Button size="sm" variant="primary" disabled={!valid} loading={busy} onClick={() => void connect()}>Conectar com o Google</Button>
         )}
       </div>
+      {!connected && (
+        <p className="text-xs text-muted">
+          A janela do Google ficou em branco ou fechou sozinha?{' '}
+          <button type="button" className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:opacity-50" disabled={!valid || busy} onClick={connectHere}>
+            Conectar nesta aba
+          </button>
+          {' '}(o Google abre aqui mesmo e volta para esta tela).
+        </p>
+      )}
       {!fromEnv && !connected && (
         <Field label="ID do cliente OAuth do Google" hint="Público (não é segredo): termina em .apps.googleusercontent.com. Fica salvo só neste navegador. Veja docs/CURSOS.md para criar." error={clientId && !valid ? 'Formato inválido.' : null}>
           {(id, d) => <Input id={id} aria-describedby={d} value={clientId} onChange={(e) => setClientId(e.target.value.trim())} placeholder="123456789012-abc….apps.googleusercontent.com" autoComplete="off" spellCheck={false} />}
@@ -177,6 +196,8 @@ export function DriveSources({ open, onClose, sources }: { open: boolean; onClos
   const toast = useToast()
   const confirm = useConfirm()
   const [connected, setConnected] = useState(Boolean(currentDriveToken()))
+  // Ao abrir, reflete o token já obtido (ex.: retorno do Google na mesma aba) ou expirado.
+  useEffect(() => { if (open) setConnected(Boolean(currentDriveToken())) }, [open])
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState<string | null>(null)
   const [reading, setReading] = useState<{ folders: number; items: number } | null>(null)

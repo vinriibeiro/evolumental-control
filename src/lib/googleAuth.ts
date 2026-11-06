@@ -140,3 +140,86 @@ export function revokeDriveToken() {
   currentRead = null
   for (const token of tokens) window.google?.accounts?.oauth2?.revoke(token)
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Alternativa sem janela pop-up: fluxo implícito por redirecionamento na mesma aba.
+// Alguns navegadores (bloqueio de cookies de terceiros, proteção contra rastreamento, extensões) deixam a janela do
+// Google em branco e o GIS devolve "popup_closed". Aqui a própria aba vai ao Google e volta para /cursos com o token
+// no fragmento da URL (#access_token=…), que nunca chega ao servidor. O token é lido uma vez, apagado da URL e fica
+// só na memória desta aba, como no fluxo da janela. Exige a URI de redirecionamento cadastrada no Google Cloud.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const REDIRECT_KEY = 'evolumental.google.redirect'
+export const REDIRECT_PATH = '/cursos'
+const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth'
+
+/** URI de redirecionamento que precisa constar em "URIs de redirecionamento autorizados" do cliente OAuth. */
+export const redirectUri = (origin = window.location.origin) => `${origin}${REDIRECT_PATH}`
+
+function randomState(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Leva esta aba ao Google para autorizar `scope` e voltar a /cursos. Precisa vir de um clique.
+ * `go` existe para testes (o jsdom não navega).
+ */
+export function startDriveRedirect(clientId: string, scope: string = DRIVE_SCOPE, go: (url: string) => void = (url) => window.location.assign(url)) {
+  if (!isClientId(clientId)) throw new Error('ID do cliente OAuth inválido.')
+  const state = randomState()
+  try {
+    sessionStorage.setItem(REDIRECT_KEY, JSON.stringify({ state, scope, at: Date.now() }))
+  } catch {
+    throw new Error('O navegador bloqueou o armazenamento desta aba; libere cookies para este site.')
+  }
+  const params = new URLSearchParams({
+    client_id: clientId.trim(),
+    redirect_uri: redirectUri(),
+    response_type: 'token',
+    scope,
+    include_granted_scopes: 'true',
+    prompt: 'consent',
+    state,
+  })
+  go(`${AUTH_ENDPOINT}?${params.toString()}`)
+}
+
+export type RedirectResult = { ok: true; scope: string } | { ok: false; message: string }
+
+/**
+ * Ao carregar /cursos: se a URL trouxer o retorno do Google, guarda o token em memória, limpa o fragmento e devolve o
+ * resultado. Devolve null quando não há retorno pendente. Idempotente: a segunda chamada devolve null.
+ */
+export function consumeRedirectToken(loc: Location = window.location): RedirectResult | null {
+  const hash = loc.hash.startsWith('#') ? loc.hash.slice(1) : loc.hash
+  if (!hash) return null
+  const p = new URLSearchParams(hash)
+  if (!p.has('access_token') && !p.has('error')) return null
+  type Expected = { state: string; scope: string; at: number }
+  let expected: Expected | null
+  try {
+    const raw = sessionStorage.getItem(REDIRECT_KEY)
+    expected = raw ? (JSON.parse(raw) as Expected) : null
+    sessionStorage.removeItem(REDIRECT_KEY)
+  } catch {
+    expected = null
+  }
+  try {
+    history.replaceState(history.state, '', loc.pathname + loc.search)
+  } catch {
+    // sem history: o fragmento some na próxima navegação
+  }
+  if (!expected || p.get('state') !== expected.state || Date.now() - expected.at > 15 * 60_000) {
+    return { ok: false, message: 'Retorno do Google não reconhecido (abra "Pastas do Drive" e tente de novo).' }
+  }
+  if (p.get('error')) return { ok: false, message: p.get('error_description') || `O Google recusou a autorização (${p.get('error')}).` }
+  const token = p.get('access_token')!
+  const granted = (p.get('scope') ?? '').split(' ')
+  if (!granted.includes(expected.scope)) return { ok: false, message: 'A permissão pedida não foi concedida.' }
+  const entry = { token, expiresAt: Date.now() + Number(p.get('expires_in') ?? 3600) * 1000 }
+  if (expected.scope === DRIVE_READ_SCOPE) currentRead = entry
+  else current = entry
+  return { ok: true, scope: expected.scope }
+}

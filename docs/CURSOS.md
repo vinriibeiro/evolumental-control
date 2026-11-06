@@ -34,11 +34,13 @@ O app é uma SPA estática. Para ler metadados basta um token de curta duração
 1. [Google Cloud Console](https://console.cloud.google.com/) → crie (ou escolha) um projeto.
 2. **APIs e serviços → Biblioteca** → ative a **Google Drive API**.
 3. **Tela de consentimento OAuth** → tipo *Externo*, status *Em teste* → em **Usuários de teste**, adicione o seu e-mail Google. Escopo: `.../auth/drive.metadata.readonly`.
-4. **Credenciais → Criar credenciais → ID do cliente OAuth → Aplicativo da Web**. Em **Origens JavaScript autorizadas**, inclua `http://localhost:5173` e a URL de produção (ex.: `https://seu-app.vercel.app`). Não é preciso URI de redirecionamento.
+4. **Credenciais → Criar credenciais → ID do cliente OAuth → Aplicativo da Web**. Em **Origens JavaScript autorizadas**, inclua `http://localhost:5173` e a URL de produção (ex.: `https://seu-app.vercel.app`). Em **URIs de redirecionamento autorizados**, inclua a mesma origem seguida de `/cursos` (ex.: `https://seu-app.vercel.app/cursos` e `http://localhost:5173/cursos`): é o que permite o botão **Conectar nesta aba**, usado quando o navegador deixa a janela do Google em branco (bloqueio de cookies de terceiros, proteção contra rastreamento ou extensões).
 5. Copie o **ID do cliente** (termina em `.apps.googleusercontent.com`). Ele é público por natureza; **não** use nem copie o *client secret*.
 6. Use de uma das formas: variável `VITE_GOOGLE_CLIENT_ID` — já definida em `.env.production` (público, versionado) ou nas variáveis da Vercel — **ou** cole na própria tela, em **Pastas do Drive** (fica salvo só naquele navegador). Origens autorizadas hoje: `https://evolumental-control.vercel.app`, `https://evolumental-control-4eep.vercel.app` e `http://localhost:5173`; um domínio novo precisa ser adicionado no Google Cloud.
 
 Enquanto o app estiver "Em teste", só os usuários de teste conseguem autorizar, e o Google mostra um aviso de app não verificado — esperado para uso pessoal.
+
+Dois jeitos de conectar, ambos com o token só na memória da aba (`src/lib/googleAuth.ts`): **Conectar com o Google** abre a janela do Google (GIS); **Conectar nesta aba** leva a própria aba ao Google e volta para `/cursos` com o token no fragmento da URL, que é lido uma vez, conferido pelo `state` guardado em `sessionStorage` e apagado da URL. Use o segundo se a janela aparecer em branco com a mensagem "Janela do Google fechada antes de autorizar".
 
 ### 2. Supabase (se usar a nuvem)
 

@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowUpRight, BookOpen, CheckCircle2, FolderSync, GraduationCap, PlayCircle, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Switch } from '@/components/ui/Field'
-import { EmptyState, ErrorState, Spinner } from '@/components/ui/feedback'
+import { EmptyState, ErrorState, Spinner, useToast } from '@/components/ui/feedback'
 import { Badge, Card, PageHeader, Progress, Segmented } from '@/components/ui/layout'
 import { useBackend } from '@/app/data'
 import { useCourses } from '@/hooks/useCourses'
 import { courseStatus, displayTitle, lastStudied, lessonOf, resumeItem, type CourseStatusFilter, type CourseView } from '@/lib/courseCatalog'
 import { formatDuration, KIND_LABELS, materialType, type MaterialKind } from '@/lib/drive'
+import { consumeRedirectToken } from '@/lib/googleAuth'
 import { normalizeText } from '@/lib/videoProgress'
 import { DriveSources } from './DriveSources'
 
@@ -71,6 +72,16 @@ export default function CoursesPage() {
   const [showHidden, setShowHidden] = useState(false)
   const data = useCourses({ includeHidden: showHidden })
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  const toast = useToast()
+  // Volta do Google no fluxo "Conectar nesta aba": lê o token do fragmento da URL e reabre as pastas do Drive.
+  useEffect(() => {
+    const result = consumeRedirectToken()
+    if (!result) return
+    setSourcesOpen(true)
+    if (result.ok) toast.success('Google Drive conectado (só leitura de metadados).')
+    else toast.error(result.message)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<CourseStatusFilter>('all')
   const [kind, setKind] = useState<MaterialKind | ''>('')
