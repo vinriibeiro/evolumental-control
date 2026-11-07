@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowUpRight, CalendarDays, ChevronsLeft, ChevronsRight, CloudOff, GraduationCap, Home, Layers, LogOut, Menu, Moon, Pause, Play, Search, Settings, Sun, Timer, X } from 'lucide-react'
-import { MENU, groupFor, tabsFor, titleFor } from './nav'
+import { ArrowLeft, ArrowUpRight, CalendarDays, ChevronsLeft, ChevronsRight, CloudOff, GraduationCap, Home, Layers, LogOut, Menu, Moon, Pause, Play, Search, Settings, Sun, Timer, X } from 'lucide-react'
+import { MENU, backFor, groupFor, tabsFor, titleFor } from './nav'
 import { useAuth } from './auth'
 import { Logo, LogoMark } from '@/components/brand/Logo'
 import { IconButton } from '@/components/ui/Button'
@@ -248,6 +248,7 @@ export function AppShell() {
 
 function SectionTabs({ pathname }: { pathname: string }) {
   const tabs = tabsFor(pathname)
+  const back = backFor(pathname)
   const nav = useRef<HTMLElement>(null)
   useEffect(() => {
     // no celular a aba ativa pode ficar fora da vista: rola só a barra de abas até ela
@@ -255,6 +256,20 @@ function SectionTabs({ pathname }: { pathname: string }) {
     const active = el?.querySelector<HTMLElement>('[aria-current="page"]')
     if (el && active) el.scrollLeft = Math.max(0, active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2)
   }, [pathname, tabs.length])
+  // Dentro de uma pasta (Biblioteca) não há abas: só o caminho de volta.
+  if (back) {
+    return (
+      <nav aria-label="Pasta" className="-mt-1 mb-6">
+        <Link
+          to={back.to}
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent-strong"
+        >
+          <ArrowLeft className="size-4" aria-hidden />
+          {back.label}
+        </Link>
+      </nav>
+    )
+  }
   if (!tabs.length) return null
   return (
     <nav ref={nav} aria-label="Seções" className="app-tabs scroll-thin relative -mt-1 mb-7 flex gap-1 overflow-x-auto border-b border-line">
