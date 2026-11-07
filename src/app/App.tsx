@@ -28,6 +28,7 @@ const VideosPage = lazy(() => import('@/pages/videos/VideosPage'))
 const CoursesPage = lazy(() => import('@/pages/courses/CoursesPage'))
 const CoursePage = lazy(() => import('@/pages/courses/CoursePage'))
 const CoursePdfReaderPage = lazy(() => import('@/pages/courses/CoursePdfReaderPage'))
+const LibraryHubPage = lazy(() => import('@/pages/library/LibraryHubPage'))
 const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
 const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
 const PdfReaderPage = lazy(() => import('@/pages/library/PdfReaderPage'))
@@ -82,7 +83,11 @@ export function App() {
                   <Route path="cursos" element={<CoursesPage />} />
                   <Route path="cursos/:id" element={<CoursePage />} />
                   <Route path="cursos/:id/pdf/:itemId" element={<CoursePdfReaderPage />} />
-                  <Route path="biblioteca" element={<LibraryPage />} />
+                  <Route path="biblioteca" element={<LibraryHubPage />} />
+                  <Route path="livros" element={<LibraryPage />} />
+                  <Route path="livros/pdf/:id" element={<PdfReaderPage />} />
+                  <Route path="livros/:id" element={<ReaderPage />} />
+                  {/* endereços antigos da estante (links salvos) continuam abrindo os leitores */}
                   <Route path="biblioteca/pdf/:id" element={<PdfReaderPage />} />
                   <Route path="biblioteca/:id" element={<ReaderPage />} />
                   <Route path="flashcards" element={<DecksPage />} />

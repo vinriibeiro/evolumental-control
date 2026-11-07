@@ -40,6 +40,7 @@ export const NAV: NavItem[] = [
   { to: '/videos', label: 'Vídeos', icon: PlayCircle },
   { to: '/cursos', label: 'Cursos e materiais', icon: GraduationCap },
   { to: '/biblioteca', label: 'Biblioteca', icon: Library },
+  { to: '/livros', label: 'Livros', icon: BookOpen },
   { to: '/flashcards', label: 'Flashcards', icon: Layers },
   { to: '/revisoes', label: 'Revisões', icon: Brain },
   { to: '/banco-de-questoes', label: 'Banco de questões', icon: ClipboardCheck },
@@ -48,6 +49,12 @@ export const NAV: NavItem[] = [
   { to: '/relatorios', label: 'Relatórios', icon: BarChart3 },
   { to: '/configuracoes', label: 'Configurações', icon: Settings },
 ]
+
+/**
+ * Páginas que continuam existindo (URL, busca Ctrl K, atalhos), mas sem item no menu — pedido de 07/11/2026:
+ * o material de inglês fica em Cursos e os vídeos avulsos também.
+ */
+export const OUTSIDE_MENU = new Set(['/ingles', '/videos'])
 
 export function titleFor(pathname: string): string {
   if (pathname === '/') return 'Visão geral'
@@ -69,35 +76,35 @@ export interface MenuGroup {
   tabs: MenuTab[]
 }
 
-/** Menu lateral enxuto: cada item agrupa páginas parecidas, que aparecem como abas. */
+/**
+ * Menu lateral enxuto: cada item agrupa páginas parecidas, que aparecem como abas. "Biblioteca" abre a pasta com
+ * todos os materiais (um cartão por tipo, na ordem do fluxo); Revisões fica em Calendário e Desempenho em Metas.
+ */
 export const MENU: MenuGroup[] = [
   { label: 'Visão geral', icon: LayoutDashboard, to: '/', tabs: [{ to: '/', label: 'Visão geral' }, { to: '/espaco', label: 'Meu espaço' }, { to: '/cgu', label: 'Plano CGU' }] },
   {
     label: 'Calendário',
     icon: CalendarDays,
     to: '/calendario',
-    tabs: [{ to: '/calendario', label: 'Calendário' }, { to: '/rotinas', label: 'Rotinas' }],
+    tabs: [{ to: '/calendario', label: 'Calendário' }, { to: '/rotinas', label: 'Rotinas' }, { to: '/revisoes', label: 'Revisões' }],
   },
   { label: 'Cronômetro', icon: Timer, to: '/cronometro', tabs: [{ to: '/cronometro', label: 'Cronômetro' }] },
   {
     label: 'Biblioteca',
     icon: Library,
-    to: '/materias',
+    to: '/biblioteca',
     tabs: [
+      { to: '/biblioteca', label: 'Biblioteca' },
       { to: '/materias', label: 'Matérias' },
       { to: '/trilhas', label: 'Trilhas' },
-      { to: '/ingles', label: 'Inglês' },
       { to: '/cursos', label: 'Cursos' },
-      { to: '/biblioteca', label: 'Livros' },
+      { to: '/livros', label: 'Livros' },
       { to: '/audios', label: 'Áudios' },
-      { to: '/videos', label: 'Vídeos' },
       { to: '/flashcards', label: 'Flashcards' },
-      { to: '/revisoes', label: 'Revisões' },
       { to: '/banco-de-questoes', label: 'Banco de questões' },
-      { to: '/questoes', label: 'Desempenho' },
     ],
   },
-  { label: 'Metas e relatórios', icon: Target, to: '/metas', tabs: [{ to: '/metas', label: 'Metas' }, { to: '/relatorios', label: 'Relatórios' }] },
+  { label: 'Metas e relatórios', icon: Target, to: '/metas', tabs: [{ to: '/metas', label: 'Metas' }, { to: '/relatorios', label: 'Relatórios' }, { to: '/questoes', label: 'Desempenho' }] },
   { label: 'Configurações', icon: Settings, to: '/configuracoes', tabs: [{ to: '/configuracoes', label: 'Configurações' }] },
 ]
 
