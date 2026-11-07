@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { ArrowLeft, FileText, KeyRound, ShieldCheck } from 'lucide-react'
 import { DriveOpenLink } from '@/components/DriveViewer'
 import { Button } from '@/components/ui/Button'
@@ -10,7 +10,7 @@ import { useCourses } from '@/hooks/useCourses'
 import { useLibrary } from '@/hooks/useLibrary'
 import { displayTitle } from '@/lib/courseCatalog'
 import { isDriveId, isResourceKey } from '@/lib/drive'
-import { currentDriveReadToken, getClientId, isClientId, requestDriveReadToken, saveClientId } from '@/lib/googleAuth'
+import { DRIVE_READ_SCOPE, currentDriveReadToken, getClientId, isClientId, requestDriveReadToken, saveClientId, startDriveRedirect } from '@/lib/googleAuth'
 import { PdfReader } from '@/pages/library/PdfReaderPage'
 import { DrivePdfStore } from '@/services/drivePdf'
 import type { CourseNode } from '@/types/db'
@@ -35,6 +35,23 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
   const [clientId, setClientId] = useState(savedClientId ?? '')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const location = useLocation()
+
+  /** Sem janela: esta aba vai ao Google e volta para este leitor (via /cursos). */
+  const authorizeHere = () => {
+    const id = clientId.trim()
+    if (!isClientId(id)) {
+      setError('Informe um ID público de cliente OAuth válido.')
+      return
+    }
+    setError('')
+    try {
+      saveClientId(id)
+      startDriveRedirect(id, DRIVE_READ_SCOPE, undefined, location.pathname + location.search)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    }
+  }
 
   const authorize = async () => {
     const id = clientId.trim()
@@ -69,7 +86,11 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
           <p className="flex items-start gap-3 text-sm leading-relaxed text-muted"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-accent-strong" aria-hidden /><span>O Google solicita acesso de leitura aos arquivos da sua conta, sem editar ou excluir. A plataforma usa esse acesso para abrir o PDF selecionado. A autorização é temporária e fica apenas na memória desta aba.</span></p>
           {!savedClientId && <Field label="ID público do cliente OAuth do Google" hint="Use o mesmo ID de cliente utilizado para conectar seus cursos ao Drive.">{(id, description) => <Input id={id} aria-describedby={description} value={clientId} placeholder="123456789012-…apps.googleusercontent.com" onChange={(event) => setClientId(event.target.value)} autoComplete="off" />}</Field>}
           {error && <p role="alert" className="rounded-xl border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
-          <Button variant="primary" loading={pending} disabled={!isClientId(clientId.trim())} icon={<KeyRound className="size-4" aria-hidden />} onClick={() => void authorize()}>Autorizar leitura do PDF</Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" disabled={pending || !isClientId(clientId.trim())} icon={<KeyRound className="size-4" aria-hidden />} onClick={authorizeHere}>Autorizar leitura do PDF</Button>
+            <Button variant="ghost" size="sm" loading={pending} disabled={!isClientId(clientId.trim())} onClick={() => void authorize()}>Autorizar em janela separada</Button>
+          </div>
+          <p className="text-xs text-muted">O Google abre nesta aba e volta para este PDF. Se aparecer “O Google não verificou este app”, toque em Continuar (o app está em modo de teste, só para o seu e-mail).</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 text-xs">
             <Link to={backTo} className="text-ink underline underline-offset-4">Usar visualizador padrão</Link>
             <DriveOpenLink node={node} />

@@ -1,5 +1,6 @@
 // Referências a arquivos do Google Drive: validação de IDs e links, tipo de material e endereços de visualização.
 // Os arquivos continuam no Drive; o app só guarda IDs e metadados e monta links para os domínios oficiais do Google.
+import { youtubeEmbedUrl } from './video'
 
 /** IDs do Drive: letras, números, "-" e "_" (pastas, arquivos e drives compartilhados). */
 const DRIVE_ID = /^[A-Za-z0-9_-]{10,128}$/
@@ -12,6 +13,12 @@ export const isResourceKey = (v: unknown): v is string => typeof v === 'string' 
 
 export const FOLDER_MIME = 'application/vnd.google-apps.folder'
 export const SHORTCUT_MIME = 'application/vnd.google-apps.shortcut'
+/** Vídeo do YouTube dentro do catálogo de Cursos: o `drive_id` guarda o ID do vídeo (11 caracteres). */
+export const YOUTUBE_MIME = 'video/x-youtube'
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/
+export const isYoutubeMime = (mime: string | null | undefined) => (mime ?? '').toLowerCase() === YOUTUBE_MIME
+/** Hosts aceitos em iframes: Drive/Docs e o player sem cookies do YouTube. */
+const EMBED_HOSTS = new Set([...DRIVE_HOSTS, 'www.youtube-nocookie.com'])
 
 /**
  * Extrai o ID de uma pasta do Drive a partir do link de compartilhamento (ou do próprio ID).
@@ -65,6 +72,7 @@ const OFFICE: Record<string, MaterialType> = {
 export function materialType(mime: string | null | undefined): MaterialType {
   const m = (mime ?? '').toLowerCase()
   if (m === 'application/pdf') return { kind: 'pdf', label: 'PDF', embeddable: true }
+  if (m === YOUTUBE_MIME) return { kind: 'video', label: 'Vídeo do YouTube', embeddable: true }
   if (GOOGLE_APPS[m]) return GOOGLE_APPS[m]
   if (OFFICE[m]) return OFFICE[m]
   if (m.startsWith('video/')) return { kind: 'video', label: 'Vídeo', embeddable: true }
@@ -93,6 +101,7 @@ const withKey = (base: string, resourceKey?: string | null) => (isResourceKey(re
  * ou o ID é inválido. Só gera endereços de drive.google.com e docs.google.com.
  */
 export function driveEmbedUrl(id: string, mime: string | null | undefined, resourceKey?: string | null): string | null {
+  if (isYoutubeMime(mime)) return YOUTUBE_ID.test(id) ? youtubeEmbedUrl({ videoId: id, playlistId: null, start: 0 }) : null
   if (!isDriveId(id)) return null
   const type = materialType(mime)
   if (!type.embeddable) return null
@@ -105,16 +114,17 @@ export function driveEmbedUrl(id: string, mime: string | null | undefined, resou
 
 /** Link para abrir o arquivo (ou a pasta) no próprio Google Drive, em outra aba. */
 export function driveOpenUrl(id: string, mime?: string | null, resourceKey?: string | null): string | null {
+  if (isYoutubeMime(mime)) return YOUTUBE_ID.test(id) ? `https://www.youtube.com/watch?v=${id}` : null
   if (!isDriveId(id)) return null
   if (mime === FOLDER_MIME) return withKey(`https://drive.google.com/drive/folders/${id}`, resourceKey)
   return withKey(`https://drive.google.com/file/d/${id}/view`, resourceKey)
 }
 
-/** Confere se um endereço é de um domínio oficial do Drive (usado antes de pôr qualquer src em iframe). */
+/** Confere se um endereço é de um domínio oficial do Drive ou do player do YouTube (usado antes de pôr qualquer src em iframe). */
 export function isTrustedDriveUrl(raw: string): boolean {
   try {
     const url = new URL(raw)
-    return url.protocol === 'https:' && DRIVE_HOSTS.has(url.hostname)
+    return url.protocol === 'https:' && EMBED_HOSTS.has(url.hostname)
   } catch {
     return false
   }

@@ -14,6 +14,7 @@ import { crawlFolder, type CrawlResult } from '@/lib/driveCrawl'
 import { createDriveClient } from '@/lib/driveApi'
 import { buildPlan, reconcile } from '@/lib/courseImport'
 import { currentDriveToken, envClientId, getClientId, isClientId, requestDriveToken, revokeDriveToken, saveClientId, startDriveRedirect } from '@/lib/googleAuth'
+import { isYoutubeSource } from '@/lib/youtubeCourses'
 import { addSource, applySync, COURSE_TABLES, sourceConfig, removeSource } from '@/services/courses'
 import type { CourseNode, CourseSource, CourseSourceConfig } from '@/types/db'
 
@@ -73,17 +74,22 @@ function GoogleConnection({ connected, onConnected }: { connected: boolean; onCo
         {connected ? (
           <Button size="sm" icon={<LogOut className="size-3.5" aria-hidden />} onClick={() => { revokeDriveToken(); onConnected(false) }}>Desconectar</Button>
         ) : (
-          <Button size="sm" variant="primary" disabled={!valid} loading={busy} onClick={() => void connect()}>Conectar com o Google</Button>
+          <Button size="sm" variant="primary" disabled={!valid || busy} onClick={connectHere}>Conectar com o Google</Button>
         )}
       </div>
       {!connected && (
-        <p className="text-xs text-muted">
-          A janela do Google ficou em branco ou fechou sozinha?{' '}
-          <button type="button" className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:opacity-50" disabled={!valid || busy} onClick={connectHere}>
-            Conectar nesta aba
-          </button>
-          {' '}(o Google abre aqui mesmo e volta para esta tela).
-        </p>
+        <div className="space-y-1 text-xs text-muted">
+          <p>
+            O Google abre nesta mesma aba e volta para esta tela. Se aparecer <strong>“O Google não verificou este app”</strong>, é normal (o app está em modo de teste, só para o seu e-mail): toque em <strong>Continuar</strong> e depois em <strong>Permitir</strong>.
+          </p>
+          <p>
+            Prefere a janela separada?{' '}
+            <button type="button" className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:opacity-50" disabled={!valid || busy} onClick={() => void connect()}>
+              {busy ? 'Aguardando o Google…' : 'Conectar em janela separada'}
+            </button>
+            {' '}(pode falhar com bloqueio de cookies de terceiros ou pop-ups).
+          </p>
+        </div>
       )}
       {!fromEnv && !connected && (
         <Field label="ID do cliente OAuth do Google" hint="Público (não é segredo): termina em .apps.googleusercontent.com. Fica salvo só neste navegador. Veja docs/CURSOS.md para criar." error={clientId && !valid ? 'Formato inválido.' : null}>
@@ -311,8 +317,12 @@ export function DriveSources({ open, onClose, sources }: { open: boolean; onClos
                       {r?.failedFolders?.length ? <span className="text-warning">{r.failedFolders.length} pasta(s) não lida(s)</span> : null}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="primary" disabled={busy || !connected} icon={<RefreshCw className="size-3.5" aria-hidden />} onClick={() => void read(s.drive_folder_id, s)}>Atualizar do Drive</Button>
+                  <div className="flex items-center gap-2">
+                    {isYoutubeSource(s) ? (
+                      <Badge color="#c4302b">YouTube</Badge>
+                    ) : (
+                      <Button size="sm" variant="primary" disabled={busy || !connected} icon={<RefreshCw className="size-3.5" aria-hidden />} onClick={() => void read(s.drive_folder_id, s)}>Atualizar do Drive</Button>
+                    )}
                     <Button size="sm" variant="ghost" disabled={busy} aria-label={`Remover ${s.label ?? s.title}`} icon={<Trash2 className="size-3.5" aria-hidden />} onClick={() => void remove(s)} />
                   </div>
                 </div>

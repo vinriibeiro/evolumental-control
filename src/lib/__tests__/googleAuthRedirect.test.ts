@@ -30,7 +30,7 @@ describe('conexão com o Google na mesma aba (redirecionamento)', () => {
     const { state } = stateSaved()
     const hash = `#state=${state}&access_token=tok-metadata&token_type=Bearer&expires_in=3599&scope=${encodeURIComponent(auth.DRIVE_SCOPE)}`
     window.history.replaceState(null, '', `/cursos${hash}`)
-    expect(auth.consumeRedirectToken()).toEqual({ ok: true, scope: auth.DRIVE_SCOPE })
+    expect(auth.consumeRedirectToken()).toEqual({ ok: true, scope: auth.DRIVE_SCOPE, returnTo: null })
     expect(auth.currentDriveToken()).toBe('tok-metadata')
     expect(auth.currentDriveReadToken()).toBeNull()
     expect(window.location.hash).toBe('')
@@ -62,8 +62,20 @@ describe('conexão com o Google na mesma aba (redirecionamento)', () => {
     const auth = await import('@/lib/googleAuth')
     auth.startDriveRedirect(clientId, auth.DRIVE_READ_SCOPE, () => {})
     window.history.replaceState(null, '', `/cursos#state=${stateSaved().state}&access_token=tok-read&expires_in=3600&scope=${encodeURIComponent(auth.DRIVE_READ_SCOPE)}`)
-    expect(auth.consumeRedirectToken()).toEqual({ ok: true, scope: auth.DRIVE_READ_SCOPE })
+    expect(auth.consumeRedirectToken()).toEqual({ ok: true, scope: auth.DRIVE_READ_SCOPE, returnTo: null })
     expect(auth.currentDriveReadToken()).toBe('tok-read')
     expect(auth.currentDriveToken()).toBeNull()
+  })
+
+  it('volta para a tela que pediu a autorização (só caminhos internos do app)', async () => {
+    const auth = await import('@/lib/googleAuth')
+    auth.startDriveRedirect(clientId, auth.DRIVE_READ_SCOPE, () => {}, '/cursos/abc/pdf/def?x=1')
+    window.history.replaceState(null, '', `/cursos#state=${stateSaved().state}&access_token=tok-read&expires_in=3600&scope=${encodeURIComponent(auth.DRIVE_READ_SCOPE)}`)
+    expect(auth.consumeRedirectToken()).toEqual({ ok: true, scope: auth.DRIVE_READ_SCOPE, returnTo: '/cursos/abc/pdf/def?x=1' })
+
+    // endereço externo ou protocolo relativo não vale como caminho de volta
+    auth.startDriveRedirect(clientId, auth.DRIVE_SCOPE, () => {}, '//evil.example/x')
+    window.history.replaceState(null, '', `/cursos#state=${stateSaved().state}&access_token=tok&scope=${encodeURIComponent(auth.DRIVE_SCOPE)}`)
+    expect(auth.consumeRedirectToken()).toEqual({ ok: true, scope: auth.DRIVE_SCOPE, returnTo: null })
   })
 })

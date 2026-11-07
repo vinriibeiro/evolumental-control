@@ -1,6 +1,6 @@
 import { AlertTriangle, ExternalLink, FileQuestion } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { driveEmbedUrl, driveOpenUrl, isTrustedDriveUrl, materialType } from '@/lib/drive'
+import { driveEmbedUrl, driveOpenUrl, isTrustedDriveUrl, isYoutubeMime, materialType } from '@/lib/drive'
 import type { CourseNode } from '@/types/db'
 
 export function DriveOpenLink({ node, className }: { node: Pick<CourseNode, 'drive_id' | 'mime_type' | 'resource_key'>; className?: string }) {
@@ -8,7 +8,7 @@ export function DriveOpenLink({ node, className }: { node: Pick<CourseNode, 'dri
   if (!href) return null
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className={cn('inline-flex items-center gap-1 text-ink hover:underline', className)}>
-      Abrir no Drive <ExternalLink className="size-3" aria-hidden />
+      {isYoutubeMime(node.mime_type) ? 'Abrir no YouTube' : 'Abrir no Drive'} <ExternalLink className="size-3" aria-hidden />
     </a>
   )
 }

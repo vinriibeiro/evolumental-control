@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   clientId: null as string | null,
   items: [] as CourseNode[],
   request: vi.fn<(...args: string[]) => Promise<string>>(),
+  redirect: vi.fn(),
   save: vi.fn(),
   store: vi.fn(),
 }))
@@ -23,6 +24,7 @@ vi.mock('@/lib/googleAuth', async (importOriginal) => ({
   currentDriveReadToken: () => mocks.token,
   getClientId: () => mocks.clientId,
   requestDriveReadToken: mocks.request,
+  startDriveRedirect: mocks.redirect,
   saveClientId: mocks.save,
 }))
 vi.mock('@/services/drivePdf', () => ({ DrivePdfStore: class {
@@ -56,10 +58,20 @@ describe('PDF dos cursos — autorização e referência', () => {
     expect(screen.getByRole('link', { name: 'Usar visualizador padrão' })).toHaveAttribute('href', '/cursos/course-one?item=pdf-one')
   })
 
-  it('solicita acesso só após o clique e abre o mesmo PDF sem importá-lo na estante', async () => {
+  it('o botão principal leva esta aba ao Google (sem janela) e marca a volta para este PDF', () => {
     renderAt()
     fireEvent.change(screen.getByLabelText('ID público do cliente OAuth do Google'), { target: { value: clientId } })
     fireEvent.click(screen.getByRole('button', { name: 'Autorizar leitura do PDF' }))
+    expect(mocks.save).toHaveBeenCalledWith(clientId)
+    expect(mocks.redirect).toHaveBeenCalledWith(clientId, 'https://www.googleapis.com/auth/drive.readonly', undefined, '/cursos/course-one/pdf/pdf-one')
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('pdf-reader')).not.toBeInTheDocument()
+  })
+
+  it('solicita acesso em janela só após o clique e abre o mesmo PDF sem importá-lo na estante', async () => {
+    renderAt()
+    fireEvent.change(screen.getByLabelText('ID público do cliente OAuth do Google'), { target: { value: clientId } })
+    fireEvent.click(screen.getByRole('button', { name: 'Autorizar em janela separada' }))
     expect(await screen.findByTestId('pdf-reader')).toHaveTextContent('drive_pdf_reference_123456789')
     expect(mocks.request).toHaveBeenCalledWith(clientId)
     expect(mocks.store).toHaveBeenCalledWith('account-one', mocks.items[0], 'read-token-from-user-click')
@@ -93,7 +105,7 @@ describe('PDF dos cursos — autorização e referência', () => {
     mocks.clientId = clientId
     mocks.request.mockRejectedValue(new Error('Autorização cancelada pela pessoa.'))
     renderAt()
-    fireEvent.click(screen.getByRole('button', { name: 'Autorizar leitura do PDF' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Autorizar em janela separada' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Autorização cancelada pela pessoa.')
     expect(screen.queryByTestId('pdf-reader')).not.toBeInTheDocument()
   })
