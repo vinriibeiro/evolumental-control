@@ -13,7 +13,7 @@ import { FOLDER_MIME, KIND_LABELS, parseDriveFolder, type MaterialKind } from '@
 import { crawlFolder, type CrawlResult } from '@/lib/driveCrawl'
 import { createDriveClient } from '@/lib/driveApi'
 import { buildPlan, reconcile } from '@/lib/courseImport'
-import { currentDriveToken, envClientId, getClientId, isClientId, requestDriveToken, revokeDriveToken, saveClientId, startDriveRedirect } from '@/lib/googleAuth'
+import { currentDriveToken, envClientId, getClientId, isClientId, redirectUri, requestDriveToken, revokeDriveToken, saveClientId, startDriveRedirect } from '@/lib/googleAuth'
 import { isYoutubeSource } from '@/lib/youtubeCourses'
 import { addSource, applySync, COURSE_TABLES, sourceConfig, removeSource } from '@/services/courses'
 import type { CourseNode, CourseSource, CourseSourceConfig } from '@/types/db'
@@ -87,7 +87,22 @@ function GoogleConnection({ connected, onConnected }: { connected: boolean; onCo
             <button type="button" className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:opacity-50" disabled={!valid || busy} onClick={() => void connect()}>
               {busy ? 'Aguardando o Google…' : 'Conectar em janela separada'}
             </button>
-            {' '}(pode falhar com bloqueio de cookies de terceiros ou pop-ups).
+            {' '}(pode falhar com bloqueio de cookies de terceiros ou pop-ups, mas não depende da URI de retorno abaixo).
+          </p>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>
+              URI de retorno desta origem: <code className="rounded bg-surface-2 px-1 py-0.5 text-[11px] text-ink">{redirectUri()}</code>
+            </span>
+            <button
+              type="button"
+              className="font-medium text-accent-strong underline-offset-2 hover:underline"
+              onClick={() => navigator.clipboard?.writeText(redirectUri()).then(() => toast.success('URI copiada.'), () => toast.error('Não deu para copiar; selecione o texto.'))}
+            >
+              Copiar
+            </button>
+            <span>
+              Ela precisa estar em <strong>URIs de redirecionamento autorizados</strong> do cliente OAuth no Google Cloud (APIs e serviços → Credenciais). Se o Google mostrar <strong>Erro 400: redirect_uri_mismatch</strong>, é isso que falta; cadastre e aguarde alguns minutos, ou use a janela separada enquanto isso.
+            </span>
           </p>
         </div>
       )}
