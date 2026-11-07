@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, type CguLink } from '@/content/cguPlan'
+import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, CGU_START_DATE, QC_CEBRASPE, QC_LINKS, type CguLink } from '@/content/cguPlan'
 import type { CourseView } from '@/lib/courseCatalog'
-import { EMPTY_STATE, dayIndexFor, discursiveScore, loadState, markDone, minutesOf, nextTask, pendingTasks, postpone, resolveLink, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { EMPTY_STATE, dayIndexFor, discursiveScore, loadState, markDone, materialCoverage, minutesOf, nextTask, pendingTasks, postpone, resolveLink, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
 import type { CourseNode } from '@/types/db'
 
 describe('plano CGU de 28 dias', () => {
@@ -33,15 +33,48 @@ describe('plano CGU de 28 dias', () => {
       expect(t.minutes).toBeGreaterThan(0)
     }
   })
+
+  it('toda questão, diagnóstico, simulado e revisão aponta para filtros do QConcursos com a banca Cebraspe', () => {
+    const tasks = CGU_PLAN.flatMap((d) => d.tasks).filter((t) => ['questoes', 'diagnostico', 'simulado', 'revisao'].includes(t.kind))
+    expect(tasks.length).toBeGreaterThan(60)
+    for (const t of tasks) {
+      expect(t.link.kind, t.id).toBe('qc')
+      if (t.link.kind !== 'qc') continue
+      expect(t.link.links.length, t.id).toBeGreaterThan(0)
+      expect(new Set(t.link.links.map((l) => l.url)).size).toBe(t.link.links.length)
+      for (const l of t.link.links) {
+        expect(l.url.startsWith('https://www.qconcursos.com/questoes-de-concursos/'), l.url).toBe(true)
+        expect(l.url, l.label).toContain(QC_CEBRASPE)
+        expect(l.label.length).toBeGreaterThan(3)
+      }
+      expect(t.open).toContain('QConcursos')
+      if (t.kind === 'revisao') continue
+      // Subtema citado na tarefa precisa ter mapeamento próprio (não cair no filtro geral do tema).
+      for (const s of t.link.subtemas) expect(QC_LINKS[t.link.tema]?.sub[s], `${t.link.tema} › ${s}`).toBeTruthy()
+      expect(t.open).toContain(`${t.link.quantidade} questões`)
+    }
+  })
+
+  it('nenhuma tarefa aponta para o banco de questões interno', () => {
+    for (const t of CGU_PLAN.flatMap((d) => d.tasks)) {
+      expect(t.open).not.toContain('Banco de questões')
+      if (t.link.kind === 'route') expect(t.link.to).not.toContain('/banco-de-questoes')
+    }
+  })
 })
 
 describe('estado da trilha', () => {
-  it('conta o dia a partir da primeira tarefa iniciada e limita a 28', () => {
-    expect(dayIndexFor(EMPTY_STATE, '2026-11-20')).toBe(1)
-    const s = startTask(EMPTY_STATE, 'd01-001', '2026-11-07')
-    expect(dayIndexFor(s, '2026-11-07')).toBe(1)
-    expect(dayIndexFor(s, '2026-11-09')).toBe(3)
-    expect(dayIndexFor(s, '2027-01-01')).toBe(28)
+  it('conta o dia a partir de 07/11/2026 (início fixo) e limita a 28', () => {
+    expect(CGU_START_DATE).toBe('2026-11-07')
+    expect(dayIndexFor('2026-11-06')).toBe(1)
+    expect(dayIndexFor('2026-11-07')).toBe(1)
+    expect(dayIndexFor('2026-11-09')).toBe(3)
+    expect(dayIndexFor('2026-12-04')).toBe(28)
+    expect(dayIndexFor('2027-01-01')).toBe(28)
+    // Começar uma tarefa registra a data, mas não muda a contagem.
+    const s = startTask(EMPTY_STATE, 'd01-001', '2026-11-20')
+    expect(s.startDate).toBe('2026-11-20')
+    expect(dayIndexFor('2026-11-20')).toBe(14)
   })
 
   it('concluir avança para a próxima tarefa e adiar leva a tarefa para o dia seguinte sem perder progresso', () => {
@@ -114,8 +147,44 @@ describe('abertura dos materiais', () => {
     expect(r.hint).toContain('indisponível')
   })
 
-  it('banco e rotas internas', () => {
-    expect(resolveLink({ kind: 'banco', tema: 'T', subtemas: ['1 A'], quantidade: 10 }, catalog)).toMatchObject({ to: '/banco-de-questoes', hint: expect.stringContaining('1 A') })
+  it('QConcursos abre o primeiro filtro em nova aba e devolve todos os filtros; rotas internas passam direto', () => {
+    const links = [
+      { label: 'Banco de Dados › SQL', url: 'https://www.qconcursos.com/questoes-de-concursos/disciplinas/tecnologia-da-informacao-banco-de-dados/sql/questoes?examining_board_ids%5B%5D=2' },
+      { label: 'Banco de Dados › Índices', url: 'https://www.qconcursos.com/questoes-de-concursos/disciplinas/tecnologia-da-informacao-banco-de-dados/indices/questoes?examining_board_ids%5B%5D=2' },
+    ]
+    const r = resolveLink({ kind: 'qc', tema: 'T', subtemas: ['2 SQL'], quantidade: 20, links }, catalog)
+    expect(r).toMatchObject({ to: links[0].url, external: true, inCatalog: true, links })
+    expect(r.hint).toContain('20 questões')
+    expect(r.hint).toContain('2 filtros')
+    const rev = resolveLink({ kind: 'qc', tema: 'Revisão', subtemas: [], quantidade: 0, links: [links[0]] }, catalog)
+    expect(rev.hint).toContain('errou')
     expect(resolveLink({ kind: 'route', to: '/cgu#discursiva' }, catalog).to).toBe('/cgu#discursiva')
+  })
+
+  it('se o mesmo arquivo aparece duas vezes no catálogo, prefere a posição disponível e visível', () => {
+    const missing = { ...vid, id: 'n1-velho', status: 'missing' } as CourseNode
+    const r = resolveLink({ kind: 'drive', driveId: 'vid-1', folderId: 'folder-1', folder: 'X', media: 'video' }, { views: [view], nodes: [course, missing, vid, doc] })
+    expect(r).toMatchObject({ to: '/cursos/c1?item=n1', inCatalog: true })
+  })
+
+  it('cobertura dos materiais do plano por pasta: dentro do app, fora do catálogo e indisponíveis', () => {
+    const planFiles = new Set(CGU_PLAN.flatMap((d) => d.tasks).flatMap((t) => (t.link.kind === 'drive' ? [t.link.driveId] : [])))
+    const empty = materialCoverage({ views: [], nodes: [] })
+    expect(empty.total).toBe(planFiles.size)
+    expect(empty.ok).toBe(0)
+    expect(empty.notImported).toBe(planFiles.size)
+    expect(empty.folders.length).toBeGreaterThanOrEqual(15)
+
+    // Só o vídeo 001 de AED importado; a apostila de AED consta como "não encontrada".
+    const aedCourse = node('aed', '1MsIzL9Qv0bXU9mxmUSux7IsksEu_N19p', null, 'application/vnd.google-apps.folder')
+    const aedVideo = node('aed-v1', '1huUdohKztOGq7ng3s3gMzx3hmIynwaPb', 'aed', 'video/mp4')
+    const aedPdf = { ...node('aed-p1', '1P-Tsb7Z1m1CQrYVZQaiX93C41OV4_y9B', 'aed', 'application/pdf'), status: 'missing' } as CourseNode
+    const aedView = { course: aedCourse, items: [aedVideo, aedPdf], lessons: [{ id: 'aed-v1', primary: aedVideo, attachments: [aedPdf] }] } as unknown as CourseView
+    const partial = materialCoverage({ views: [aedView], nodes: [aedCourse, aedVideo, aedPdf] })
+    expect(partial.ok).toBe(1)
+    expect(partial.missing).toBe(1)
+    expect(partial.notImported).toBe(planFiles.size - 2)
+    const aed = partial.folders.find((f) => f.folderId === '1MsIzL9Qv0bXU9mxmUSux7IsksEu_N19p')
+    expect(aed).toMatchObject({ ok: 1, missing: 1, notImported: aed!.total - 2 })
   })
 })

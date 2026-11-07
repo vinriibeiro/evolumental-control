@@ -19,7 +19,7 @@ export function useCguPlan() {
   useEffect(() => setState(loadState(scope)), [scope])
   useEffect(() => saveState(scope, state), [scope, state])
 
-  const day = dayIndexFor(state, today)
+  const day = dayIndexFor(today)
   const tasks = useMemo(() => tasksForDay(state, day), [state, day])
   const pending = useMemo(() => pendingTasks(state, day), [state, day])
   const next = useMemo(() => nextTask(state, day), [state, day])
@@ -38,6 +38,7 @@ export function useCguPlan() {
 
   return {
     scope,
+    catalog,
     today,
     day,
     state,

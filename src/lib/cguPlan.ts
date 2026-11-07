@@ -1,5 +1,5 @@
 // Estado da trilha CGU (por conta), escolha da próxima tarefa, adiamento e abertura dos materiais nos players do app.
-import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, CGU_SCORING, type CguBlock, type CguLink, type CguTask } from '@/content/cguPlan'
+import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, CGU_SCORING, CGU_START_DATE, QC_REVISAO, type CguBlock, type CguLink, type CguTask, type QcLink } from '@/content/cguPlan'
 import type { CourseView } from '@/lib/courseCatalog'
 import type { CourseNode } from '@/types/db'
 
@@ -10,7 +10,7 @@ export interface BlockScore {
 export type ScoredBlock = 'P1' | 'P2' | 'P3'
 
 export interface CguState {
-  /** Dia 1 do plano (YYYY-MM-DD). Definido quando a primeira tarefa começa. */
+  /** Quando a primeira tarefa foi iniciada (YYYY-MM-DD), só para registro: o dia do plano é contado a partir de CGU_START_DATE. */
   startDate: string | null
   /** Tarefa → quando foi concluída (ISO). */
   done: Record<string, string>
@@ -47,10 +47,9 @@ export function saveState(scope: string, state: CguState): void {
 const dayMs = 86_400_000
 const toUtc = (day: string) => Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)))
 
-/** Dia do plano (1..28) para a data de hoje; antes de começar é sempre o dia 1. */
-export function dayIndexFor(state: Pick<CguState, 'startDate'>, today: string): number {
-  if (!state.startDate) return 1
-  const diff = Math.floor((toUtc(today) - toUtc(state.startDate)) / dayMs)
+/** Dia do plano (1..28) para a data de hoje, contado a partir de CGU_START_DATE (07/11/2026): antes disso é o dia 1; depois do 28º, fica no 28. */
+export function dayIndexFor(today: string): number {
+  const diff = Math.floor((toUtc(today) - toUtc(CGU_START_DATE)) / dayMs)
   return Math.min(TOTAL_DAYS, Math.max(1, diff + 1))
 }
 
@@ -144,16 +143,28 @@ export interface ResolvedLink {
   /** O material está no catálogo de Cursos desta conta (abre no player com progresso). */
   inCatalog: boolean
   hint: string | null
+  /** Filtros do QConcursos da tarefa (o primeiro é o que “Abrir” usa). */
+  links?: QcLink[]
 }
 
 const driveUrl = (link: Extract<CguLink, { kind: 'drive' }>) => (link.media === 'folder' ? `https://drive.google.com/drive/folders/${link.driveId}` : `https://drive.google.com/file/d/${link.driveId}/view`)
 
-/** Converte o link da tarefa em rota do app: aula → /cursos/:id?item=:nodeId; PDF → leitor próprio; sem catálogo → Drive. */
-export function resolveLink(link: CguLink, courses: { views: readonly CourseView[]; nodes: readonly CourseNode[] }): ResolvedLink {
+export interface CourseCatalog {
+  views: readonly CourseView[]
+  nodes: readonly CourseNode[]
+}
+
+/** Converte o link da tarefa em rota do app: aula → /cursos/:id?item=:nodeId; PDF → leitor próprio; sem catálogo → Drive; QConcursos → nova aba. */
+export function resolveLink(link: CguLink, courses: CourseCatalog): ResolvedLink {
   if (link.kind === 'route') return { to: link.to, external: false, inCatalog: true, hint: null }
-  if (link.kind === 'banco') return { to: '/banco-de-questoes', external: false, inCatalog: true, hint: `Tema “${link.tema}”${link.subtemas.length ? ` · subtemas ${link.subtemas.join(', ')}` : ''} · ${link.quantidade} questões` }
+  if (link.kind === 'qc') {
+    const hint = link.quantidade > 0 ? `${link.quantidade} questões · banca Cebraspe · ${link.links.length} filtro${link.links.length === 1 ? '' : 's'} do QConcursos` : 'No QConcursos (logado), filtre pelas questões que você errou e refaça-as.'
+    return { to: link.links[0]?.url ?? QC_REVISAO.url, external: true, inCatalog: true, hint, links: link.links }
+  }
   const fallback: ResolvedLink = { to: driveUrl(link), external: true, inCatalog: false, hint: `Pasta ainda não importada em Cursos (“${link.folder}”). Abre no Drive; importe a pasta em Cursos → Pastas do Drive para abrir aqui com progresso.` }
-  const node = courses.nodes.find((n) => n.drive_id === link.driveId)
+  // O mesmo arquivo pode aparecer em mais de uma posição do catálogo: prefere a que está disponível e visível.
+  const matches = courses.nodes.filter((n) => n.drive_id === link.driveId)
+  const node = matches.find((n) => n.status === 'available' && !n.hidden) ?? matches[0]
   if (!node) return fallback
   if (node.status !== 'available') {
     return { ...fallback, hint: `Arquivo indisponível na última atualização do catálogo (${node.status === 'missing' ? 'não encontrado no Drive' : 'pasta excluída da importação'}). Tente abrir no Drive e atualize a pasta em Cursos.` }
@@ -167,6 +178,43 @@ export function resolveLink(link: CguLink, courses: { views: readonly CourseView
   }
   if (link.media === 'pdf') return { to: `/cursos/${course}/pdf/${encodeURIComponent(node.id)}`, external: false, inCatalog: true, hint: null }
   return { to: `/cursos/${course}?item=${encodeURIComponent(node.id)}`, external: false, inCatalog: true, hint: null }
+}
+
+export interface FolderCoverage {
+  folderId: string
+  folder: string
+  /** Arquivos distintos do plano nesta pasta. */
+  total: number
+  /** Abrem dentro do app (estão no catálogo, disponíveis e visíveis). */
+  ok: number
+  /** Estão no catálogo, mas indisponíveis (não encontrados, excluídos ou ocultos). */
+  missing: number
+  /** Não estão no catálogo: a pasta não foi importada ou a importação não trouxe o arquivo. */
+  notImported: number
+}
+
+export interface MaterialCoverage extends Pick<FolderCoverage, 'total' | 'ok' | 'missing' | 'notImported'> {
+  folders: FolderCoverage[]
+}
+
+/** Quantos vídeos/PDFs citados no plano abrem dentro do app, por pasta do Drive: mostra o que a importação em Cursos não trouxe. */
+export function materialCoverage(courses: CourseCatalog): MaterialCoverage {
+  const byFolder = new Map<string, FolderCoverage>()
+  const seen = new Set<string>()
+  for (const t of allTasks()) {
+    const link = t.link
+    if (link.kind !== 'drive' || seen.has(link.driveId)) continue
+    seen.add(link.driveId)
+    const f = byFolder.get(link.folderId) ?? { folderId: link.folderId, folder: link.folder, total: 0, ok: 0, missing: 0, notImported: 0 }
+    f.total++
+    if (resolveLink(link, courses).inCatalog) f.ok++
+    else if (courses.nodes.some((n) => n.drive_id === link.driveId)) f.missing++
+    else f.notImported++
+    byFolder.set(link.folderId, f)
+  }
+  const folders = [...byFolder.values()]
+  const sum = (k: 'total' | 'ok' | 'missing' | 'notImported') => folders.reduce((s, f) => s + f[k], 0)
+  return { folders, total: sum('total'), ok: sum('ok'), missing: sum('missing'), notImported: sum('notImported') }
 }
 
 export const BLOCK_LABELS: Record<CguBlock, string> = { P1: 'P1 · básicos', P2: 'P2 · complementares', P3: 'P3 · específicos', P4: 'Discursiva', Geral: 'Revisão' }
