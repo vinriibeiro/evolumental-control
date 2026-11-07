@@ -167,7 +167,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2 p-4">
             {[
               { to: '/cursos', label: 'Meus cursos', description: 'Aulas e materiais', icon: GraduationCap },
-              { to: '/biblioteca', label: 'Minha estante', description: 'Retome sua leitura', icon: BookOpen },
+              { to: '/livros', label: 'Meus livros', description: 'Retome sua leitura', icon: BookOpen },
               { to: '/flashcards/revisar?modo=vencidos', label: 'Flashcards', description: cardsDue.data != null ? `${cardsDue.data} para revisar` : 'Repetição espaçada', icon: Layers },
               { to: '/banco-de-questoes/desafios', label: 'Desafios de código', description: 'Python, SQL e Git', icon: Code2 },
             ].map((item) => <Link key={item.to} to={item.to} className="group flex min-h-24 flex-col items-start rounded-xl border border-line bg-surface/50 p-3.5 transition-colors hover:border-accent-strong/40 hover:bg-surface">

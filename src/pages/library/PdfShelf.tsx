@@ -130,7 +130,7 @@ export function PdfShelf() {
               </div>
             </div>
             {recent && !query.trim() && (
-              <Link to={`/biblioteca/pdf/${recent.id}`} aria-label={`Continuar PDF ${recent.title}`} className="group flex flex-wrap items-center gap-4 rounded-2xl border border-accent/25 bg-accent/5 p-5 transition-colors hover:border-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+              <Link to={`/livros/pdf/${recent.id}`} aria-label={`Continuar PDF ${recent.title}`} className="group flex flex-wrap items-center gap-4 rounded-2xl border border-accent/25 bg-accent/5 p-5 transition-colors hover:border-accent/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] font-semibold tracking-[0.16em] text-accent-strong uppercase">Retomar PDF</p>
                   <p className="mt-2 line-clamp-2 font-semibold text-ink">{recent.title}</p>
@@ -150,7 +150,7 @@ export function PdfShelf() {
                         <span className="flex size-12 items-center justify-center rounded-xl border border-line bg-surface text-accent-strong"><FileText className="size-6" aria-hidden /></span>
                         <IconButton label={`Remover PDF ${book.title}`} size="sm" disabled={remove.isPending} onClick={() => void askRemove(book)}><Trash2 className="size-4" aria-hidden /></IconButton>
                       </div>
-                      <h3 className="mt-4 line-clamp-2 text-base leading-snug font-semibold tracking-tight text-ink"><Link to={`/biblioteca/pdf/${book.id}`} className="hover:underline">{book.title}</Link></h3>
+                      <h3 className="mt-4 line-clamp-2 text-base leading-snug font-semibold tracking-tight text-ink"><Link to={`/livros/pdf/${book.id}`} className="hover:underline">{book.title}</Link></h3>
                       <p className="mt-2 text-xs text-muted">PDF · {formatSize(book.size)}{book.lastReadAt && book.pageCount ? ` · ${book.pageCount} ${book.pageCount === 1 ? 'página' : 'páginas'}` : ''}</p>
                       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted">
                         <span className="inline-flex items-center gap-1.5"><Highlighter className="size-3.5" aria-hidden />{book.annotations.length} {book.annotations.length === 1 ? 'anotação' : 'anotações'}</span>
@@ -158,7 +158,7 @@ export function PdfShelf() {
                       </div>
                       <div className="mt-auto pt-5">
                         <Progress value={pageProgress(book)} className="h-1.5" label={`Posição da leitura de ${book.title}`} />
-                        <Link to={`/biblioteca/pdf/${book.id}`} aria-label={`Abrir PDF ${book.title}`} className="mt-4 flex min-h-10 items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 text-sm font-semibold text-ink transition-colors hover:bg-accent/10">
+                        <Link to={`/livros/pdf/${book.id}`} aria-label={`Abrir PDF ${book.title}`} className="mt-4 flex min-h-10 items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 text-sm font-semibold text-ink transition-colors hover:bg-accent/10">
                           {book.lastReadAt ? 'Continuar leitura' : 'Abrir PDF'}<ArrowUpRight className="size-4 text-accent-strong" aria-hidden />
                         </Link>
                       </div>

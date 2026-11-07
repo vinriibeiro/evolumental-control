@@ -43,7 +43,7 @@ export default function PdfReaderPage() {
   return <PdfReader key={`${library.dbName}:${id}`} store={library} documentId={id} />
 }
 
-export function PdfReader({ store: library, documentId: id, backTo = '/biblioteca', backLabel = 'Voltar à biblioteca', sourceLabel = 'Biblioteca / Leitor PDF', storageNotice = 'Arquivo e marcas ficam neste navegador. Exporte uma cópia para guardar ou compartilhar.' }: PdfReaderProps) {
+export function PdfReader({ store: library, documentId: id, backTo = '/livros', backLabel = 'Voltar aos livros', sourceLabel = 'Livros / Leitor PDF', storageNotice = 'Arquivo e marcas ficam neste navegador. Exporte uma cópia para guardar ou compartilhar.' }: PdfReaderProps) {
   const qc = useQueryClient()
   const toast = useToast()
   const toastRef = useRef(toast)

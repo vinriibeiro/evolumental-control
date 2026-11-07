@@ -85,7 +85,7 @@ export default function ReaderPage() {
           title="Livro não encontrado"
           description="Ele pode ter sido removido da estante ou guardado em outro navegador."
           action={
-            <Link to="/biblioteca">
+            <Link to="/livros">
               <Button variant="primary">Voltar à estante</Button>
             </Link>
           }
@@ -214,7 +214,7 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
   const goPrev = useCallback(() => void renditionRef.current?.prev(), [])
   const leave = useCallback(() => {
     flushSave()
-    navigate('/biblioteca')
+    navigate('/livros')
   }, [flushSave, navigate])
 
   useEffect(() => {

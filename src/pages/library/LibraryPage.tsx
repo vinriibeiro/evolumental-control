@@ -154,7 +154,7 @@ export default function LibraryPage() {
   return (
     <div>
       <PageHeader
-        title="Biblioteca"
+        title="Livros"
         description="Seus PDFs e livros, em um só espaço. Leia, marque o que importa e retome de onde parou."
         actions={addButton}
       />
@@ -217,7 +217,7 @@ export default function LibraryPage() {
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {reading.map((b) => (
-                    <Link key={b.id} to={`/biblioteca/${b.id}`} aria-label={`Continuar lendo ${b.title}`} className="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+                    <Link key={b.id} to={`/livros/${b.id}`} aria-label={`Continuar lendo ${b.title}`} className="group block rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
                       <Card className="flex h-full gap-4 border-accent/20 bg-accent/5 p-4 transition-colors hover:border-accent/40">
                         <BookCover book={b} className="w-20 shrink-0 shadow-sm" />
                         <div className="min-w-0 flex-1 self-center">
@@ -262,7 +262,7 @@ export default function LibraryPage() {
                 <ul className="grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                   {visible.map((b) => (
                     <li key={b.id} className="group relative flex flex-col">
-                      <Link to={`/biblioteca/${b.id}`} aria-label={`Abrir ${b.title}`} className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+                      <Link to={`/livros/${b.id}`} aria-label={`Abrir ${b.title}`} className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
                         <div className="rounded-2xl border border-line bg-surface p-3 sm:p-4"><BookCover book={b} className="shadow-sm transition-transform group-hover:-translate-y-1 group-hover:shadow-md" /></div>
                         <p className="mt-3 line-clamp-2 text-sm font-semibold leading-snug text-ink">{b.title}</p>
                         <p className="mt-1 truncate text-xs text-muted">{b.author}</p>
