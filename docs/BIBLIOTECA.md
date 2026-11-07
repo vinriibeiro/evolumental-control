@@ -2,7 +2,7 @@
 
 Aba **Biblioteca**: estante com capas e leitor em tela cheia (estilo Kindle) para livros em EPUB.
 
-> **Desde 07/11/2026:** o item **Biblioteca** do menu abre uma pasta com todos os materiais (Matérias, Trilhas, Cursos, Livros, Áudios, Flashcards e Banco de questões), cada um em seu cartão, na ordem do fluxo de estudo (`/biblioteca`, `src/pages/library/LibraryHubPage.tsx`). A estante de livros descrita aqui passou para **Livros** (`/livros`; leitores em `/livros/:id` e `/livros/pdf/:id`; os endereços antigos `/biblioteca/...` continuam abrindo). Inglês, Vídeos, Revisões e Desempenho saíram desta pasta: Revisões foi para Calendário e Desempenho para Metas e relatórios; Inglês e Vídeos continuam acessíveis pela URL e pela busca (Ctrl K).
+> **Desde 07/11/2026:** o item **Biblioteca** do menu abre uma pasta com todos os materiais (Matérias, Trilhas, Cursos, Livros, Áudios, Flashcards e Banco de questões), cada um em seu cartão, na ordem do fluxo de estudo (`/biblioteca`, `src/pages/library/LibraryHubPage.tsx`). A estante de livros descrita aqui passou para **Livros** (`/livros`; leitores em `/livros/:id` e `/livros/pdf/:id`; os endereços antigos `/biblioteca/...` continuam abrindo). Inglês, Vídeos, Revisões e Desempenho saíram desta pasta: Revisões foi para Calendário e Desempenho para Metas e relatórios; Inglês e Vídeos continuam acessíveis pela URL e pela busca (Ctrl K). Dentro de cada material **não há barra de abas**: no alto da página fica só o botão **Voltar para a Biblioteca** (grupo com `back` em `src/app/nav.ts`, renderizado pelo `AppShell`).
 
 ## Como funciona
 

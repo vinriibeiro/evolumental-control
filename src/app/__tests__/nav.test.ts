@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MENU, NAV, OUTSIDE_MENU, groupFor, tabsFor, titleFor } from '../nav'
+import { MENU, NAV, OUTSIDE_MENU, backFor, groupFor, tabsFor, titleFor } from '../nav'
 
 describe('menu lateral agrupado', () => {
   it('tem poucos itens e cobre todas as páginas do menu completo, exceto as deixadas de fora de propósito', () => {
@@ -17,6 +17,7 @@ describe('menu lateral agrupado', () => {
   it('Biblioteca é uma pasta com todos os materiais, na ordem do fluxo, e abre nela mesma', () => {
     const lib = MENU.find((g) => g.label === 'Biblioteca')!
     expect(lib.to).toBe('/biblioteca')
+    expect(lib.back).toBe('Voltar para a Biblioteca')
     expect(lib.tabs.map((t) => t.label)).toEqual(['Biblioteca', 'Matérias', 'Trilhas', 'Cursos', 'Livros', 'Áudios', 'Flashcards', 'Banco de questões'])
     for (const removed of ['/ingles', '/videos', '/revisoes', '/questoes']) expect(lib.tabs.some((t) => t.to === removed), removed).toBe(false)
   })
@@ -47,13 +48,20 @@ describe('menu lateral agrupado', () => {
 
   it('mostra as abas só nas páginas principais do grupo', () => {
     expect(tabsFor('/calendario').map((t) => t.label)).toEqual(['Calendário', 'Rotinas', 'Revisões'])
-    expect(tabsFor('/biblioteca').map((t) => t.label)).toEqual(['Biblioteca', 'Matérias', 'Trilhas', 'Cursos', 'Livros', 'Áudios', 'Flashcards', 'Banco de questões'])
     expect(tabsFor('/metas').map((t) => t.label)).toEqual(['Metas', 'Relatórios', 'Desempenho'])
-    expect(tabsFor('/livros').map((t) => t.label)).toContain('Livros')
     expect(tabsFor('/biblioteca/abc')).toEqual([])
     expect(tabsFor('/livros/abc')).toEqual([])
     expect(tabsFor('/materias/123')).toEqual([])
     expect(tabsFor('/cronometro')).toEqual([])
     expect(tabsFor('/configuracoes')).toEqual([])
+  })
+
+  it('dentro da pasta Biblioteca não há abas: só o botão de voltar, nas páginas principais de cada material', () => {
+    const pages = ['/materias', '/trilhas', '/cursos', '/livros', '/audios', '/flashcards', '/banco-de-questoes']
+    for (const p of ['/biblioteca', ...pages]) expect(tabsFor(p), p).toEqual([])
+    expect(backFor('/biblioteca')).toBeNull()
+    for (const p of pages) expect(backFor(p), p).toEqual({ to: '/biblioteca', label: 'Voltar para a Biblioteca' })
+    // telas de detalhe têm o próprio "voltar"; os outros grupos continuam com abas, sem botão de pasta
+    for (const p of ['/livros/abc', '/livros/pdf/abc', '/materias/123', '/cursos/abc', '/flashcards/revisar', '/calendario', '/metas', '/cronometro', '/ingles', '/nao-existe']) expect(backFor(p), p).toBeNull()
   })
 })
