@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { CalendarClock, Check, ExternalLink, GraduationCap, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge, Card, CardHeader, Progress } from '@/components/ui/layout'
+import { QcLinks } from '@/components/QcLinks'
 import { useCguPlan } from '@/hooks/useCguPlan'
 import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, minutesOf } from '@/lib/cguPlan'
 
@@ -52,11 +53,12 @@ export function CguToday() {
             <p className="mt-1 break-words text-sm text-muted">
               <span className="font-medium text-ink">Até onde:</span> {task.until}
             </p>
-            {resolved?.hint && task.link.kind === 'drive' && (
+            {resolved?.hint && task.link.kind !== 'route' && (
               <p className="mt-2 rounded-lg bg-surface px-3 py-2 text-xs text-muted" role="note">
                 {resolved.hint}
               </p>
             )}
+            {resolved?.links && <QcLinks links={resolved.links} />}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="dark" icon={resolved?.external ? <ExternalLink className="size-4" /> : <Play className="size-4" />} onClick={() => plan.open(task)}>
                 {continuing ? 'Continuar' : 'Começar'}

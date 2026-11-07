@@ -3,14 +3,16 @@ import { Link, useLocation } from 'react-router-dom'
 import { CalendarClock, Check, ExternalLink, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge, Card, CardHeader, PageHeader } from '@/components/ui/layout'
-import { CGU_EXAM_DATE, CGU_PLAN, CGU_SCORING, type CguTask } from '@/content/cguPlan'
+import { QcLinks } from '@/components/QcLinks'
+import { CGU_EXAM_DATE, CGU_PLAN, CGU_SCORING, CGU_START_DATE, type CguTask } from '@/content/cguPlan'
 import { useCguPlan } from '@/hooks/useCguPlan'
-import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, type ScoredBlock, discursiveScore, minutesOf, overLimit, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, type ScoredBlock, discursiveScore, materialCoverage, minutesOf, overLimit, suggestFocus, tasksForDay } from '@/lib/cguPlan'
 
 const inputClass = 'h-10 w-20 rounded-lg border border-line bg-surface px-2 text-sm tabular text-ink'
 const FOCUS_LABEL = { sem_dados: 'sem dados', abaixo: 'abaixo do mínimo', no_limite: 'no limite', ok: 'com folga' } as const
+const br = (iso: string) => iso.split('-').reverse().join('/')
 
-/** Plano CGU 2026 (28 dias): tarefas por dia, placar por bloco com foco sugerido e espelho da discursiva. */
+/** Plano CGU 2026 (28 dias): tarefas por dia, placar por bloco com foco sugerido, espelho da discursiva e materiais do Drive no catálogo. */
 export default function CguPlanPage() {
   const plan = useCguPlan()
   const { hash } = useLocation()
@@ -22,12 +24,13 @@ export default function CguPlanPage() {
   const focus = useMemo(() => suggestFocus(plan.state.scores), [plan.state.scores])
   const dayTasks = useMemo(() => tasksForDay(plan.state, shown), [plan.state, shown])
   const over = overLimit(dayTasks)
+  const coverage = useMemo(() => materialCoverage(plan.catalog), [plan.catalog])
 
   return (
     <div>
       <PageHeader
         title="Plano CGU 2026 · 28 dias"
-        description={`AFFC · TI · Ciência de Dados (Cargo 2) · Cebraspe · prova em ${CGU_EXAM_DATE.split('-').reverse().join('/')} · até 180 min por dia.`}
+        description={`AFFC · TI · Ciência de Dados (Cargo 2) · Cebraspe · prova em ${br(CGU_EXAM_DATE)} · dia 1 em ${br(CGU_START_DATE)} · até 180 min por dia · questões no QConcursos (banca Cebraspe).`}
         actions={
           <Button variant="primary" onClick={() => setShown(plan.day)}>
             Hoje: dia {plan.day}
@@ -108,6 +111,44 @@ export default function CguPlanPage() {
         </p>
       </Card>
 
+      <Card className="mt-4" id="materiais" data-testid="cgu-materiais">
+        <CardHeader
+          title="Materiais do Drive no catálogo"
+          description={
+            !plan.catalogReady
+              ? 'Carregando o catálogo de Cursos…'
+              : coverage.ok === coverage.total
+                ? `Todos os ${coverage.total} vídeos e PDFs do plano abrem dentro do app.`
+                : `${coverage.ok} de ${coverage.total} vídeos e PDFs do plano abrem dentro do app${coverage.notImported ? ` · ${coverage.notImported} fora do catálogo` : ''}${coverage.missing ? ` · ${coverage.missing} indisponíveis ou ocultos` : ''}.`
+          }
+          action={
+            <Link to="/cursos" className="text-xs text-muted underline">
+              Cursos → Pastas do Drive
+            </Link>
+          }
+        />
+        {plan.catalogReady && coverage.ok < coverage.total && (
+          <ul className="divide-y divide-line px-5">
+            {coverage.folders
+              .filter((f) => f.ok < f.total)
+              .map((f) => (
+                <li key={f.folderId} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                  <span className="min-w-0 flex-1 break-words text-ink">{f.folder}</span>
+                  <span className="tabular text-xs text-muted">
+                    {f.ok}/{f.total} no app{f.notImported ? ` · ${f.notImported} fora do catálogo` : ''}{f.missing ? ` · ${f.missing} indisponível(is)` : ''}
+                  </span>
+                  <a className="flex items-center gap-1 text-xs text-muted underline" href={`https://drive.google.com/drive/folders/${f.folderId}`} target="_blank" rel="noopener noreferrer">
+                    Drive <ExternalLink className="size-3" />
+                  </a>
+                </li>
+              ))}
+          </ul>
+        )}
+        <p className="px-5 pb-3 text-xs text-muted">
+          “Fora do catálogo” = a importação em Cursos não trouxe este arquivo. Em Cursos → Pastas do Drive, use <span className="font-medium text-ink">Atualizar do Drive</span> na pasta “TI Descomplicada – Fiscal e Controle” e veja o relatório (pastas não lidas, leitura parcial, pastas deixadas de fora). Enquanto isso, “Abrir” leva ao arquivo no Drive.
+        </p>
+      </Card>
+
       <Card className="mt-4">
         <CardHeader
           title={`Dia ${shown} · ${CGU_PLAN[shown - 1]?.theme ?? ''}`}
@@ -181,7 +222,8 @@ function TaskRow({ task, shownDay, plan }: { task: CguTask; shownDay: number; pl
       <p className="break-words text-sm text-muted">
         <span className="font-medium text-ink">Até onde:</span> {task.until}
       </p>
-      {r.hint && task.link.kind === 'drive' && <p className="mt-1 text-xs text-muted">{r.hint}</p>}
+      {r.hint && task.link.kind !== 'route' && <p className="mt-1 text-xs text-muted">{r.hint}</p>}
+      {r.links && <QcLinks links={r.links} />}
       <div className="mt-2 flex flex-wrap gap-2">
         <Button size="sm" variant="dark" icon={r.external ? <ExternalLink className="size-3.5" /> : <Play className="size-3.5" />} onClick={() => plan.open(task)}>
           {plan.state.current === task.id ? 'Continuar' : 'Abrir'}
