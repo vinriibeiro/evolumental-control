@@ -93,44 +93,57 @@ export function currentDriveReadToken(): string | null {
   return currentRead && currentRead.expiresAt - 60_000 > Date.now() ? currentRead.token : null
 }
 
-/** Permissão adicional explícita para ler PDFs; o token não é persistido. */
+/**
+ * Depois de o GIS avisar "popup_closed", quanto tempo ainda esperar pela resposta. O aviso chega cedo demais quando a
+ * janela continua aberta na tela "O Google não verificou este app" (o navegador corta o vínculo com a janela e o GIS
+ * acha que ela fechou); se a resposta não vier neste prazo, a janela fechou mesmo ou perdeu contato com o app.
+ */
+export const POPUP_GRACE_MS = 20_000
+export const POPUP_MESSAGES = {
+  popup_closed: 'A janela do Google fechou ou perdeu contato com o app antes de autorizar. Use "Conectar com o Google" (abre nesta aba, sem janela) ou libere cookies de terceiros para accounts.google.com.',
+  popup_failed_to_open: 'O navegador bloqueou a janela do Google. Use "Conectar com o Google" (abre nesta aba, sem janela) ou libere pop-ups para este site.',
+} as const
+
+type TokenEntry = { token: string; expiresAt: number }
+
+/** Fluxo em janela (GIS): pede o token e espera a resposta; tolera o "popup_closed" prematuro por POPUP_GRACE_MS. */
+function popupTokenFlow(oauth2: GoogleOAuth2, clientId: string, scope: string, prompt: string, onToken: (t: TokenEntry) => void, deniedMessage: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    let closedTimer: ReturnType<typeof setTimeout> | null = null
+    const client = oauth2.initTokenClient({
+      client_id: clientId.trim(),
+      scope,
+      callback: (r) => {
+        if (closedTimer) clearTimeout(closedTimer)
+        if (r.error || !r.access_token) return reject(new Error(r.error_description || 'Autorização do Google não concedida.'))
+        if (!oauth2.hasGrantedAllScopes(r, scope)) return reject(new Error(deniedMessage))
+        onToken({ token: r.access_token, expiresAt: Date.now() + (r.expires_in ?? 3600) * 1000 })
+        resolve(r.access_token)
+      },
+      error_callback: (e) => {
+        if (e.type === 'popup_closed') {
+          if (!closedTimer) closedTimer = setTimeout(() => reject(new Error(POPUP_MESSAGES.popup_closed)), POPUP_GRACE_MS)
+          return
+        }
+        reject(new Error(e.type === 'popup_failed_to_open' ? POPUP_MESSAGES.popup_failed_to_open : e.message || 'Falha na autorização do Google.'))
+      },
+    })
+    client.requestAccessToken({ prompt })
+  })
+}
+
+/** Permissão adicional explícita para ler PDFs (janela do Google); o token não é persistido. */
 export async function requestDriveReadToken(clientId: string): Promise<string> {
   if (!isClientId(clientId)) throw new Error('ID do cliente OAuth inválido.')
   const oauth2 = await loadGis()
-  return new Promise<string>((resolve, reject) => {
-    const client = oauth2.initTokenClient({
-      client_id: clientId.trim(),
-      scope: DRIVE_READ_SCOPE,
-      callback: (response) => {
-        if (response.error || !response.access_token) return reject(new Error(response.error_description || 'Autorização do Google não concedida.'))
-        if (!oauth2.hasGrantedAllScopes(response, DRIVE_READ_SCOPE)) return reject(new Error('A permissão de leitura dos PDFs do Drive não foi concedida.'))
-        currentRead = { token: response.access_token, expiresAt: Date.now() + (response.expires_in ?? 3600) * 1000 }
-        resolve(response.access_token)
-      },
-      error_callback: (error) => reject(new Error(error.type === 'popup_closed' ? 'Janela do Google fechada antes de autorizar.' : error.type === 'popup_failed_to_open' ? 'O navegador bloqueou a janela do Google. Libere pop-ups para este site.' : error.message || 'Falha na autorização do Google.')),
-    })
-    client.requestAccessToken({ prompt: currentRead ? '' : 'consent' })
-  })
+  return popupTokenFlow(oauth2, clientId, DRIVE_READ_SCOPE, currentRead ? '' : 'consent', (t) => (currentRead = t), 'A permissão de leitura dos PDFs do Drive não foi concedida.')
 }
 
 /** Abre a janela do Google para autorizar a leitura dos metadados do Drive. Precisa vir de um clique. */
 export async function requestDriveToken(clientId: string): Promise<string> {
   if (!isClientId(clientId)) throw new Error('ID do cliente OAuth inválido.')
   const oauth2 = await loadGis()
-  return new Promise<string>((resolve, reject) => {
-    const client = oauth2.initTokenClient({
-      client_id: clientId.trim(),
-      scope: DRIVE_SCOPE,
-      callback: (r) => {
-        if (r.error || !r.access_token) return reject(new Error(r.error_description || 'Autorização do Google não concedida.'))
-        if (!oauth2.hasGrantedAllScopes(r, DRIVE_SCOPE)) return reject(new Error('A permissão de leitura dos metadados do Drive não foi concedida.'))
-        current = { token: r.access_token, expiresAt: Date.now() + (r.expires_in ?? 3600) * 1000 }
-        resolve(r.access_token)
-      },
-      error_callback: (e) => reject(new Error(e.type === 'popup_closed' ? 'Janela do Google fechada antes de autorizar.' : e.type === 'popup_failed_to_open' ? 'O navegador bloqueou a janela do Google. Libere pop-ups para este site.' : e.message || 'Falha na autorização do Google.')),
-    })
-    client.requestAccessToken({ prompt: current ? '' : 'consent' })
-  })
+  return popupTokenFlow(oauth2, clientId, DRIVE_SCOPE, current ? '' : 'consent', (t) => (current = t), 'A permissão de leitura dos metadados do Drive não foi concedida.')
 }
 
 /** Desconecta: revoga o token no Google e apaga da memória. */
@@ -162,15 +175,18 @@ function randomState(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** Caminho interno do app (começa com "/" e não é "//…") para onde voltar depois da autorização. */
+const isReturnPath = (v: unknown): v is string => typeof v === 'string' && v.startsWith('/') && !v.startsWith('//') && v.length <= 500
+
 /**
- * Leva esta aba ao Google para autorizar `scope` e voltar a /cursos. Precisa vir de um clique.
- * `go` existe para testes (o jsdom não navega).
+ * Leva esta aba ao Google para autorizar `scope` e voltar a /cursos (e dali a `returnTo`, se informado — por exemplo o
+ * leitor de um PDF). Precisa vir de um clique. `go` existe para testes (o jsdom não navega).
  */
-export function startDriveRedirect(clientId: string, scope: string = DRIVE_SCOPE, go: (url: string) => void = (url) => window.location.assign(url)) {
+export function startDriveRedirect(clientId: string, scope: string = DRIVE_SCOPE, go: (url: string) => void = (url) => window.location.assign(url), returnTo?: string) {
   if (!isClientId(clientId)) throw new Error('ID do cliente OAuth inválido.')
   const state = randomState()
   try {
-    sessionStorage.setItem(REDIRECT_KEY, JSON.stringify({ state, scope, at: Date.now() }))
+    sessionStorage.setItem(REDIRECT_KEY, JSON.stringify({ state, scope, at: Date.now(), returnTo: isReturnPath(returnTo) ? returnTo : null }))
   } catch {
     throw new Error('O navegador bloqueou o armazenamento desta aba; libere cookies para este site.')
   }
@@ -186,18 +202,18 @@ export function startDriveRedirect(clientId: string, scope: string = DRIVE_SCOPE
   go(`${AUTH_ENDPOINT}?${params.toString()}`)
 }
 
-export type RedirectResult = { ok: true; scope: string } | { ok: false; message: string }
+export type RedirectResult = { ok: true; scope: string; returnTo: string | null } | { ok: false; message: string }
 
 /**
  * Ao carregar /cursos: se a URL trouxer o retorno do Google, guarda o token em memória, limpa o fragmento e devolve o
- * resultado. Devolve null quando não há retorno pendente. Idempotente: a segunda chamada devolve null.
+ * resultado (com o caminho de volta, se houver). Devolve null quando não há retorno pendente. Idempotente.
  */
 export function consumeRedirectToken(loc: Location = window.location): RedirectResult | null {
   const hash = loc.hash.startsWith('#') ? loc.hash.slice(1) : loc.hash
   if (!hash) return null
   const p = new URLSearchParams(hash)
   if (!p.has('access_token') && !p.has('error')) return null
-  type Expected = { state: string; scope: string; at: number }
+  type Expected = { state: string; scope: string; at: number; returnTo?: string | null }
   let expected: Expected | null
   try {
     const raw = sessionStorage.getItem(REDIRECT_KEY)
@@ -221,5 +237,5 @@ export function consumeRedirectToken(loc: Location = window.location): RedirectR
   const entry = { token, expiresAt: Date.now() + Number(p.get('expires_in') ?? 3600) * 1000 }
   if (expected.scope === DRIVE_READ_SCOPE) currentRead = entry
   else current = entry
-  return { ok: true, scope: expected.scope }
+  return { ok: true, scope: expected.scope, returnTo: isReturnPath(expected.returnTo) ? expected.returnTo : null }
 }

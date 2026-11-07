@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowUpRight, BookOpen, CheckCircle2, FolderSync, GraduationCap, PlayCircle, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Switch } from '@/components/ui/Field'
@@ -9,8 +9,12 @@ import { useBackend } from '@/app/data'
 import { useCourses } from '@/hooks/useCourses'
 import { courseStatus, displayTitle, lastStudied, lessonOf, resumeItem, type CourseStatusFilter, type CourseView } from '@/lib/courseCatalog'
 import { formatDuration, KIND_LABELS, materialType, type MaterialKind } from '@/lib/drive'
-import { consumeRedirectToken } from '@/lib/googleAuth'
+import { DRIVE_READ_SCOPE, consumeRedirectToken } from '@/lib/googleAuth'
 import { normalizeText } from '@/lib/videoProgress'
+import { TEO_SOURCE } from '@/lib/youtubeCourses'
+import { useTransaction } from '@/hooks/data'
+import { COURSE_TABLES } from '@/services/courses'
+import { installYoutubeCourses } from '@/services/youtubeCourses'
 import { DriveSources } from './DriveSources'
 
 const STATUS_TABS: Array<{ value: CourseStatusFilter; label: string }> = [
@@ -73,21 +77,43 @@ export default function CoursesPage() {
   const data = useCourses({ includeHidden: showHidden })
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const toast = useToast()
-  // Volta do Google no fluxo "Conectar nesta aba": lê o token do fragmento da URL e reabre as pastas do Drive.
+  const navigate = useNavigate()
+  // Volta do Google no fluxo "Conectar com o Google" (mesma aba): lê o token do fragmento da URL e reabre as pastas do
+  // Drive — ou segue para a tela que pediu a autorização (por exemplo, o leitor de um PDF).
   useEffect(() => {
     const result = consumeRedirectToken()
     if (!result) return
-    setSourcesOpen(true)
-    if (result.ok) toast.success('Google Drive conectado (só leitura de metadados).')
-    else toast.error(result.message)
+    if (!result.ok) {
+      setSourcesOpen(true)
+      toast.error(result.message)
+      return
+    }
+    toast.success(result.scope === DRIVE_READ_SCOPE ? 'Leitura do PDF autorizada nesta aba.' : 'Google Drive conectado (só leitura de metadados).')
+    if (result.returnTo) navigate(result.returnTo, { replace: true })
+    else setSourcesOpen(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+  const installTeo = useTransaction(COURSE_TABLES, (b) => installYoutubeCourses(b))
+  const addTeo = async () => {
+    try {
+      const r = await installTeo.mutateAsync(undefined)
+      toast.success(r.inserted ? `${r.courses} cursos e ${r.lessons} aulas do Téo Me Why em Cursos (${r.inserted} itens novos).` : 'Os cursos do Téo Me Why já estavam em Cursos.')
+    } catch (e) {
+      toast.error(e)
+    }
+  }
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<CourseStatusFilter>('all')
   const [kind, setKind] = useState<MaterialKind | ''>('')
   const [sourceId, setSourceId] = useState('')
   const sources = data.sources.data ?? []
   const sourceName = new Map(sources.map((s) => [s.id, s.label ?? s.title]))
+  const teoInstalled = sources.some((s) => s.drive_folder_id === TEO_SOURCE.folderId)
+  const teoButton = !teoInstalled && (
+    <Button icon={<PlayCircle className="size-4" aria-hidden />} loading={installTeo.isPending} onClick={() => void addTeo()}>
+      Cursos do Téo (YouTube)
+    </Button>
+  )
 
   const filtered = useMemo(() => {
     const q = normalizeText(query.trim())
@@ -128,7 +154,12 @@ export default function CoursesPage() {
       <PageHeader
         title="Cursos e materiais"
         description="Um lugar para organizar o que você aprende e retomar de onde parou. Seus arquivos continuam no Google Drive."
-        actions={<Button variant="primary" icon={<FolderSync className="size-4" aria-hidden />} onClick={() => setSourcesOpen(true)}>Pastas do Drive</Button>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {teoButton}
+            <Button variant="primary" icon={<FolderSync className="size-4" aria-hidden />} onClick={() => setSourcesOpen(true)}>Pastas do Drive</Button>
+          </div>
+        }
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-3xl text-xs leading-relaxed text-muted">
@@ -152,8 +183,13 @@ export default function CoursesPage() {
         <EmptyState
           icon={<GraduationCap className="size-8" aria-hidden />}
           title={sources.length ? 'Nenhum curso importado ainda' : 'Nenhuma pasta cadastrada'}
-          description="Cadastre uma pasta do Google Drive, confira a prévia e importe. Só nomes, tipos e a organização entram no app."
-          action={<Button variant="primary" onClick={() => setSourcesOpen(true)}>Adicionar pasta do Drive</Button>}
+          description="Cadastre uma pasta do Google Drive, confira a prévia e importe (só nomes, tipos e a organização entram no app), ou traga os cursos gratuitos do Téo Me Why no YouTube."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="primary" onClick={() => setSourcesOpen(true)}>Adicionar pasta do Drive</Button>
+              {teoButton}
+            </div>
+          }
         />
       ) : (
         <>

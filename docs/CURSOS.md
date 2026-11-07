@@ -40,7 +40,9 @@ O app é uma SPA estática. Para ler metadados basta um token de curta duração
 
 Enquanto o app estiver "Em teste", só os usuários de teste conseguem autorizar, e o Google mostra um aviso de app não verificado — esperado para uso pessoal.
 
-Dois jeitos de conectar, ambos com o token só na memória da aba (`src/lib/googleAuth.ts`): **Conectar com o Google** abre a janela do Google (GIS); **Conectar nesta aba** leva a própria aba ao Google e volta para `/cursos` com o token no fragmento da URL, que é lido uma vez, conferido pelo `state` guardado em `sessionStorage` e apagado da URL. Use o segundo se a janela aparecer em branco com a mensagem "Janela do Google fechada antes de autorizar".
+Dois jeitos de conectar, ambos com o token só na memória da aba (`src/lib/googleAuth.ts`). Desde 07/11/2026 o botão principal **Conectar com o Google** leva a própria aba ao Google e volta para `/cursos` com o token no fragmento da URL, que é lido uma vez, conferido pelo `state` guardado em `sessionStorage` e apagado da URL; quando a autorização foi pedida por outra tela (o leitor de um PDF), a volta segue para ela (`returnTo`, só caminhos internos). **Conectar em janela separada** usa a janela do Google (GIS) e é a alternativa.
+
+Por que a janela deixou de ser o padrão: com o app em modo de teste no Google Cloud, a janela mostra a tela **"O Google não verificou este app"** (basta tocar em **Continuar** e depois em **Permitir**), mas o navegador corta o vínculo entre a janela e o app nessa tela e o GIS avisa `popup_closed` antes de a pessoa autorizar — o app mostrava "Janela do Google fechada antes de autorizar" com a janela ainda aberta. Hoje o fluxo em janela ainda espera 20 s por uma resposta depois desse aviso (`POPUP_GRACE_MS`) e a mensagem explica a alternativa; o fluxo na mesma aba não depende de janela nem de cookies de terceiros. Para funcionar, a URI de redirecionamento (`<origem>/cursos`) precisa estar cadastrada no cliente OAuth (já está para os domínios acima).
 
 ### 2. Supabase (se usar a nuvem)
 
@@ -67,9 +69,18 @@ Regras da reimportação (`src/lib/courseImport.ts`):
 
 Remover uma pasta tira o catálogo dela do app (nada muda no Drive); o progresso fica e volta se a pasta for cadastrada de novo. "Zerar dados" zera o progresso dos cursos e mantém o catálogo.
 
+## Cursos do YouTube (Téo Me Why)
+
+Desde 07/11/2026, **Cursos → Cursos do Téo (YouTube)** coloca no catálogo os 9 cursos gratuitos da trilha "Do zero a Cientista de Dados" do Téo Me Why (135 aulas, mesma lista de `src/content/trailTeo.ts`), na mesma sala dos cursos do Drive: aulas em ordem, duração, Concluir/Próxima, "Continuar estudando", organização e progresso.
+
+- Como fica no banco (`src/lib/youtubeCourses.ts`, `src/services/youtubeCourses.ts`): uma fonte fixa `youtube-teomewhy-trilha` em `course_sources`; um nó `course` por curso (`drive_id` = `youtube-course-<chave>`) e um nó `item` por vídeo com `mime_type` `video/x-youtube` e `drive_id` = ID do vídeo (11 caracteres). Os IDs respeitam a regra de formato já existente (`^[A-Za-z0-9_-]{10,128}$`), então **não há migração**. A fonte aparece em Pastas do Drive com o selo YouTube e sem "Atualizar do Drive".
+- Instalação idempotente: reconhece pela posição (`placement_key`); repetir não duplica e mantém o progresso (que é por vídeo). Se a trilha do Téo já foi instalada em Matérias, o curso recebe `subject_id` da matéria de mesmo nome e cada aula o `topic_id` do tópico de mesmo nome (o estudo é registrado neles).
+- Player: `driveEmbedUrl` devolve `https://www.youtube-nocookie.com/embed/<id>?rel=0` para esse MIME e `isTrustedDriveUrl` aceita esse host; "Abrir no Drive" vira "Abrir no YouTube". Como no Drive, o app não sabe quanto do vídeo foi visto; a conclusão é manual.
+- O botão some quando a fonte já existe. Remover a fonte em Pastas do Drive tira os cursos; o progresso fica e volta se instalar de novo.
+
 ## Visualização
 
-O visualizador é escolhido pelo **MIME real** informado pelo Drive:
+O visualizador é escolhido pelo **MIME real** informado pelo Drive (ou pelo MIME fixo dos vídeos do YouTube):
 
 | Tipo | Visualização |
 |---|---|
