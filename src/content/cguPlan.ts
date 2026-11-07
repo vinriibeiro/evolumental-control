@@ -8,8 +8,11 @@
 //
 // Questões: QConcursos, sempre com o filtro de banca Cebraspe (`examining_board_ids[]=2`). As páginas de disciplina/assunto e o
 // efeito do filtro foram conferidos em 07/11/2026 (ex.: Banco de Dados › SQL: 4.727 questões → 835 só da Cebraspe). O QConcursos
-// não tem disciplina "Ciência de Dados": aprendizado de máquina fica em Engenharia de Software › Inteligência Artificial e em
-// Banco de Dados › Data Mining / Big Data; Lei 12.846 e Lei 12.813 não têm assunto próprio e ficam cobertas por assuntos vizinhos.
+// não tem uma disciplina chamada "Ciência de Dados": aprendizado de máquina, redes neurais, PLN e MLOps ficam em Engenharia de
+// Software › Inteligência Artificial e em Noções de Informática › Inteligência Artificial e Automação, além de Banco de Dados ›
+// Data Mining / Big Data e Estatística (regressão, modelos lineares, resíduos, séries temporais). Lei 12.846 (e Decreto 11.129),
+// Lei 12.813, Decreto 9.203 e Lei 14.129 têm assunto próprio em Legislação Federal. Os slugs novos foram tirados do índice de
+// busca do próprio QConcursos em 07/11/2026 (o site bloqueia leitura automatizada; confira abrindo no navegador, logado).
 
 export type CguBlock = 'P1' | 'P2' | 'P3' | 'P4' | 'Geral'
 export type CguTaskKind = 'diagnostico' | 'aula' | 'leitura' | 'questoes' | 'revisao' | 'discursiva' | 'simulado'
@@ -105,6 +108,9 @@ export const QC_DISCIPLINAS = {
   lfed: 'direito-legislacao-federal',
   cpol: 'ciencias-sociais-ciencia-politica',
   soc: 'ciencias-sociais-sociologia',
+  ninf: 'tecnologia-da-informacao-nocoes-de-informatica',
+  arq: 'tecnologia-da-informacao-arquitetura-de-software',
+  dfin: 'direito-direito-financeiro',
 } as const
 const QD = QC_DISCIPLINAS
 export const qcUrl = (disciplina: string, assunto?: string) => `${QC_BASE}/disciplinas/${disciplina}${assunto ? `/${assunto}` : ''}/questoes?${QC_CEBRASPE}`
@@ -154,7 +160,16 @@ const ADM = {
   lai: L('Adm. Pública › Transparência e Lei de Acesso à Informação', QD.adm, 'transparencia-e-a-lei-de-acesso-a-informacao'),
   politicas: L('Adm. Pública › Gestão de políticas públicas', QD.adm, 'gestao-de-politicas-publicas'),
   resultados: L('Adm. Pública › Gestão por resultados', QD.adm, 'gestao-por-resultados'),
-  afo: L('Adm. Financeira e Orçamentária (PPA, LDO, LOA)', QD.afo),
+  afo: L('Adm. Financeira e Orçamentária (toda a disciplina)', QD.afo),
+}
+const AFO = {
+  instrumentos: L('AFO › Instrumentos de planejamento (PPA, LDO, LOA)', QD.afo, 'instrumentos-de-planejamento'),
+  ciclo: L('AFO › Ciclo orçamentário', QD.afo, 'ciclo-orcamentario'),
+  orcamento: L('AFO › Orçamento público', QD.afo, 'orcamento-publico-em-afo'),
+  execucao: L('AFO › Execução orçamentária', QD.afo, 'execucao-orcamentaria'),
+}
+const DFIN = {
+  leisOrcamentarias: L('Direito Financeiro › Leis orçamentárias (PPA, LDO e LOA)', QD.dfin, 'as-leis-orcamentarias-ppa-ldo-e-loa'),
 }
 const ETI = {
   todas: L('Ética na Administração Pública (toda a disciplina)', QD.eti),
@@ -210,6 +225,11 @@ const LFED = {
   usuarios: L('Legislação Federal › Lei 13.460/2017 (usuários dos serviços públicos e ouvidorias)', QD.lfed, 'lei-n-13-460-de-2017-dispoe-sobre-participacao-protecao-e-defesa-dos-direitos-do-usuario-dos-servicos-publicos-da-administracao-publica'),
   dec3591: L('Legislação Federal › Decreto 3.591/2000 (SCI do Executivo federal)', QD.lfed, 'decreto-n-3-591-de-2000-sistema-de-controle-interno-do-poder-executivo-federal-e-legislacao-especifica'),
   dl200: L('Legislação Federal › Decreto-Lei 200/1967', QD.lfed, 'decreto-lei-200-de-1967-organizacao-da-administracao-federal'),
+  anticorrupcao: L('Legislação Federal › Lei 12.846/2013 (Lei Anticorrupção)', QD.lfed, 'lei-n-12-846-de-2013-responsabilizacao-administrativa-e-civil-de-pessoas-juridicas-pela-pratica-de-atos-contra-a-administracao-publica-nacional-ou-estrangeira-lei-anticorrupcao'),
+  dec11129: L('Legislação Federal › Decreto 11.129/2022 (regulamento da Lei Anticorrupção, programa de integridade)', QD.lfed, 'decreto-n-11-129-de-2022-regulamenta-a-lei-n-12-846-de-2013'),
+  conflito: L('Legislação Federal › Lei 12.813/2013 (conflito de interesses)', QD.lfed, 'lei-12-813-de-2013-conflito-de-interesses-no-exercicio-de-cargo-ou-emprego-do-poder-executivo-federal-e-impedimentos-posteriores-ao-exercicio-do-cargo-ou-emprego'),
+  dec9203: L('Legislação Federal › Decreto 9.203/2017 (política de governança pública)', QD.lfed, 'decreto-n-9-203-de-2017-politica-de-governanca-da-administracao-publica-federal-direta-autarquica-e-fundacional'),
+  govDigital: L('Legislação Federal › Lei 14.129/2021 (governo digital)', QD.lfed, 'lei-n-14-129-de-2021-principios-regras-e-instrumentos-para-o-governo-digital'),
 }
 const DDIG = {
   lgpd: L('Direito Digital › LGPD (Lei 13.709/2018)', QD.ddig, 'lei-n-13-709-de-2018-lei-geral-de-protecao-de-dados-pessoais-lgpd'),
@@ -251,6 +271,10 @@ const EST = {
   correlacao: L('Estatística › Covariância e correlação', QD.est, 'covariancia-correlacao'),
   regressao: L('Estatística › Regressão linear', QD.est, 'regressao-linear'),
   anova: L('Estatística › Análise de variância', QD.est, 'analise-de-variancia'),
+  modelosLineares: L('Estatística › Modelos lineares', QD.est, 'modelos-lineares'),
+  residuos: L('Estatística › Análise dos resíduos', QD.est, 'analise-dos-residuos'),
+  series: L('Estatística › Análise de séries temporais', QD.est, 'analise-de-series-temporais'),
+  graficos: L('Estatística › Gráficos (barras, colunas e histograma)', QD.est, 'graficos-estatisticos-barras-ou-colunas-e-histograma'),
 }
 const PROG = {
   python: L('Programação › Python', QD.prog, 'python'),
@@ -295,6 +319,13 @@ const ES = {
   qualidade: L('Engenharia de Software › Qualidade de software', QD.es, 'qualidade-de-software'),
   requisitos: L('Engenharia de Software › Engenharia de requisitos', QD.es, 'engenharia-de-requisitos'),
   projetos: L('Engenharia de Software › Gestão de projetos', QD.es, 'gestao-de-projetos-em-engenharia-de-software'),
+  desenvolvimento: L('Engenharia de Software › Desenvolvimento de software (DevOps, CI/CD)', QD.es, 'desenvolvimento-de-software'),
+}
+const NINF = {
+  ia: L('Noções de Informática › Inteligência Artificial e automação (ML, redes neurais, PLN)', QD.ninf, 'inteligencia-artificial-e-automacao'),
+}
+const ARQ = {
+  cicloVida: L('Arquitetura de Software › Ciclo de vida (pipelines, registro de modelos)', QD.arq, 'ciclo-de-vida'),
 }
 const GTI = {
   todas: L('Governança de TI (toda a disciplina)', QD.gti),
@@ -320,9 +351,9 @@ export const QC_LINKS: Record<string, QcTheme> = {
       '3 Federalismo e capacidades estatais': [DCON.federalismo, DCON.competencias, CPOL.federalismo],
       '4 Ordem constitucional e direitos': [DCON.principios, DCON.direitosFund, DCON.sociais, DCON.politicos, DCON.admPrincipios],
       '5 Valor público e controle': [ADM.accountability, DADM.controle, DCON.tcu],
-      '6 Corrupção como fenômeno político e social': [DADM.improbidade, ADM.compliance],
+      '6 Corrupção como fenômeno político e social': [DADM.improbidade, LFED.anticorrupcao, ADM.compliance],
       '7 Mecanismos de reprodução e captura': [CPOL.poliarquia, ADM.compliance],
-      '8 Consequências e respostas à corrupção': [DADM.improbidade, ADM.accountability],
+      '8 Consequências e respostas à corrupção': [LFED.anticorrupcao, DADM.improbidade, ADM.accountability],
       '9 Estado e modelos de desenvolvimento econômico': [CPOL.bemEstar, CPOL.brasil],
     },
   },
@@ -337,33 +368,33 @@ export const QC_LINKS: Record<string, QcTheme> = {
     },
   },
   [T.eti]: {
-    all: [ETI.intro, ETI.dec1171, ETI.altaAdm, DADM.processo, ETI.improbidade],
+    all: [ETI.intro, ETI.dec1171, ETI.altaAdm, LFED.conflito, ETI.improbidade],
     sub: {
       '1 Fundamentos da ética pública': [ETI.intro],
       '2 Deveres profissionais': [ETI.dec1171, ETI.altaAdm],
-      '3 Conflitos de interesses e imparcialidade': [DADM.processo, ETI.altaAdm, ETI.gestaoEtica],
+      '3 Conflitos de interesses e imparcialidade': [LFED.conflito, DADM.processo, ETI.altaAdm, ETI.gestaoEtica],
       '4 Relações de trabalho e atendimento': [ETI.dec1171, ETI.intro],
       '5 Integridade como responsabilidade institucional': [ETI.gestaoEtica, ADM.compliance],
     },
   },
   [T.adm]: {
-    all: [ADM.organizacao, ADM.modelos, ADM.politicas, ADM.afo, ADM.govEletronico],
+    all: [ADM.organizacao, ADM.modelos, ADM.politicas, AFO.instrumentos, ADM.govEletronico],
     sub: {
       '1 Organização administrativa': [ADM.organizacao, DADM.organizacao],
       '2 Modelos de administração': [ADM.modelos, ADM.resultados],
       '3 Políticas públicas': [ADM.politicas],
-      '4 Planejamento e recursos': [ADM.afo],
-      '5 Serviços e transformação digital': [ADM.govEletronico, ES.ia],
+      '4 Planejamento e recursos': [AFO.instrumentos, AFO.ciclo, DFIN.leisOrcamentarias, AFO.orcamento, AFO.execucao, ADM.afo],
+      '5 Serviços e transformação digital': [ADM.govEletronico, LFED.govDigital, NINF.ia],
     },
   },
   [T.gov]: {
-    all: [AUDG.governanca, AUD.controleInterno, ADM.principiosGov, ADM.compliance, AUD.riscoGov],
+    all: [LFED.dec9203, AUDG.governanca, AUD.controleInterno, LFED.anticorrupcao, ADM.compliance],
     sub: {
-      '1 Governança e responsabilidades': [AUDG.govSetorPublico, ADM.principiosGov, ADM.governanca],
+      '1 Governança e responsabilidades': [LFED.dec9203, AUDG.govSetorPublico, ADM.principiosGov, ADM.governanca],
       '2 Riscos e controles essenciais': [AUDG.coso, AUD.controleInterno, AUD.coso, AUD.riscoGov],
-      '3 Integridade pública': [ADM.compliance, ETI.gestaoEtica],
-      '4 Integridade privada': [ADM.compliance, AUD.fraude],
-      '5 Prevenção e melhoria institucional': [AUD.riscoGov, ADM.compliance],
+      '3 Integridade pública': [LFED.dec11129, ADM.compliance, ETI.gestaoEtica],
+      '4 Integridade privada': [LFED.anticorrupcao, LFED.dec11129, ADM.compliance, AUD.fraude],
+      '5 Prevenção e melhoria institucional': [LFED.dec9203, AUD.riscoGov, ADM.compliance],
     },
   },
   [T.tra]: {
@@ -372,8 +403,8 @@ export const QC_LINKS: Record<string, QcTheme> = {
       '1 Acesso à informação': [LFED.lai, ADM.lai],
       '2 Transparência e proteção de dados': [DDIG.lgpd, DDIG.poderPublico, DDIG.tratamento],
       '3 Ouvidoria e proteção das pessoas': [LFED.usuarios],
-      '4 Participação e melhoria de serviços': [LFED.usuarios, ADM.accountability, ADM.govEletronico],
-      '5 Integridade da informação e comunicação': [DDIG.fundamentos, ADM.govEletronico],
+      '4 Participação e melhoria de serviços': [LFED.usuarios, LFED.govDigital, ADM.accountability, ADM.govEletronico],
+      '5 Integridade da informação e comunicação': [DDIG.fundamentos, LFED.govDigital, ADM.govEletronico],
     },
   },
   [T.dir]: {
@@ -393,7 +424,7 @@ export const QC_LINKS: Record<string, QcTheme> = {
       '2 Leitura de dados e indicadores': [EST.descritiva, EST.posicao],
       '3 Inferências e erros de raciocínio': [RL, EST.inferencia, EST.correlacao],
       '4 Integridade da evidência e proteção': [AUDG.evidencia, AUDG.testes],
-      '5 Uso responsável de inteligência artificial': [ES.ia],
+      '5 Uso responsável de inteligência artificial': [ES.ia, NINF.ia],
     },
   },
   [T.aud]: {
@@ -409,9 +440,9 @@ export const QC_LINKS: Record<string, QcTheme> = {
   [T.sta]: {
     all: [EST.todas, EST.descritiva, EST.probabilidade, EST.inferencia, PROG.python],
     sub: {
-      '1 Exploração e descrição': [EST.descritiva, EST.posicao, EST.dispersao, EST.variaveis, EST.boxplot],
+      '1 Exploração e descrição': [EST.descritiva, EST.posicao, EST.dispersao, EST.variaveis, EST.boxplot, EST.graficos],
       '2 Probabilidade e inferência': [EST.probabilidade, EST.bayes, EST.distribuicoes, EST.normal, EST.inferencia, EST.ic, EST.testes, EST.aas, EST.tamanho],
-      '3 Relações entre variáveis': [EST.correlacao, EST.regressao, EST.anova],
+      '3 Relações entre variáveis': [EST.correlacao, EST.regressao, EST.modelosLineares, EST.residuos, EST.series, EST.anova],
       '4 Programação para análise': [PROG.python, PROG.conceitos, PROG.estruturada, PROG.poo, PROG.tipos],
       '5 Preparação e transformação': [BD.dataMining, BD.etl, ES.ia],
     },
@@ -428,22 +459,22 @@ export const QC_LINKS: Record<string, QcTheme> = {
     },
   },
   [T.ml]: {
-    all: [ES.ia, BD.dataMining, BD.bigData, BD.textuais],
+    all: [ES.ia, NINF.ia, BD.dataMining, BD.bigData, BD.textuais],
     sub: {
-      '1 Seleção e construção de modelos': [ES.ia, BD.dataMining],
-      '2 Validação e generalização': [ES.ia, BD.dataMining],
-      '3 Métricas e efeitos das decisões': [ES.ia, EST.testes],
-      '4 Redes neurais': [ES.ia],
-      '5 Linguagem natural e modelos generativos': [ES.ia, BD.textuais],
-      '6 Agentes e uso seguro de ferramentas': [ES.ia, SEG],
+      '1 Seleção e construção de modelos': [ES.ia, NINF.ia, BD.dataMining],
+      '2 Validação e generalização': [ES.ia, NINF.ia, BD.dataMining],
+      '3 Métricas e efeitos das decisões': [ES.ia, NINF.ia, EST.testes],
+      '4 Redes neurais': [ES.ia, NINF.ia],
+      '5 Linguagem natural e modelos generativos': [ES.ia, NINF.ia, BD.textuais],
+      '6 Agentes e uso seguro de ferramentas': [ES.ia, NINF.ia, SEG],
     },
   },
   [T.ops]: {
-    all: [GTI.todas, ES.agil, GTI.in4, ES.configuracao, DADM.licitacoes],
+    all: [ES.ia, GTI.todas, ES.agil, GTI.in4, DADM.licitacoes],
     sub: {
-      '1 Ciclo de vida e MLOps': [ES.configuracao, ES.testes, ES.qualidade, ES.ia],
+      '1 Ciclo de vida e MLOps': [ES.ia, ES.desenvolvimento, ARQ.cicloVida, ES.configuracao, ES.testes, ES.qualidade],
       '2 Sustentação de soluções analíticas': [GTI.servicos, GTI.itil4, SEG],
-      '3 Governança e responsabilidade': [DDIG.poderPublico, GTI.conceitos, GTI.auditoriaTi, GTI.cobit2019],
+      '3 Governança e responsabilidade': [LFED.dec9203, LFED.govDigital, DDIG.poderPublico, GTI.conceitos, GTI.auditoriaTi, GTI.cobit2019],
       '4 Gestão de produtos de dados': [ES.scrum, ES.agil, ES.requisitos, GTI.peti, GP, ES.projetos],
       '5 Contratação e controle de soluções': [GTI.in4, DADM.licitacoes, DADM.contratos, LFED.dl200],
     },
