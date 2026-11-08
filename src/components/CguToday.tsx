@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { CalendarClock, Check, ExternalLink, GraduationCap, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge, Card, CardHeader, Progress } from '@/components/ui/layout'
-import { QcLinks } from '@/components/QcLinks'
+import { CguShortcuts } from '@/components/CguShortcuts'
 import { useCguPlan } from '@/hooks/useCguPlan'
 import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, minutesOf } from '@/lib/cguPlan'
 
@@ -58,7 +58,6 @@ export function CguToday() {
                 {resolved.hint}
               </p>
             )}
-            {resolved?.links && <QcLinks links={resolved.links} />}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="dark" icon={resolved?.external ? <ExternalLink className="size-4" /> : <Play className="size-4" />} onClick={() => plan.open(task)}>
                 {continuing ? 'Continuar' : 'Começar'}
@@ -78,6 +77,7 @@ export function CguToday() {
             </div>
           </div>
         )}
+        <CguShortcuts plan={plan} tasks={plan.pending} />
         {plan.tasks.some((t) => plan.state.done[t.id]) && (
           <p className="mt-3 flex items-center gap-1 text-xs text-muted">
             <RotateCcw className="size-3" /> Concluídas hoje: {plan.tasks.filter((t) => plan.state.done[t.id]).length}. Desfazer no{' '}

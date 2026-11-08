@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { CalendarClock, Check, ExternalLink, Play, RotateCcw } from 'lucide-react'
+import { BookOpen, CalendarClock, Check, ClipboardCheck, ExternalLink, PenLine, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge, Card, CardHeader, PageHeader } from '@/components/ui/layout'
 import { QcLinks } from '@/components/QcLinks'
 import { CGU_EXAM_DATE, CGU_PLAN, CGU_SCORING, CGU_START_DATE, type CguTask } from '@/content/cguPlan'
 import { useCguPlan } from '@/hooks/useCguPlan'
-import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, type ScoredBlock, discursiveScore, materialCoverage, minutesOf, overLimit, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, type ScoredBlock, discursiveScore, groupTasks, materialCoverage, minutesOf, openLabel, overLimit, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+
+const GROUP_ICONS = { teoria: BookOpen, questoes: ClipboardCheck, discursiva: PenLine } as const
 
 const inputClass = 'h-10 w-20 rounded-lg border border-line bg-surface px-2 text-sm tabular text-ink'
 const FOCUS_LABEL = { sem_dados: 'sem dados', abaixo: 'abaixo do mínimo', no_limite: 'no limite', ok: 'com folga' } as const
@@ -164,12 +166,28 @@ export default function CguPlanPage() {
             </div>
           }
         />
-        <ul className="divide-y divide-line px-5">
-          {dayTasks.map((t) => (
-            <TaskRow key={t.id} task={t} shownDay={shown} plan={plan} />
-          ))}
-          {dayTasks.length === 0 && <li className="py-4 text-sm text-muted">Nada neste dia (tudo foi adiado).</li>}
-        </ul>
+        <div className="px-5">
+          {groupTasks(dayTasks).map((g) => {
+            const Icon = GROUP_ICONS[g.group]
+            return (
+              <section key={g.group} aria-label={g.label} data-testid={`cgu-grupo-${g.group}`} className="border-b border-line py-3 last:border-b-0">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <Icon className="size-4 text-accent-strong" aria-hidden />
+                  {g.label}
+                  <span className="tabular text-xs font-normal text-muted">
+                    {g.tasks.length} · {minutesOf(g.tasks)} min
+                  </span>
+                </h3>
+                <ul className="divide-y divide-line">
+                  {g.tasks.map((t) => (
+                    <TaskRow key={t.id} task={t} shownDay={shown} plan={plan} />
+                  ))}
+                </ul>
+              </section>
+            )
+          })}
+          {dayTasks.length === 0 && <p className="py-4 text-sm text-muted">Nada neste dia (tudo foi adiado).</p>}
+        </div>
       </Card>
 
       <Card className="mt-4">
@@ -226,7 +244,7 @@ function TaskRow({ task, shownDay, plan }: { task: CguTask; shownDay: number; pl
       {r.links && <QcLinks links={r.links} />}
       <div className="mt-2 flex flex-wrap gap-2">
         <Button size="sm" variant="dark" icon={r.external ? <ExternalLink className="size-3.5" /> : <Play className="size-3.5" />} onClick={() => plan.open(task)}>
-          {plan.state.current === task.id ? 'Continuar' : 'Abrir'}
+          {plan.state.current === task.id ? 'Continuar' : openLabel(task)}
         </Button>
         {done ? (
           <Button size="sm" variant="ghost" icon={<RotateCcw className="size-3.5" />} onClick={() => plan.reopen(task)}>

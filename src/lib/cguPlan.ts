@@ -219,3 +219,27 @@ export function materialCoverage(courses: CourseCatalog): MaterialCoverage {
 
 export const BLOCK_LABELS: Record<CguBlock, string> = { P1: 'P1 · básicos', P2: 'P2 · complementares', P3: 'P3 · específicos', P4: 'Discursiva', Geral: 'Revisão' }
 export const BLOCK_COLORS: Record<CguBlock, string> = { P1: '#7c6f64', P2: '#2a78d6', P3: '#1f7a4d', P4: '#b4541f', Geral: '#6b7280' }
+
+/** Para onde a tarefa leva: teoria (aulas e apostilas do Drive), questões (QConcursos) ou a discursiva (espelho, no próprio plano). */
+export type TaskGroup = 'teoria' | 'questoes' | 'discursiva'
+export const GROUP_ORDER: readonly TaskGroup[] = ['teoria', 'questoes', 'discursiva']
+export const GROUP_LABELS: Record<TaskGroup, string> = { teoria: 'Teoria', questoes: 'Questões', discursiva: 'Discursiva' }
+
+export function groupOf(task: Pick<CguTask, 'kind'>): TaskGroup {
+  if (task.kind === 'aula' || task.kind === 'leitura') return 'teoria'
+  if (task.kind === 'discursiva') return 'discursiva'
+  return 'questoes'
+}
+
+/** Separa as tarefas por grupo, na ordem Teoria → Questões → Discursiva, mantendo a ordem do plano dentro de cada um; grupos vazios somem. */
+export function groupTasks<T extends Pick<CguTask, 'kind'>>(tasks: readonly T[]): Array<{ group: TaskGroup; label: string; tasks: T[] }> {
+  return GROUP_ORDER.map((group) => ({ group, label: GROUP_LABELS[group], tasks: tasks.filter((t) => groupOf(t) === group) })).filter((g) => g.tasks.length > 0)
+}
+
+/** Texto do botão que abre o material da tarefa (o que vai acontecer ao tocar). */
+export function openLabel(task: Pick<CguTask, 'kind' | 'link'>): string {
+  const { link } = task
+  if (link.kind === 'qc') return link.quantidade > 0 ? 'Fazer questões' : 'Refazer erradas'
+  if (link.kind === 'route') return task.kind === 'discursiva' ? 'Abrir espelho' : 'Ler no plano'
+  return link.media === 'video' ? 'Assistir aula' : link.media === 'pdf' ? 'Ler apostila' : 'Abrir pasta'
+}
