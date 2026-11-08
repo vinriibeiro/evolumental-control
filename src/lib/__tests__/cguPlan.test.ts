@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, CGU_START_DATE, QC_CEBRASPE, QC_LINKS, type CguLink } from '@/content/cguPlan'
 import type { CourseView } from '@/lib/courseCatalog'
-import { EMPTY_STATE, dayIndexFor, discursiveScore, loadState, markDone, materialCoverage, minutesOf, nextTask, pendingTasks, postpone, resolveLink, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { EMPTY_STATE, GROUP_LABELS, dayIndexFor, discursiveScore, groupOf, groupTasks, loadState, markDone, materialCoverage, minutesOf, nextTask, openLabel, pendingTasks, postpone, resolveLink, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
 import type { CourseNode } from '@/types/db'
 
 describe('plano CGU de 28 dias', () => {
@@ -186,5 +186,43 @@ describe('abertura dos materiais', () => {
     expect(partial.notImported).toBe(planFiles.size - 2)
     const aed = partial.folders.find((f) => f.folderId === '1MsIzL9Qv0bXU9mxmUSux7IsksEu_N19p')
     expect(aed).toMatchObject({ ok: 1, missing: 1, notImported: aed!.total - 2 })
+  })
+})
+
+describe('teoria e questões separadas no dia', () => {
+  const all = CGU_PLAN.flatMap((d) => d.tasks)
+
+  it('aulas e leituras são teoria, filtros do QConcursos são questões e a discursiva fica à parte', () => {
+    for (const t of all) {
+      const g = groupOf(t)
+      if (t.link.kind === 'drive') expect(g, t.id).toBe('teoria')
+      else if (t.link.kind === 'qc') expect(g, t.id).toBe('questoes')
+      else expect(g, t.id).toBe(t.kind === 'discursiva' ? 'discursiva' : 'teoria') // leitura do edital/checklist: página do próprio plano
+    }
+    expect(GROUP_LABELS).toEqual({ teoria: 'Teoria', questoes: 'Questões', discursiva: 'Discursiva' })
+  })
+
+  it('em todo dia, a teoria vem antes das questões, sem perder nem repetir tarefa', () => {
+    for (const d of CGU_PLAN) {
+      const groups = groupTasks(d.tasks)
+      expect(groups.flatMap((g) => g.tasks).map((t) => t.id).sort(), `dia ${d.day}`).toEqual(d.tasks.map((t) => t.id).sort())
+      const order = groups.map((g) => g.group)
+      expect(order, `dia ${d.day}`).toEqual(['teoria', 'questoes', 'discursiva'].filter((g) => order.includes(g as never)))
+    }
+  })
+
+  it('o dia 1 tem teoria com Drive e questões com QConcursos; o botão diz o que abre', () => {
+    const groups = groupTasks(CGU_PLAN[0].tasks)
+    expect(groups.map((g) => g.group)).toEqual(['teoria', 'questoes'])
+    for (const t of groups[0].tasks) expect(t.link.kind).toBe('drive')
+    for (const t of groups[1].tasks) expect(t.link.kind).toBe('qc')
+    expect(openLabel(groups[1].tasks[0])).toBe('Fazer questões')
+    const video = all.find((t) => t.link.kind === 'drive' && t.link.media === 'video')!
+    const pdf = all.find((t) => t.link.kind === 'drive' && t.link.media === 'pdf')!
+    expect(openLabel(video)).toBe('Assistir aula')
+    expect(openLabel(pdf)).toBe('Ler apostila')
+    expect(openLabel(all.find((t) => t.kind === 'revisao')!)).toBe('Refazer erradas')
+    expect(openLabel(all.find((t) => t.kind === 'discursiva')!)).toBe('Abrir espelho')
+    expect(openLabel(all.find((t) => t.kind === 'leitura' && t.link.kind === 'route')!)).toBe('Ler no plano')
   })
 })
