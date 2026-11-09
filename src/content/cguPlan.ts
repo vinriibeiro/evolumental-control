@@ -595,6 +595,10 @@ function build(): CguDay[] {
   add(
     'SQL (P3) + Governança (P2)',
     video(3, 'P3', F.sql1, '12ayrTMJPdzB9H_i_kEFaK4KSauZVY_7_', 'Aula · SQL conceitos gerais (03)', 'Até o fim.', 35),
+    // Sequência 03 → 07 (pedido de 09/11/2026): as aulas 04 a 06 estavam fora do plano. Durações estimadas pelo tamanho dos arquivos.
+    video(3, 'P3', F.sql1, '1Y2y9ByiGnUh2zqJL5OXRcuBe3EubVSnl', 'Aula · Sublinguagens SQL: DCL (04)', 'Até o fim (~30 min, estimado).', 30),
+    video(3, 'P3', F.sql1, '1_sUZ-XLu2n_JjCP8KIFwdvr0Mmjhhj8G', 'Aula · Sublinguagens SQL: TCL e DTL (05)', 'Até o fim (~25 min, estimado).', 25),
+    video(3, 'P3', F.sql1, '1hdffvO7HRlD5DOqNzmMcslRDvRdVRryB', 'Aula · Sublinguagens SQL: DDL (06)', 'Até o fim (~60 min, estimado); pause e escreva os comandos.', 60),
     video(3, 'P3', F.sql1, '1OouiyBM3ewS4-eCUWb5pRtZwndPg9ilv', 'Aula · DML e DQL (07)', 'Até o fim; pause e escreva as consultas.', 45),
     qc(3, 'P3', T.eng, ['2 SQL e consultas analíticas'], 20, 35),
     qc(3, 'P2', T.gov, ['1 Governança e responsabilidades', '2 Riscos e controles essenciais'], 15, 25),
