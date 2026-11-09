@@ -10,8 +10,10 @@ export interface BlockScore {
 export type ScoredBlock = 'P1' | 'P2' | 'P3'
 
 export interface CguState {
-  /** Quando a primeira tarefa foi iniciada (YYYY-MM-DD), só para registro: o dia do plano é contado a partir de CGU_START_DATE. */
+  /** Quando a primeira tarefa foi iniciada (YYYY-MM-DD), só para registro. */
   startDate: string | null
+  /** Data (YYYY-MM-DD) que o usuário escolheu como dia 1; sem escolha, vale CGU_START_DATE. */
+  dayOne: string | null
   /** Tarefa → quando foi concluída (ISO). */
   done: Record<string, string>
   /** Tarefa → dia para onde foi adiada. */
@@ -22,7 +24,7 @@ export interface CguState {
   scores: Partial<Record<ScoredBlock, BlockScore>>
 }
 
-export const EMPTY_STATE: CguState = { startDate: null, done: {}, postponed: {}, current: null, scores: {} }
+export const EMPTY_STATE: CguState = { startDate: null, dayOne: null, done: {}, postponed: {}, current: null, scores: {} }
 export const TOTAL_DAYS = CGU_PLAN.length
 
 const key = (scope: string) => `vlm.cgu.${scope}`
@@ -47,10 +49,29 @@ export function saveState(scope: string, state: CguState): void {
 const dayMs = 86_400_000
 const toUtc = (day: string) => Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)))
 
-/** Dia do plano (1..28) para a data de hoje, contado a partir de CGU_START_DATE (07/11/2026): antes disso é o dia 1; depois do 28º, fica no 28. */
-export function dayIndexFor(today: string): number {
-  const diff = Math.floor((toUtc(today) - toUtc(CGU_START_DATE)) / dayMs)
+/** Dia do plano (1..28) para a data de hoje, contado a partir do dia 1 (padrão CGU_START_DATE, 07/11/2026): antes dele é o dia 1; depois do 28º, fica no 28. */
+export function dayIndexFor(today: string, dayOne: string = CGU_START_DATE): number {
+  const diff = Math.floor((toUtc(today) - toUtc(dayOne)) / dayMs)
   return Math.min(TOTAL_DAYS, Math.max(1, diff + 1))
+}
+
+/** Soma dias a uma data YYYY-MM-DD. */
+export function shiftDay(day: string, n: number): string {
+  return new Date(toUtc(day) + n * dayMs).toISOString().slice(0, 10)
+}
+
+/** Data de um dia do plano, dado o dia 1. */
+export const dateOfDay = (dayOne: string, day: number) => shiftDay(dayOne, day - 1)
+
+/** "Hoje é o dia N": move o dia 1 para que hoje seja o dia escolhido. Não apaga nada do progresso. */
+export function chooseDay(state: CguState, today: string, day: number): CguState {
+  const n = Math.min(TOTAL_DAYS, Math.max(1, Math.round(day)))
+  return { ...state, dayOne: shiftDay(today, -(n - 1)) }
+}
+
+/** Recomeça: hoje vira o dia 1 e saem as tarefas concluídas, adiadas e em andamento. O placar do diagnóstico/simulado fica. */
+export function restartPlan(state: CguState, today: string): CguState {
+  return { ...EMPTY_STATE, scores: state.scores, dayOne: today }
 }
 
 export const allTasks = (): CguTask[] => CGU_PLAN.flatMap((d) => d.tasks)

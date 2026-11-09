@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, CGU_START_DATE, QC_CEBRASPE, QC_LINKS, type CguLink } from '@/content/cguPlan'
 import type { CourseView } from '@/lib/courseCatalog'
-import { EMPTY_STATE, GROUP_LABELS, dayIndexFor, discursiveScore, groupOf, groupTasks, lessonPath, lessonSequence, loadState, markDone, materialCoverage, minutesOf, nextTask, openLabel, pendingTasks, postpone, resolveLink, resolveTask, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { EMPTY_STATE, GROUP_LABELS, chooseDay, dateOfDay, dayIndexFor, restartPlan, shiftDay, discursiveScore, groupOf, groupTasks, lessonPath, lessonSequence, loadState, markDone, materialCoverage, minutesOf, nextTask, openLabel, pendingTasks, postpone, resolveLink, resolveTask, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
 import type { CourseNode } from '@/types/db'
 
 describe('plano CGU de 28 dias', () => {
@@ -282,5 +282,51 @@ describe('aula do plano dentro do app e sequência', () => {
     expect(resolveTask(qc, empty).external).toBe(true)
     const disc = CGU_PLAN.flatMap((d) => d.tasks).find((t) => t.kind === 'discursiva')!
     expect(resolveTask(disc, empty).to).toBe('/cgu#discursiva')
+  })
+})
+
+describe('escolher o dia e recomeçar', () => {
+  it('o dia do plano pode partir de outra data de dia 1, sem sair de 1 a 28', () => {
+    expect(dayIndexFor('2026-11-09')).toBe(3) // padrão: dia 1 = 07/11/2026
+    expect(dayIndexFor('2026-11-09', '2026-11-09')).toBe(1)
+    expect(dayIndexFor('2026-11-20', '2026-11-09')).toBe(12)
+    expect(dayIndexFor('2026-11-08', '2026-11-09')).toBe(1)
+    expect(dayIndexFor('2027-02-01', '2026-11-09')).toBe(28)
+    expect(shiftDay('2026-11-09', -2)).toBe('2026-11-07')
+    expect(shiftDay('2026-12-31', 1)).toBe('2027-01-01')
+    expect(dateOfDay('2026-11-09', 28)).toBe('2026-12-06')
+  })
+
+  it('"Hoje é o dia N" move o dia 1 e não apaga o progresso', () => {
+    const base = markDone({ ...EMPTY_STATE, scores: { P3: { certas: 5, erradas: 2 } } }, 'd01-001', '2026-11-07T10:00:00Z')
+    for (const n of [1, 5, 28]) {
+      const s = chooseDay(base, '2026-11-09', n)
+      expect(dayIndexFor('2026-11-09', s.dayOne!)).toBe(n)
+      expect(s.done).toEqual(base.done)
+      expect(s.scores).toEqual(base.scores)
+    }
+    expect(dayIndexFor('2026-11-09', chooseDay(base, '2026-11-09', 99).dayOne!)).toBe(28)
+    expect(dayIndexFor('2026-11-09', chooseDay(base, '2026-11-09', -4).dayOne!)).toBe(1)
+  })
+
+  it('recomeçar faz de hoje o dia 1, zera tarefas e mantém o placar', () => {
+    let s = startTask(EMPTY_STATE, 'd01-001', '2026-11-07')
+    s = markDone(s, 'd01-001')
+    s = postpone(s, 'd01-002', 2)
+    s = { ...s, scores: { P1: { certas: 8, erradas: 1 } } }
+    const r = restartPlan(s, '2026-11-09')
+    expect(r).toEqual({ ...EMPTY_STATE, scores: { P1: { certas: 8, erradas: 1 } }, dayOne: '2026-11-09' })
+    expect(dayIndexFor('2026-11-09', r.dayOne!)).toBe(1)
+    expect(pendingTasks(r, 1)).toHaveLength(tasksForDay(r, 1).length)
+  })
+
+  it('estado salvo sem dayOne (versões anteriores) continua valendo e usa o dia 1 padrão', () => {
+    const scope = 'teste-dia'
+    localStorage.setItem('vlm.cgu.' + scope, JSON.stringify({ startDate: '2026-11-07', done: { 'd01-001': 'x' }, postponed: {}, current: null, scores: {} }))
+    const s = loadState(scope)
+    expect(s.dayOne).toBeNull()
+    expect(s.done).toEqual({ 'd01-001': 'x' })
+    saveState(scope, chooseDay(s, '2026-11-09', 1))
+    expect(loadState(scope).dayOne).toBe('2026-11-09')
   })
 })

@@ -4,9 +4,10 @@ import { BookOpen, CalendarClock, Check, ClipboardCheck, ExternalLink, PenLine, 
 import { Button } from '@/components/ui/Button'
 import { Badge, Card, CardHeader, PageHeader } from '@/components/ui/layout'
 import { QcLinks } from '@/components/QcLinks'
-import { CGU_EXAM_DATE, CGU_PLAN, CGU_SCORING, CGU_START_DATE, type CguTask } from '@/content/cguPlan'
+import { CGU_EXAM_DATE, CGU_PLAN, CGU_SCORING, type CguTask } from '@/content/cguPlan'
+import { useConfirm } from '@/components/ui/feedback'
 import { useCguPlan } from '@/hooks/useCguPlan'
-import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, type ScoredBlock, discursiveScore, groupTasks, materialCoverage, minutesOf, openLabel, overLimit, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, type ScoredBlock, dateOfDay, discursiveScore, groupTasks, materialCoverage, minutesOf, openLabel, overLimit, suggestFocus, tasksForDay } from '@/lib/cguPlan'
 
 const GROUP_ICONS = { teoria: BookOpen, questoes: ClipboardCheck, discursiva: PenLine } as const
 
@@ -32,13 +33,15 @@ export default function CguPlanPage() {
     <div>
       <PageHeader
         title="Plano CGU 2026 · 28 dias"
-        description={`AFFC · TI · Ciência de Dados (Cargo 2) · Cebraspe · prova em ${br(CGU_EXAM_DATE)} · dia 1 em ${br(CGU_START_DATE)} · até 180 min por dia · questões no QConcursos (banca Cebraspe).`}
+        description={`AFFC · TI · Ciência de Dados (Cargo 2) · Cebraspe · prova em ${br(CGU_EXAM_DATE)} · dia 1 em ${br(plan.dayOne)} · até 180 min por dia · questões no QConcursos (banca Cebraspe).`}
         actions={
           <Button variant="primary" onClick={() => setShown(plan.day)}>
             Hoje: dia {plan.day}
           </Button>
         }
       />
+
+      <ChooseDay plan={plan} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card id="placar">
@@ -218,6 +221,49 @@ export default function CguPlanPage() {
         .
       </p>
     </div>
+  )
+}
+
+/** "Em que dia você está?": escolhe o dia de hoje (o dia 1 se ajusta) ou recomeça do dia 1. */
+function ChooseDay({ plan }: { plan: ReturnType<typeof useCguPlan> }) {
+  const confirm = useConfirm()
+  const restart = async () => {
+    const ok = await confirm({
+      title: 'Recomeçar do dia 1?',
+      message: 'Hoje passa a ser o dia 1. As tarefas concluídas, adiadas e em andamento são apagadas; o placar do diagnóstico e do simulado fica.',
+      confirmLabel: 'Recomeçar',
+      danger: true,
+    })
+    if (ok) plan.restart()
+  }
+  return (
+    <Card className="mb-4" data-testid="cgu-escolher-dia">
+      <div className="flex flex-wrap items-end gap-3 px-5 py-4">
+        <div className="min-w-0 flex-1 basis-60">
+          <label htmlFor="cgu-dia" className="text-sm font-semibold text-ink">
+            Em que dia você está?
+          </label>
+          <p className="mt-0.5 text-xs text-muted">
+            Escolha o dia de hoje: o plano se ajusta (dia 1 = {br(plan.dayOne)}, dia {TOTAL_DAYS} = {br(dateOfDay(plan.dayOne, TOTAL_DAYS))}). Nada é apagado.
+          </p>
+        </div>
+        <select
+          id="cgu-dia"
+          value={plan.day}
+          onChange={(e) => plan.chooseDay(Number(e.target.value))}
+          className="h-10 w-full min-w-0 max-w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink sm:w-auto sm:max-w-md"
+        >
+          {CGU_PLAN.map((d) => (
+            <option key={d.day} value={d.day}>
+              Hoje é o dia {d.day} · {d.theme}
+            </option>
+          ))}
+        </select>
+        <Button variant="danger" onClick={() => void restart()}>
+          Recomeçar do dia 1
+        </Button>
+      </div>
+    </Card>
   )
 }
 
