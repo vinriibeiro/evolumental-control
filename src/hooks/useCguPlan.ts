@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/app/auth'
 import { useCourses } from '@/hooks/useCourses'
 import { useSettings } from '@/hooks/useSettings'
-import { type CguState, type ScoredBlock, type BlockScore, dayIndexFor, loadState, markDone, nextTask, pendingTasks, postpone, resolveLink, saveState, setScore, startTask, tasksForDay, undoDone } from '@/lib/cguPlan'
+import { type CguState, type ScoredBlock, type BlockScore, dayIndexFor, loadState, markDone, nextTask, pendingTasks, postpone, resolveTask, saveState, setScore, startTask, tasksForDay, undoDone } from '@/lib/cguPlan'
 import type { CguTask } from '@/content/cguPlan'
 import { todayKey } from '@/lib/time'
 
@@ -25,11 +25,12 @@ export function useCguPlan() {
   const next = useMemo(() => nextTask(state, day), [state, day])
   const catalog = useMemo(() => ({ views: courses.views, nodes: courses.nodes.data ?? [] }), [courses.views, courses.nodes.data])
 
-  const resolve = useCallback((task: CguTask) => resolveLink(task.link, catalog), [catalog])
+  const resolve = useCallback((task: CguTask) => resolveTask(task, catalog), [catalog])
+  const start = useCallback((task: CguTask) => setState((s) => (s.current === task.id ? s : startTask(s, task.id, today))), [today])
   const open = useCallback(
     (task: CguTask) => {
       setState((s) => startTask(s, task.id, today))
-      const r = resolveLink(task.link, catalog)
+      const r = resolveTask(task, catalog)
       if (r.external) window.open(r.to, '_blank', 'noopener,noreferrer')
       else navigate(r.to)
     },
@@ -47,6 +48,7 @@ export function useCguPlan() {
     next,
     catalogReady: !courses.isPending,
     resolve,
+    start,
     open,
     complete: useCallback((task: CguTask) => setState((s) => markDone(s, task.id)), []),
     reopen: useCallback((task: CguTask) => setState((s) => undoDone(s, task.id)), []),

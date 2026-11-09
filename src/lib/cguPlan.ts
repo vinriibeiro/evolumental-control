@@ -154,6 +154,34 @@ export interface CourseCatalog {
   nodes: readonly CourseNode[]
 }
 
+/** Rota da aula do plano dentro do app (visualizador do Drive + sequência da pasta). */
+export const lessonPath = (taskId: string) => `/cgu/aula/${encodeURIComponent(taskId)}`
+
+/**
+ * Sequência da aula: as tarefas do mesmo dia, da mesma pasta e do mesmo tipo (vídeo ou apostila), na ordem do plano.
+ * Usa o plano, não o estado: adiar uma aula não muda a sequência.
+ */
+export function lessonSequence(task: CguTask): CguTask[] {
+  const { link } = task
+  if (link.kind !== 'drive' || link.media === 'folder') return [task]
+  const day = CGU_PLAN.find((d) => d.day === task.day)?.tasks ?? []
+  const sequence = day.filter((t) => t.link.kind === 'drive' && t.link.folderId === link.folderId && t.link.media === link.media)
+  return sequence.some((t) => t.id === task.id) ? sequence : [task]
+}
+
+/**
+ * Para onde a tarefa leva dentro do app. Vídeo: sempre a aula do plano (player do Drive + sequência), esteja a pasta
+ * importada em Cursos ou não. Apostila: o leitor de Cursos se estiver no catálogo; senão, o visualizador do plano.
+ * Pasta, questões e rotas seguem `resolveLink`.
+ */
+export function resolveTask(task: CguTask, courses: CourseCatalog): ResolvedLink {
+  const r = resolveLink(task.link, courses)
+  const { link } = task
+  if (link.kind !== 'drive' || link.media === 'folder') return r
+  if (link.media === 'pdf' && r.inCatalog && !r.external) return r
+  return { to: lessonPath(task.id), external: false, inCatalog: r.inCatalog, hint: null }
+}
+
 /** Converte o link da tarefa em rota do app: aula → /cursos/:id?item=:nodeId; PDF → leitor próprio; sem catálogo → Drive; QConcursos → nova aba. */
 export function resolveLink(link: CguLink, courses: CourseCatalog): ResolvedLink {
   if (link.kind === 'route') return { to: link.to, external: false, inCatalog: true, hint: null }

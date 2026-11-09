@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CGU_DAILY_LIMIT_MINUTES, CGU_PLAN, CGU_START_DATE, QC_CEBRASPE, QC_LINKS, type CguLink } from '@/content/cguPlan'
 import type { CourseView } from '@/lib/courseCatalog'
-import { EMPTY_STATE, GROUP_LABELS, dayIndexFor, discursiveScore, groupOf, groupTasks, loadState, markDone, materialCoverage, minutesOf, nextTask, openLabel, pendingTasks, postpone, resolveLink, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
+import { EMPTY_STATE, GROUP_LABELS, dayIndexFor, discursiveScore, groupOf, groupTasks, lessonPath, lessonSequence, loadState, markDone, materialCoverage, minutesOf, nextTask, openLabel, pendingTasks, postpone, resolveLink, resolveTask, saveState, startTask, suggestFocus, tasksForDay } from '@/lib/cguPlan'
 import type { CourseNode } from '@/types/db'
 
 describe('plano CGU de 28 dias', () => {
@@ -9,7 +9,12 @@ describe('plano CGU de 28 dias', () => {
     expect(CGU_PLAN).toHaveLength(28)
     const ids = CGU_PLAN.flatMap((d) => d.tasks.map((t) => t.id))
     expect(new Set(ids).size).toBe(ids.length)
-    for (const d of CGU_PLAN) expect(minutesOf(d.tasks), `dia ${d.day}`).toBeLessThanOrEqual(CGU_DAILY_LIMIT_MINUTES)
+    // Dia 3 passa do limite de propósito: o usuário pediu a sequência SQL 03 → 07 inteira (09/11/2026); a tela avisa e deixa adiar.
+    const ACIMA_DO_LIMITE = new Set([3])
+    for (const d of CGU_PLAN) {
+      if (ACIMA_DO_LIMITE.has(d.day)) expect(minutesOf(d.tasks), `dia ${d.day}`).toBeGreaterThan(CGU_DAILY_LIMIT_MINUTES)
+      else expect(minutesOf(d.tasks), `dia ${d.day}`).toBeLessThanOrEqual(CGU_DAILY_LIMIT_MINUTES)
+    }
   })
 
   it('dá mais tempo ao P3 e protege P1, P2 e discursiva', () => {
@@ -224,5 +229,58 @@ describe('teoria e questões separadas no dia', () => {
     expect(openLabel(all.find((t) => t.kind === 'revisao')!)).toBe('Refazer erradas')
     expect(openLabel(all.find((t) => t.kind === 'discursiva')!)).toBe('Abrir espelho')
     expect(openLabel(all.find((t) => t.kind === 'leitura' && t.link.kind === 'route')!)).toBe('Ler no plano')
+  })
+})
+
+describe('aula do plano dentro do app e sequência', () => {
+  const day3 = CGU_PLAN[2].tasks.filter((t) => t.link.kind === 'drive')
+
+  it('o dia 3 tem a sequência completa de SQL, da aula 03 à 07, na ordem das pastas do Drive', () => {
+    expect(day3.map((t) => t.title)).toEqual([
+      'Aula · SQL conceitos gerais (03)',
+      'Aula · Sublinguagens SQL: DCL (04)',
+      'Aula · Sublinguagens SQL: TCL e DTL (05)',
+      'Aula · Sublinguagens SQL: DDL (06)',
+      'Aula · DML e DQL (07)',
+    ])
+    // IDs conferidos no Drive (pasta "06- SQL, PARTE 1"): 03, 04, 05, 06, 07
+    expect(day3.map((t) => (t.link.kind === 'drive' ? t.link.driveId : ''))).toEqual([
+      '12ayrTMJPdzB9H_i_kEFaK4KSauZVY_7_',
+      '1Y2y9ByiGnUh2zqJL5OXRcuBe3EubVSnl',
+      '1_sUZ-XLu2n_JjCP8KIFwdvr0Mmjhhj8G',
+      '1hdffvO7HRlD5DOqNzmMcslRDvRdVRryB',
+      '1OouiyBM3ewS4-eCUWb5pRtZwndPg9ilv',
+    ])
+  })
+
+  it('a sequência de uma aula é a das aulas do mesmo dia, pasta e tipo, e é a mesma de qualquer aula dela', () => {
+    for (const t of day3) expect(lessonSequence(t).map((x) => x.id)).toEqual(day3.map((x) => x.id))
+    const questoes = CGU_PLAN[2].tasks.find((t) => t.link.kind === 'qc')!
+    expect(lessonSequence(questoes)).toEqual([questoes])
+    // dia 1: vídeo e apostila da mesma pasta não se misturam
+    const [video, pdf] = CGU_PLAN[0].tasks.filter((t) => t.link.kind === 'drive')
+    expect(lessonSequence(video)).toEqual([video])
+    expect(lessonSequence(pdf)).toEqual([pdf])
+  })
+
+  it('vídeo abre sempre na aula do plano, dentro do app, mesmo com a pasta fora do catálogo', () => {
+    const empty = { views: [], nodes: [] }
+    for (const t of day3) {
+      const r = resolveTask(t, empty)
+      expect(r.to).toBe(lessonPath(t.id))
+      expect(r.external).toBe(false)
+      expect(r.hint).toBeNull()
+    }
+  })
+
+  it('apostila fora do catálogo abre no visualizador do plano; questões e discursiva não mudam', () => {
+    const empty = { views: [], nodes: [] }
+    const pdf = CGU_PLAN.flatMap((d) => d.tasks).find((t) => t.link.kind === 'drive' && t.link.media === 'pdf')!
+    expect(resolveTask(pdf, empty).to).toBe(lessonPath(pdf.id))
+    const qc = CGU_PLAN[2].tasks.find((t) => t.link.kind === 'qc')!
+    expect(resolveTask(qc, empty)).toEqual(resolveLink(qc.link, empty))
+    expect(resolveTask(qc, empty).external).toBe(true)
+    const disc = CGU_PLAN.flatMap((d) => d.tasks).find((t) => t.kind === 'discursiva')!
+    expect(resolveTask(disc, empty).to).toBe('/cgu#discursiva')
   })
 })
