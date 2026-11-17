@@ -2,15 +2,22 @@ import { describe, expect, it } from 'vitest'
 import {
   FONT_MAX,
   FONT_MIN,
+  READER_COLORS,
+  READER_THEMES,
+  clampBrightness,
   clampFont,
+  clampWarmth,
   coverHue,
+  defaultPrefs,
   filterShelf,
   formatSize,
   inProgress,
   isEpubFile,
+  lightFilter,
   normalizePrefs,
   readingProgress,
   sortShelf,
+  tapZone,
   titleFromFileName,
 } from '../library'
 
@@ -23,13 +30,44 @@ describe('preferências do leitor', () => {
   })
 
   it('devolve o padrão para dados inválidos e respeita o tema escuro do app', () => {
-    expect(normalizePrefs(null, false)).toEqual({ fontSize: 110, theme: 'sepia', flow: 'paginado' })
+    expect(normalizePrefs(null, false)).toEqual(defaultPrefs(false))
+    expect(defaultPrefs(false)).toMatchObject({ fontSize: 110, theme: 'sepia', flow: 'paginado', brightness: 100, warmth: 0, fullscreen: true })
     expect(normalizePrefs('lixo', true).theme).toBe('escuro')
-    expect(normalizePrefs({ fontSize: 'grande', theme: 'neon', flow: 'voando' }, false)).toEqual({ fontSize: 110, theme: 'sepia', flow: 'paginado' })
+    expect(normalizePrefs({ fontSize: 'grande', theme: 'neon', flow: 'voando', brightness: 'forte', spacing: 'gigante', font: 'comic', margin: 1, justify: 'sim' }, false)).toEqual(defaultPrefs(false))
   })
 
-  it('mantém preferências válidas salvas', () => {
-    expect(normalizePrefs({ fontSize: 150, theme: 'claro', flow: 'rolagem' }, true)).toEqual({ fontSize: 150, theme: 'claro', flow: 'rolagem' })
+  it('mantém preferências válidas salvas, inclusive as antigas sem os campos novos', () => {
+    expect(normalizePrefs({ fontSize: 150, theme: 'claro', flow: 'rolagem' }, true)).toEqual({ ...defaultPrefs(true), fontSize: 150, theme: 'claro', flow: 'rolagem' })
+    const salvas = { fontSize: 120, theme: 'noite', flow: 'paginado', brightness: 45, warmth: 60, spacing: 'amplo', font: 'serifa', margin: 'larga', justify: true, fullscreen: false }
+    expect(normalizePrefs(salvas, false)).toEqual(salvas)
+  })
+
+  it('limita brilho e luz quente e calcula as películas de iluminação', () => {
+    expect(clampBrightness(5)).toBe(20)
+    expect(clampBrightness(140)).toBe(100)
+    expect(clampWarmth(-3)).toBe(0)
+    expect(clampWarmth(300)).toBe(100)
+    expect(lightFilter(100, 0)).toEqual({ dim: 0, warm: 0 })
+    expect(lightFilter(20, 100)).toEqual({ dim: 0.72, warm: 0.55 })
+    expect(lightFilter(60, 50).dim).toBeGreaterThan(0)
+    expect(lightFilter(60, 50).dim).toBeLessThan(0.72)
+  })
+
+  it('todo tema tem papel e texto, e sabe se é claro ou escuro', () => {
+    for (const t of READER_THEMES) {
+      expect(READER_COLORS[t].bg).toMatch(/^#[0-9a-f]{6}$/)
+      expect(READER_COLORS[t].fg).toMatch(/^#[0-9a-f]{6}$/)
+    }
+    expect(READER_COLORS.noite.bg).toBe('#000000')
+    expect(READER_COLORS.sepia.dark).toBe(false)
+    expect(READER_COLORS.escuro.dark).toBe(true)
+  })
+
+  it('divide a página em zonas de toque: laterais viram a página, o meio abre os controles', () => {
+    expect(tapZone(20, 400)).toBe('anterior')
+    expect(tapZone(200, 400)).toBe('meio')
+    expect(tapZone(390, 400)).toBe('proxima')
+    expect(tapZone(10, 0)).toBe('meio')
   })
 })
 

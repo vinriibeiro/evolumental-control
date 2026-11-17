@@ -4,6 +4,22 @@ Aba **Biblioteca**: estante com capas e leitor em tela cheia (estilo Kindle) par
 
 > **Desde 07/11/2026:** o item **Biblioteca** do menu abre uma pasta com todos os materiais (Matérias, Trilhas, Cursos, Livros, Áudios, Flashcards e Banco de questões), cada um em seu cartão, na ordem do fluxo de estudo (`/biblioteca`, `src/pages/library/LibraryHubPage.tsx`). A estante de livros descrita aqui passou para **Livros** (`/livros`; leitores em `/livros/:id` e `/livros/pdf/:id`; os endereços antigos `/biblioteca/...` continuam abrindo). Inglês, Vídeos, Revisões e Desempenho saíram desta pasta: Revisões foi para Calendário e Desempenho para Metas e relatórios; Inglês e Vídeos continuam acessíveis pela URL e pela busca (Ctrl K). Dentro de cada material **não há barra de abas**: no alto da página fica só o botão **Voltar para a Biblioteca** (grupo com `back` em `src/app/nav.ts`, renderizado pelo `AppShell`).
 
+## Modo leitura (tela inteira)
+
+- A página do livro ocupa a tela toda. As barras de cima e de baixo flutuam sobre o texto e somem sozinhas alguns segundos depois de abrir; por isso mostrar ou esconder os controles não refaz a paginação.
+- **Toque:** laterais viram a página, o meio mostra ou esconde os controles. Deslizar para os lados também vira a página. No teclado: setas, PageUp/PageDown, Tab mostra os controles, Esc fecha.
+- **Tela cheia de verdade** (sem a barra do navegador nem a do sistema): no celular o leitor entra sozinho ao abrir o livro, quando o navegador permite (Android/Chrome). Há um botão no topo e a opção "Abrir os livros em tela cheia" nos ajustes. O iPhone não oferece esse recurso a páginas da web: lá, instale o app na tela de início para ler sem as barras do Safari.
+- Enquanto o leitor está aberto a tela não apaga (Wake Lock, onde existe), a barra do sistema assume a cor do papel e o conteúdo respeita o entalhe e a barra de gestos do aparelho.
+- Um rodapé discreto mostra hora, capítulo e progresso.
+
+### Iluminação e aparência
+
+- **Fundo:** Claro, Papel, Sépia, Cinza, Escuro e Noite (preto real, texto fosco, para ler no escuro).
+- **Brilho** (20 a 100%) e **Luz quente** (0 a 100%, reduz a luz azul): duas películas sobre a página, sem alterar o brilho do aparelho.
+- **Ambiente:** atalhos Dia, Fim de tarde e Noite, que combinam fundo, brilho e luz quente.
+- **Texto:** tamanho, fonte (do livro, serifa, sem serifa), espaço entre linhas, margens e texto justificado. Ao mudar, o leitor refaz as páginas e volta ao mesmo trecho.
+- As preferências ficam no navegador (`localStorage`, chave `evolumental.leitor`); as regras estão em `src/lib/library.ts` e a tela em `src/pages/library/ReaderPage.tsx`.
+
 ## Como funciona
 
 - Os livros sempre ficam guardados também no navegador do aparelho (IndexedDB `evolumental-library…`), para ler sem internet.
