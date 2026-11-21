@@ -17,8 +17,8 @@ import { loadPractices } from '@/services/english'
 
 const KIND_LABELS: Record<RoutineDayBlock['kind'], string> = { daily: 'Bloco diário', weekly: 'Tarefa da semana', cycle: 'Cronograma' }
 
-/** Cartão "Rotina de hoje": blocos do dia por pilar e status do inglês do dia. */
-export function TodayRoutine() {
+/** Cartão "Rotina de hoje": blocos do dia por pilar e status do inglês do dia. `hideWhenEmpty`: sem rotina aplicada, não mostra nada (tela inicial). */
+export function TodayRoutine({ hideWhenEmpty = false }: { hideWhenEmpty?: boolean }) {
   const backend = useBackend()
   const settings = useSettings()
   const tz = settings.timezone
@@ -31,6 +31,7 @@ export function TodayRoutine() {
     queryKey: ['data', ['study_sessions', 'study_session_pauses', 'subjects', 'topics'], 'english', backend.kind],
     queryFn: () => loadPractices(backend),
   })
+  if (hideWhenEmpty && (plans.isPending || !applied)) return null
   return (
     <TodayRoutineView
       loading={plans.isPending}

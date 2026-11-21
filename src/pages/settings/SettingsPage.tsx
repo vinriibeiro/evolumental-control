@@ -81,7 +81,7 @@ export default function SettingsPage() {
           <div className="text-sm">
             <p className="font-semibold text-ink">VLM Control</p>
             <p className="text-xs text-muted">
-              Versão 1.0.0 · {auth.mode === 'supabase' ? 'Conectado ao Supabase (dados na nuvem, protegidos por usuário)' : 'Modo local (IndexedDB deste navegador, sem sincronização)'}
+              Versão 2.0.0 ·{auth.mode === 'supabase' ? 'Conectado ao Supabase (dados na nuvem, protegidos por usuário)' : 'Modo local (IndexedDB deste navegador, sem sincronização)'}
             </p>
           </div>
         </div>

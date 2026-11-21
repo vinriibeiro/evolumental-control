@@ -96,7 +96,50 @@ describe('nuvem da Biblioteca sobre o Supabase', () => {
 
     const row = calls.upsert[0].row as Record<string, unknown>
     const read = supabaseCloud(fakeClient({ rows: [{ ...row, size: '8162622' }] }).client, USER)
-    expect(await read.list()).toEqual([book])
+    // um livro sem dados da estante v2 volta com os valores padrão das colunas novas
+    expect(await read.list()).toEqual([{ ...book, favorite: false, shelf: 'active', notes: [] }])
+  })
+
+  it('grava e lê assunto, favorito, situação na estante, anotações e ISBN', async () => {
+    const { client, calls } = fakeClient()
+    const full: CloudBook = { ...book, subject: 'Estatística', favorite: true, shelf: 'hidden', notes: [{ id: 'n1', text: 'nota', createdAt: '2026-11-21T10:00:00.000Z' }], isbn: '9780306406157', identifier: 'urn:uuid:abc' }
+    await supabaseCloud(client, USER).upsert(full)
+    expect(calls.upsert[0].row).toMatchObject({ subject: 'Estatística', favorite: true, shelf_state: 'hidden', isbn: '9780306406157', identifier: 'urn:uuid:abc', notes: [{ id: 'n1' }] })
+    const read = supabaseCloud(fakeClient({ rows: [calls.upsert[0].row] }).client, USER)
+    expect(await read.list()).toEqual([full])
+    expect(read.schemaOutdated?.()).toBe(false)
+  })
+
+  it('projeto sem a migração v2: regrava só com as colunas antigas e passa a avisar que está desatualizado', async () => {
+    const upserts: Array<Record<string, unknown>> = []
+    const client = {
+      from: () => ({
+        upsert: async (row: Record<string, unknown>) => {
+          upserts.push(row)
+          return 'shelf_state' in row ? { error: { code: 'PGRST204', message: "Could not find the 'favorite' column of 'library_books' in the schema cache" } } : { error: null }
+        },
+      }),
+      storage: { from: () => ({}) },
+    } as unknown as SupabaseClient
+    const cloud = supabaseCloud(client, USER)
+    expect(cloud.schemaOutdated?.()).toBe(false)
+    await cloud.upsert({ ...book, favorite: true, shelf: 'archived' })
+    expect(upserts).toHaveLength(2)
+    expect(upserts[1]).toMatchObject({ id: 'abc123', progress: 21, location: 'epubcfi(/6/4)' })
+    for (const column of ['subject', 'favorite', 'shelf_state', 'notes', 'isbn', 'identifier']) expect(upserts[1]).not.toHaveProperty(column)
+    expect(cloud.schemaOutdated?.()).toBe(true)
+    // nas próximas gravações já vai direto no formato antigo
+    await cloud.upsert(book)
+    expect(upserts).toHaveLength(3)
+  })
+
+  it('linha sem as colunas novas não inventa situação de estante; outros erros de gravação continuam subindo', async () => {
+    const legacyRow = { user_id: USER, id: 'x1', title: 'T', author: '', file_name: 'f.epub', size: 5, cover_type: null, has_cover: false, weights: null, bookmarks: [], location: null, progress: 0, added_at: 'a', last_read_at: null, updated_at: 'b' }
+    const cloud = supabaseCloud(fakeClient({ rows: [legacyRow] }).client, USER)
+    const [b] = await cloud.list()
+    expect([b.shelf, b.favorite, b.notes, b.subject]).toEqual([undefined, undefined, undefined, undefined])
+    expect(cloud.schemaOutdated?.()).toBe(true)
+    await expect(supabaseCloud(fakeClient({ tableError: { code: '42501', message: 'permission denied' } }).client, USER).upsert(book)).rejects.toMatchObject({ code: '42501' })
   })
 
   it('campos vazios da tabela viram opcionais', async () => {

@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CLOUD_MAX_FILE_BYTES, Library, cloudErrorMessage, readEpubMetadata, type LibraryCloud } from '../library'
+import { CLOUD_MAX_FILE_BYTES, Library, cloudErrorMessage, readEpubMetadata, type CloudBook, type LibraryCloud } from '../library'
 import { FakeCloud } from '@/test/fakeCloud'
 import { PNG, epubFile, makeEpub } from '@/test/epubFixture'
 
@@ -272,7 +272,164 @@ describe('estante com nuvem privada', () => {
   })
 })
 
+/** Nuvem de um projeto que ainda não aplicou a migração v2: não guarda nem devolve os campos novos. */
+class LegacyCloud extends FakeCloud {
+  migrated = false
+  schemaOutdated = () => !this.migrated
+  private strip(book: CloudBook): CloudBook {
+    if (this.migrated) return book
+    const { subject: _s, favorite: _f, shelf: _h, notes: _n, isbn: _i, identifier: _d, ...legacy } = book
+    return legacy
+  }
+  override async upsert(book: CloudBook) {
+    await super.upsert(this.strip(book))
+  }
+  override async list() {
+    // depois da migração, as linhas antigas ganham os valores padrão das colunas novas
+    return (await super.list()).map((b) => (this.migrated ? { favorite: false, shelf: 'active' as const, notes: [], ...b } : b))
+  }
+}
+
+describe('estante v2: identificação, assunto, favoritos, arquivo e anotações', () => {
+  it('inspeciona o arquivo sem guardar nada e lê o identificador do livro', async () => {
+    const lib = shelf()
+    const file = await epubFile('a.epub', { title: 'Livro A', author: 'Autora', chapter: 'cap-unico' })
+    const probe = await lib.inspect(file)
+    expect(probe.id).toMatch(/^[0-9a-f]{32}$/)
+    expect(probe.meta).toMatchObject({ title: 'Livro A', author: 'Autora', identifier: 'urn:test:cap-unico' })
+    expect(probe.existing).toBeUndefined()
+    expect(await lib.list()).toEqual([])
+
+    const added = await lib.add(file, probe)
+    expect(added).toMatchObject({ status: 'added', book: { id: probe.id, identifier: 'urn:test:cap-unico' } })
+    // o mesmo conteúdo com outro nome é o mesmo livro
+    const again = await lib.inspect(new File([await file.arrayBuffer()], 'outro-nome.epub'))
+    expect(again.id).toBe(probe.id)
+    expect(again.existing?.title).toBe('Livro A')
+  })
+
+  it('reconhece o ISBN declarado no pacote do EPUB', async () => {
+    const data = await makeEpub({ title: 'Com ISBN', chapter: 'isbn' })
+    const { default: JSZip } = await import('jszip')
+    const zip = await JSZip.loadAsync(data)
+    const opf = await zip.file('OEBPS/content.opf')!.async('string')
+    zip.file('OEBPS/content.opf', opf.replace('</metadata>', '<dc:identifier id="isbn">urn:isbn:0-306-40615-2</dc:identifier></metadata>'))
+    const meta = await readEpubMetadata(await zip.generateAsync({ type: 'arraybuffer' }), 'isbn.epub')
+    expect(meta.isbn).toBe('9780306406157')
+    expect(meta.identifier).toBe('urn:test:isbn')
+  })
+
+  it('remover da estante e arquivar não apagam o arquivo nem a leitura; dá para restaurar', async () => {
+    const lib = shelf()
+    const { book } = await lib.add(await epubFile('a.epub', { title: 'A', chapter: 'v2-a' }))
+    await lib.saveProgress(book.id, 'epubcfi(/6/4)', 37)
+    await lib.toggleBookmark(book.id, { cfi: 'epubcfi(/6/2)', label: 'Cap 1' })
+    for (const state of ['hidden', 'archived'] as const) {
+      await lib.setShelf(book.id, state)
+      const kept = await lib.get(book.id)
+      expect(kept).toMatchObject({ shelf: state, progress: 37, location: 'epubcfi(/6/4)' })
+      expect(kept?.bookmarks).toHaveLength(1)
+      expect((await lib.open(book.id)).byteLength).toBeGreaterThan(100)
+    }
+    await lib.setShelf(book.id, 'active')
+    expect((await lib.get(book.id))?.shelf).toBe('active')
+  })
+
+  it('edita título, autor e assunto; recusa título vazio; favorita', async () => {
+    const lib = shelf()
+    const { book } = await lib.add(await epubFile('a.epub', { title: 'A', author: 'Autora', chapter: 'v2-b' }))
+    await lib.setDetails(book.id, { title: '  Novo Título ', author: '', subject: ' Estatística ' })
+    expect(await lib.get(book.id)).toMatchObject({ title: 'Novo Título', author: 'Autor desconhecido', subject: 'Estatística' })
+    await expect(lib.setDetails(book.id, { title: '   ' })).rejects.toThrow(/título/)
+    await lib.setDetails(book.id, { subject: '' })
+    expect((await lib.get(book.id))?.subject).toBeUndefined()
+    await lib.setFavorite(book.id, true)
+    expect((await lib.get(book.id))?.favorite).toBe(true)
+  })
+
+  it('guarda anotações do livro e descarta as vazias', async () => {
+    const lib = shelf()
+    const { book } = await lib.add(await epubFile('a.epub', { title: 'A', chapter: 'v2-c' }))
+    const saved = await lib.saveNotes(book.id, [
+      { id: 'n1', text: '  reler este trecho ', cfi: 'epubcfi(/6/4)', label: 'Cap 2 · 30%', createdAt: '2026-11-21T10:00:00.000Z' },
+      { id: 'n2', text: '   ', createdAt: '2026-11-21T10:01:00.000Z' },
+      { id: 'n3', text: 'nota do livro todo', createdAt: '2026-11-21T10:02:00.000Z' },
+    ])
+    expect(saved.map((n) => [n.id, n.text, n.cfi])).toEqual([
+      ['n1', 'reler este trecho', 'epubcfi(/6/4)'],
+      ['n3', 'nota do livro todo', undefined],
+    ])
+    expect((await lib.get(book.id))?.notes).toEqual(saved)
+  })
+
+  it('assunto, favorito, situação na estante e anotações sincronizam entre aparelhos', async () => {
+    const cloud = new FakeCloud()
+    const a = shelf(cloud)
+    const b = shelf(cloud)
+    const { book } = await a.add(await epubFile('a.epub', { title: 'Livro A', chapter: 'v2-d' }))
+    await b.sync()
+    await wait()
+    await a.setDetails(book.id, { title: 'Livro A (revisado)', subject: 'Direito' })
+    await a.setFavorite(book.id, true)
+    await a.setShelf(book.id, 'archived')
+    await a.saveNotes(book.id, [{ id: 'n1', text: 'nota', createdAt: '2026-11-21T10:00:00.000Z' }])
+    await wait()
+    await b.sync()
+    expect(await b.get(book.id)).toMatchObject({ title: 'Livro A (revisado)', subject: 'Direito', favorite: true, shelf: 'archived', notes: [{ id: 'n1', text: 'nota' }] })
+    // arquivar em um aparelho não apaga o arquivo da nuvem
+    expect(cloud.files.has(book.id)).toBe(true)
+    // um terceiro aparelho já recebe o livro arquivado
+    const c = shelf(cloud)
+    await c.sync()
+    expect(await c.get(book.id)).toMatchObject({ shelf: 'archived', favorite: true, subject: 'Direito' })
+  })
+
+  it('nuvem sem a migração v2: nada quebra, os dados novos ficam no aparelho e sobem depois da migração', async () => {
+    const cloud = new LegacyCloud()
+    const a = shelf(cloud)
+    const b = shelf(cloud)
+    const { book } = await a.add(await epubFile('a.epub', { title: 'Livro A', chapter: 'v2-e' }))
+    expect(a.cloudSchemaOutdated).toBe(true)
+    await b.sync()
+    await wait()
+    await a.setFavorite(book.id, true)
+    await a.saveNotes(book.id, [{ id: 'n1', text: 'feita antes da migração', createdAt: '2026-11-21T10:00:00.000Z' }])
+    await a.saveProgress(book.id, 'epubcfi(/6/8)', 55)
+    await wait()
+    expect(await a.get(book.id)).toMatchObject({ favorite: true, metaPending: true, progress: 55 })
+
+    // o outro aparelho recebe a posição de leitura, mas não perde nem inventa os campos novos
+    await b.sync()
+    await wait()
+    await b.setShelf(book.id, 'hidden')
+    await b.saveNotes(book.id, [{ id: 'n2', text: 'feita no outro aparelho', createdAt: '2026-11-21T11:00:00.000Z' }])
+    await wait()
+    await b.sync()
+    expect(await b.get(book.id)).toMatchObject({ progress: 55, shelf: 'hidden', metaPending: true })
+    expect((await b.get(book.id))?.favorite).toBeUndefined()
+
+    // migração aplicada: o que estava só em cada aparelho sobe e se soma, em vez de ser trocado pelos valores padrão
+    cloud.migrated = true
+    await wait()
+    await a.sync()
+    expect(await a.get(book.id)).toMatchObject({ favorite: true, metaPending: false, notes: [{ id: 'n1' }] })
+    expect(cloud.books.get(book.id)).toMatchObject({ favorite: true, notes: [{ id: 'n1', text: 'feita antes da migração' }] })
+    await wait()
+    await b.sync()
+    expect(cloud.books.get(book.id)).toMatchObject({ favorite: true, shelf: 'hidden' })
+    expect(cloud.books.get(book.id)?.notes?.map((n) => n.id).sort()).toEqual(['n1', 'n2'])
+    await wait()
+    await a.sync()
+    expect(await a.get(book.id)).toMatchObject({ favorite: true, shelf: 'hidden', progress: 55 })
+    expect((await a.get(book.id))?.notes?.map((n) => n.id).sort()).toEqual(['n1', 'n2'])
+  })
+})
+
 describe('mensagens de erro da nuvem', () => {
+  it('distingue a tabela ausente da coluna ausente (migração v2)', () => {
+    expect(cloudErrorMessage({ code: 'PGRST204', message: "Could not find the 'subject' column of 'library_books' in the schema cache" })).toMatch(/20261121010000_v2_library\.sql/)
+  })
+
   it('explica quando a migração ainda não foi aplicada', () => {
     expect(cloudErrorMessage({ code: 'PGRST205', message: "Could not find the table 'public.library_books' in the schema cache" })).toMatch(/migração 20261031000000_library\.sql/)
     expect(cloudErrorMessage({ message: 'Bucket not found', statusCode: '404' })).toMatch(/livros/)

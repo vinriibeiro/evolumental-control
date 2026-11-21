@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { Plus, Target } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { PageHeader, Segmented } from '@/components/ui/layout'
@@ -65,14 +64,9 @@ export default function GoalsPage() {
         title="Metas"
         description="Metas por entregas (uma lista do que precisa ficar pronto até uma data) e metas por número, calculadas dos seus registros."
         actions={
-          <>
-            <Link to="/evolucao" className="text-sm text-muted underline decoration-line underline-offset-4 hover:text-ink">
-              Ver evolução
-            </Link>
-            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ goal: null, kind: 'deliverable' })}>
-              Nova meta
-            </Button>
-          </>
+          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ goal: null, kind: 'deliverable' })}>
+            Nova meta
+          </Button>
         }
       />
       <div className="flex flex-wrap items-center justify-between gap-3">

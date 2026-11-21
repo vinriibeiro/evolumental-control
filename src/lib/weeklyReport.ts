@@ -520,7 +520,8 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
     const text = late.length === 1 ? `Comece pela atividade atrasada: ${late[0].title} (${formatDayKey(late[0].date)}).` : `Comece pelas ${late.length} atividades atrasadas, nesta ordem: ${joinList(late.map((t) => t.title), 3)}.`
     recommend('overdue', text, `colocar em dia ${plural(late.length, 'atividade atrasada', 'atividades atrasadas')}`, ['behind.tasks'], { atrasadas: late.length })
   }
-  const farBelow = belowPlan.filter((s) => s.actualSeconds < s.dueSeconds * T.belowPlanRatio)
+  // Na sugestão, a mais distante do plano (menor percentual) vem primeiro.
+  const farBelow = belowPlan.filter((s) => s.actualSeconds < s.dueSeconds * T.belowPlanRatio).sort((a, b) => a.actualSeconds / a.dueSeconds - b.actualSeconds / b.dueSeconds)
   if (farBelow.length) {
     const first = farBelow[0]
     let text = `Dê os primeiros blocos ${finished ? 'da próxima semana' : 'dos próximos dias'} para ${first.name}: ${dur(first.actualSeconds)} de ${dur(first.dueSeconds)} planejados (${pct((first.actualSeconds / first.dueSeconds) * 100)}).`

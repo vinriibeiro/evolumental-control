@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, Download, FileText, Minus } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, Download, FileText, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, PageHeader, Progress, Segmented, StatCard } from '@/components/ui/layout'
 import { ErrorState, Skeleton, useToast } from '@/components/ui/feedback'
@@ -130,11 +130,8 @@ export default function EvolutionPage() {
         }
       />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-6">
         <PeriodPicker state={state} setState={setState} range={range} today={today} />
-        <Link to="/relatorio-semanal" className="inline-flex items-center gap-1 text-sm font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-ink">
-          Relatório semanal <ArrowRight className="size-3.5" aria-hidden />
-        </Link>
       </div>
 
       {loading ? (
@@ -146,7 +143,7 @@ export default function EvolutionPage() {
       ) : (
         <div className="space-y-6">
           <section aria-label="Resumo do período" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="Horas estudadas" value={formatDuration(m.hours.actual)} hint={m.hours.percent == null ? 'Sem horas planejadas no período' : `${pct(m.hours.percent)} de ${formatDuration(m.hours.planned)} planejados`}>
+            <StatCard label="Horas estudadas" value={formatDuration(m.hours.actual)} hint={m.hours.percent == null ? 'Sem horas planejadas no período' : `${pct(m.hours.percent)} do planejado · ${formatHours(m.hours.planned)}`}>
               {m.hours.percent != null && <Progress value={m.hours.percent} label="Realizado em relação ao planejado" />}
             </StatCard>
             <StatCard label="Atividades concluídas" value={m.tasks.rate == null ? '—' : `${m.tasks.done}/${m.tasks.total}`} hint={m.tasks.rate == null ? 'Nenhuma atividade no período' : `${pct(m.tasks.rate)} de conclusão`}>
@@ -156,7 +153,7 @@ export default function EvolutionPage() {
             <StatCard
               label="Dias com estudo"
               value={`${m.consistency.studied}/${m.consistency.elapsed}`}
-              hint={`Sequência atual: ${m.consistency.currentStreak} ${m.consistency.currentStreak === 1 ? 'dia' : 'dias'} · maior no período: ${m.consistency.longest}`}
+              hint={`Sequência atual: ${m.consistency.currentStreak} ${m.consistency.currentStreak === 1 ? 'dia' : 'dias'}`}
             />
           </section>
 
@@ -263,7 +260,21 @@ function Comparison({ rows, previous, inProgress }: { rows: ComparisonRow[]; pre
   return (
     <Card>
       <CardHeader title="Comparação com o período anterior" description={`Período anterior equivalente: ${previous}.${inProgress ? ' O período atual ainda está em andamento, então a comparação é parcial.' : ''}`} />
-      <div className="scroll-thin overflow-x-auto px-5 pt-3 pb-4">
+      {/* No celular a tabela de quatro colunas não cabe: cada indicador vira uma linha com o anterior logo abaixo. */}
+      <ul className="divide-y divide-line px-5 pt-2 pb-3 sm:hidden" aria-label="Indicadores do período atual e do período anterior">
+        {rows.map((r) => (
+          <li key={r.key} className="py-2.5">
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="min-w-0 text-ink">{r.label}</span>
+              <span className="tabular shrink-0 text-right font-medium text-ink">{r.current}</span>
+            </div>
+            <p className="tabular mt-0.5 text-xs text-muted">
+              Anterior: {r.previous} · variação: {r.change}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <div className="scroll-thin hidden overflow-x-auto px-5 pt-3 pb-4 sm:block">
         <table className="w-full min-w-[520px] text-sm">
           <caption className="sr-only">Indicadores do período atual e do período anterior</caption>
           <thead>

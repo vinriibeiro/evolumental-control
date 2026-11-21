@@ -12,6 +12,7 @@ import { formatDuration, periodRange, todayKey } from '@/lib/time'
 import { ActiveTimer } from './ActiveTimer'
 import { FinishReview } from './FinishReview'
 import { FocusMode } from './FocusMode'
+import { Scratchpad } from './Scratchpad'
 import { TimerSetup } from './TimerSetup'
 
 const FOCUS_KEY = 'evl:focus-mode'
@@ -71,6 +72,10 @@ export default function StudyRoomPage() {
               )}
             </>
           )}
+        </Card>
+        <Card className="p-5">
+          <p className="mb-2 text-[13px] font-semibold text-ink">Bloco de notas</p>
+          <Scratchpad initial={settings.scratchpad ?? ''} />
         </Card>
         <Link to="/sala/historico" className="flex items-center gap-2 rounded-xl border border-line px-4 py-3 text-sm font-medium text-ink hover:bg-surface-2">
           <History className="size-4 text-muted" aria-hidden /> Histórico de sessões e lançamento manual

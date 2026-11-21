@@ -184,7 +184,7 @@ describe('Biblioteca — adicionar e antiduplicidade', () => {
   it('arquivo diferente com o mesmo título e autor: pergunta antes e respeita a resposta', async () => {
     await lib().add(await epubFile('a.epub', { title: 'Dom Casmurro', author: 'Machado de Assis', chapter: 'edição 1' }))
     renderAt('/biblioteca')
-    await screen.findByText('Dom Casmurro')
+    await screen.findByRole('link', { name: 'Abrir Dom Casmurro' })
     const outraEdicao = await epubFile('outra.epub', { title: 'Dom Casmurro', author: 'Machado de Assis', chapter: 'edição 2' })
 
     fireEvent.change(input(), { target: { files: [outraEdicao] } })
@@ -205,7 +205,7 @@ describe('Biblioteca — adicionar e antiduplicidade', () => {
     describePdf.mockResolvedValueOnce({ pageCount: 3 })
     await lib().add(await epubFile('a.epub', { title: 'Estruturas de Dados', author: 'Ana Souza', chapter: 'x' }))
     renderAt('/biblioteca')
-    await screen.findByText('Estruturas de Dados')
+    await screen.findByRole('link', { name: 'Abrir Estruturas de Dados' })
     fireEvent.change(input(), { target: { files: [pdfFile('Estruturas_de_Dados.pdf')] } })
     const dialog = await screen.findByRole('dialog', { name: 'Livro possivelmente duplicado' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Adicionar mesmo assim' }))

@@ -2,7 +2,7 @@ import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type Selec
 import { cn } from '@/lib/cn'
 
 const control =
-  'w-full min-w-0 rounded-xl border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted/80 transition-colors focus:border-accent-strong focus:ring-2 focus:ring-accent/15 focus:outline-none disabled:opacity-60 aria-[invalid=true]:border-danger'
+  'w-full min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-muted/80 transition-colors focus:border-ink focus:ring-2 focus:ring-ink/10 focus:outline-none disabled:opacity-60 aria-[invalid=true]:border-danger'
 
 interface FieldProps {
   label?: ReactNode
@@ -68,7 +68,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
 export function Checkbox({ label, className, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
   return (
     <label className={cn('inline-flex cursor-pointer items-center gap-2 text-sm text-ink', className)}>
-      <input type="checkbox" className="size-4 rounded border-line accent-[var(--accent-strong)]" {...rest} />
+      <input type="checkbox" className="size-4 rounded border-line accent-[var(--ink)]" {...rest} />
       <span>{label}</span>
     </label>
   )
@@ -86,7 +86,7 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50',
-        checked ? 'border-accent-strong bg-accent' : 'border-line bg-surface-2',
+        checked ? 'border-ink bg-ink' : 'border-line bg-track',
       )}
     >
       <span className={cn('inline-block size-4.5 rounded-full bg-bg shadow-sm transition-transform', checked ? 'translate-x-5.5' : 'translate-x-0.5')} />

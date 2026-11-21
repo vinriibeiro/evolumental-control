@@ -11,8 +11,7 @@ import { isEnglishPillar, routineDayBlocks } from '@/lib/routine'
 import { addDays, eachDay } from '@/lib/time'
 import { ROUTINE_TEMPLATES, cloneRoutineTemplate } from '@/content/routines'
 import { TodayRoutineView } from '@/components/TodayRoutine'
-import dashboardSource from '@/pages/dashboard/DashboardPage.tsx?raw'
-import workspaceSource from '@/pages/workspace/WorkspacePage.tsx?raw'
+import planningSource from '@/pages/planning/PlanningPage.tsx?raw'
 
 const evening = [{ start: '19:00', end: '22:00' }]
 
@@ -334,10 +333,8 @@ describe('cartão "Rotina de hoje"', () => {
     expect(screen.queryByText(/Inglês de hoje/)).not.toBeInTheDocument()
   })
 
-  it('aparece na Visão geral e no Meu espaço', () => {
-    for (const src of [dashboardSource, workspaceSource]) {
-      expect(src).toMatch(/import \{ TodayRoutine \} from '@\/components\/TodayRoutine'/)
-      expect(src).toContain('<TodayRoutine />')
-    }
+  it('aparece na tela inicial (Meu Planejamento) quando há rotina aplicada', () => {
+    expect(planningSource).toMatch(/import \{ TodayRoutine \} from '@\/components\/TodayRoutine'/)
+    expect(planningSource).toContain('<TodayRoutine hideWhenEmpty />')
   })
 })

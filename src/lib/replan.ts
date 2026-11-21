@@ -208,7 +208,7 @@ export function replanWeek(activities: PlanActivity[], opts: ReplanOptions): Rep
         if (t < minStart) continue
         if (stamp(date, t) < notBefore) continue
         if (overlaps(t, t + duration, busy.get(date) ?? [])) continue
-        placed = { activity: a, toDate: date, toStart: t, reason: t === a.start ? 'Mesmo horário, no próximo dia livre.' : 'Primeiro horário livre dentro da sua disponibilidade.' }
+        placed = { activity: a, toDate: date, toStart: t, reason: t === a.start ? 'Mesmo horário, no próximo dia livre.' : 'Próximo horário livre, respeitando seus compromissos e sua disponibilidade.' }
         break
       }
     }

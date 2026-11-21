@@ -27,7 +27,7 @@ export function useLookups() {
       subjectById,
       topicById,
       subjectName: (id: string | null | undefined) => (id ? (subjectById.get(id)?.name ?? 'Matéria excluída') : 'Sem matéria'),
-      subjectColor: (id: string | null | undefined) => (id ? (subjectById.get(id)?.color ?? '#9C8A78') : '#9C8A78'),
+      subjectColor: (id: string | null | undefined) => (id ? (subjectById.get(id)?.color ?? '#A3A3A3') : '#A3A3A3'),
       topicName: (id: string | null | undefined) => (id ? (topicById.get(id)?.name ?? '') : ''),
       loading: subjects.isPending || topics.isPending,
     }

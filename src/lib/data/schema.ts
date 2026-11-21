@@ -145,7 +145,7 @@ export const DEFAULTS: Defaults = {
   profiles: { display_name: null, settings: {} },
   subjects: {
     description: null,
-    color: '#DEB887',
+    color: '#171717',
     icon: null,
     priority: 3,
     difficulty: 3,

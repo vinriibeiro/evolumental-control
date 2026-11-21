@@ -118,7 +118,7 @@ describe('Evolução', () => {
     await backend.insert('study_goals', [{ title: 'Questões do mês', kind: 'metric', metric: 'questions', period: 'monthly', target: 10, start_date: addDays(today, -40) }])
     await backend.insert('assessments', [{ track: 'sql', taken_at: at(today), total: 10, correct: 6 }])
     show(<EvolutionPage />)
-    expect(await screen.findByText('25% de 2h 00min planejados')).toBeInTheDocument()
+    expect(await screen.findByText('25% do planejado · 2h')).toBeInTheDocument()
     const table = within(screen.getByRole('table', { name: 'Indicadores do período atual e do período anterior' }))
     expect(within(table.getByRole('row', { name: /Horas estudadas/ })).getByText('30min')).toBeInTheDocument()
     expect(within(table.getByRole('row', { name: /Taxa de acerto/ })).getByText('33% (12 questões)')).toBeInTheDocument()

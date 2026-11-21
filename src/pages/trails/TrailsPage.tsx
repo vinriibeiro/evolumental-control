@@ -47,8 +47,8 @@ export default function TrailsPage() {
   return (
     <div>
       <PageHeader
-        title="Trilhas de estudo"
-        description="Trilhas prontas por carreira e por matéria, com tópicos na ordem recomendada. Adicione ao seu estudo com um clique e ajuste como quiser."
+        title="Outras trilhas"
+        description="Catálogo de trilhas prontas por carreira e por matéria (concursos e tecnologia). Sua trilha principal de Ciência de Dados fica na aba Trilhas."
       />
       <Tabs
         value={tab}

@@ -236,6 +236,22 @@ export default function DsTrailsPage() {
             </dl>
             <p className="mt-3 text-[11px] text-muted">Registrar tempo de estudo nunca marca um assunto como dominado.</p>
           </Card>
+
+          <Card className="p-5">
+            <h2 className="text-[13px] font-semibold text-ink">Outros planos</h2>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              <li>
+                <Link to="/cgu" className="flex items-center justify-between gap-2 text-ink hover:underline">
+                  Plano CGU 2026 <ArrowRight className="size-3.5 text-muted" aria-hidden />
+                </Link>
+              </li>
+              <li>
+                <Link to="/catalogo" className="flex items-center justify-between gap-2 text-ink hover:underline">
+                  Catálogo de trilhas (concursos e carreiras) <ArrowRight className="size-3.5 text-muted" aria-hidden />
+                </Link>
+              </li>
+            </ul>
+          </Card>
         </aside>
       </div>
 

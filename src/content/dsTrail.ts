@@ -1038,7 +1038,7 @@ const INGLES_TOPICS: TrailTopicDef[] = [
       'Como pedir que repitam ou esclareçam uma pergunta',
     ],
     materials: [
-      link('British Council — Speaking', 'https://learnenglish.britishcouncil.org/skills/speaking'),
+      link('BBC Learning English', 'https://www.bbc.co.uk/learningenglish/'),
       link('British Council — Grammar', 'https://learnenglish.britishcouncil.org/grammar'),
     ],
     exercise: {

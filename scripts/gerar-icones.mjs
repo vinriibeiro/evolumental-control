@@ -6,19 +6,21 @@ import { existsSync, mkdirSync } from 'node:fs'
 const OUT = 'public/icons'
 mkdirSync(OUT, { recursive: true })
 
-const STROKES = `
+// Identidade 2.0: fundo preto, traços brancos e a seta (evolução) em vermelho.
+const BASE = `
   <circle cx="30" cy="26" r="13"/>
   <path d="M30 18v8"/>
-  <path d="M30 26 L49 9"/>
-  <path d="M41.5 8.5 H49.5 V16.5"/>
   <path d="M8 45c7.5-3.6 16-3.6 24 1.6v11c-8-5.2-16.5-5.2-24-1.6z"/>
   <path d="M56 45c-7.5-3.6-16-3.6-24 1.6v11c8-5.2 16.5-5.2 24-1.6z"/>`
+const ARROW = `
+  <path d="M30 26 L49 9"/>
+  <path d="M41.5 8.5 H49.5 V16.5"/>`
 
 // "any": cantos arredondados, símbolo grande. "maskable": fundo cheio e
 // símbolo dentro da zona segura (80% central), pois o sistema recorta o ícone.
 const svg = (kind) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="100%" height="100%">
-  <rect width="64" height="64" rx="${kind === 'any' ? 14 : 0}" fill="#234F3B"/>
-  <g transform="translate(${kind === 'any' ? '6.4 6.4) scale(0.8' : '12.8 12.8) scale(0.6'})" fill="none" stroke="#F5DEB3" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">${STROKES}</g>
+  <rect width="64" height="64" rx="${kind === 'any' ? 14 : 0}" fill="#171717"/>
+  <g transform="translate(${kind === 'any' ? '6.4 6.4) scale(0.8' : '12.8 12.8) scale(0.6'})" fill="none" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><g stroke="#FFFFFF">${BASE}</g><g stroke="#EF4444">${ARROW}</g></g>
 </svg>`
 
 const targets = [

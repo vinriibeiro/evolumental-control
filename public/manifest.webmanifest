@@ -1,14 +1,14 @@
 {
   "name": "VLM Control",
   "short_name": "VLM Control",
-  "description": "Controle de estudos: concursos, faculdade, carreira em tecnologia, idiomas e o que mais você estudar.",
+  "description": "Planejamento pessoal e evolução em Ciência de Dados: agenda, trilhas, biblioteca, sala de estudos e metas.",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#FFFFFF",
-  "theme_color": "#234F3B",
+  "theme_color": "#FFFFFF",
   "categories": ["education", "productivity"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
@@ -17,8 +17,8 @@
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Cronômetro", "short_name": "Cronômetro", "url": "/cronometro", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Revisar flashcards", "short_name": "Flashcards", "url": "/flashcards/revisar?modo=vencidos", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Calendário", "short_name": "Calendário", "url": "/calendario", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Meu Planejamento", "short_name": "Planejar", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Sala de Estudos", "short_name": "Estudar", "url": "/sala", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Revisar flashcards", "short_name": "Flashcards", "url": "/flashcards/revisar?modo=vencidos", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

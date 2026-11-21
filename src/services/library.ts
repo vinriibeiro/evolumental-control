@@ -521,10 +521,22 @@ export class Library {
       }
       if (local.metaPending && r.shelf !== undefined) {
         // A nuvem ganhou as colunas da estante v2 depois que este aparelho já tinha assunto, favorito,
-        // estante ou anotações: esses campos sobem daqui (a nuvem só tem os valores padrão). A posição
-        // de leitura continua seguindo a regra de sempre: vale a mais recente.
+        // estante ou anotações: esses campos sobem daqui, somados ao que outro aparelho na mesma
+        // situação já tenha enviado (nenhuma anotação se perde). A posição de leitura continua
+        // seguindo a regra de sempre: vale a mais recente.
         const reading = r.updatedAt > local.updatedAt ? { location: r.location, progress: r.progress, lastReadAt: r.lastReadAt, bookmarks: r.bookmarks } : {}
-        const merged: BookRecord = { ...local, ...reading, updatedAt: now(), cloud: 'synced', metaPending: false }
+        const mine = new Set((local.notes ?? []).map((n) => n.id))
+        const merged: BookRecord = {
+          ...local,
+          ...reading,
+          subject: local.subject || r.subject || undefined,
+          favorite: Boolean(local.favorite || r.favorite),
+          shelf: normalizeShelfState(local.shelf) !== 'active' ? local.shelf : normalizeShelfState(r.shelf),
+          notes: [...(r.notes ?? []).filter((n) => !mine.has(n.id)), ...(local.notes ?? [])],
+          updatedAt: now(),
+          cloud: 'synced',
+          metaPending: false,
+        }
         try {
           await cloud.upsert(toCloud(merged))
           await this.db.books.put(merged)

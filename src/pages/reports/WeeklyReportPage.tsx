@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, FileText } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Card, PageHeader, StatCard } from '@/components/ui/layout'
 import { ErrorState, Skeleton, useToast } from '@/components/ui/feedback'
@@ -102,27 +101,22 @@ export default function WeeklyReportPage() {
         }
       />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Semana do relatório">
-          <IconButton size="sm" label="Semana anterior" onClick={() => setAnchor(addDays(week.from, -7))}>
-            <ChevronLeft className="size-4" />
-          </IconButton>
-          <span className="px-1 text-sm font-medium text-ink" aria-live="polite">
-            {formatDayKey(week.from)} – {formatDayKey(week.to)}
-            {isCurrent && <span className="font-normal text-muted"> · semana atual</span>}
-          </span>
-          <IconButton size="sm" label="Próxima semana" onClick={() => setAnchor(addDays(week.from, 7))} disabled={week.to >= today}>
-            <ChevronRight className="size-4" />
-          </IconButton>
-          {!isCurrent && (
-            <Button size="sm" variant="ghost" onClick={() => setAnchor(today)}>
-              Semana atual
-            </Button>
-          )}
-        </div>
-        <Link to="/evolucao" className="inline-flex items-center gap-1 text-sm font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-ink">
-          Ver evolução <ArrowRight className="size-3.5" aria-hidden />
-        </Link>
+      <div className="mb-6 flex flex-wrap items-center gap-1" role="group" aria-label="Semana do relatório">
+        <IconButton size="sm" label="Semana anterior" onClick={() => setAnchor(addDays(week.from, -7))}>
+          <ChevronLeft className="size-4" />
+        </IconButton>
+        <span className="px-1 text-sm font-medium text-ink" aria-live="polite">
+          {formatDayKey(week.from)} – {formatDayKey(week.to)}
+          {isCurrent && <span className="font-normal text-muted"> · semana atual</span>}
+        </span>
+        <IconButton size="sm" label="Próxima semana" onClick={() => setAnchor(addDays(week.from, 7))} disabled={week.to >= today}>
+          <ChevronRight className="size-4" />
+        </IconButton>
+        {!isCurrent && (
+          <Button size="sm" variant="ghost" onClick={() => setAnchor(today)}>
+            Semana atual
+          </Button>
+        )}
       </div>
 
       {loading ? (

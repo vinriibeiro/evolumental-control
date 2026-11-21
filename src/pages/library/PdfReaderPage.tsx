@@ -346,8 +346,11 @@ export function PdfReader({
     const host = area.current
     if (!host) return
     const resize = () => {
-      const padding = host.clientWidth < 640 ? 16 : 48
-      const next = { width: Math.min(1400, Math.max(220, host.clientWidth - padding)), height: Math.max(200, host.clientHeight - padding) }
+      // desconta o respiro da área e a borda da página, para "ajustar à largura" não criar rolagem lateral
+      const style = getComputedStyle(host)
+      const sides = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0) + 2
+      const ends = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0) + 2
+      const next = { width: Math.min(1400, Math.max(220, Math.floor(host.clientWidth - sides))), height: Math.max(200, Math.floor(host.clientHeight - ends)) }
       setAreaSize((current) => (current.width === next.width && current.height === next.height ? current : next))
     }
     resize()
@@ -819,7 +822,7 @@ export function PdfReader({
                 }}
               >
                 <label htmlFor="pdf-page-input">Página</label>
-                <Input id="pdf-page-input" type="number" inputMode="numeric" min={1} max={book.pageCount} className="!h-8 !w-16 text-center" value={pageInput} onChange={(e) => setPageInput(e.target.value)} onBlur={() => go(Number(pageInput))} />
+                <Input id="pdf-page-input" type="number" inputMode="numeric" min={1} max={book.pageCount} className="!h-8 !w-16 text-center" value={pageInput} onChange={(e) => setPageInput(e.target.value)} onBlur={() => (Number(pageInput) === page ? setPageInput(String(page)) : go(Number(pageInput)))} />
                 <span className="whitespace-nowrap">de {book.pageCount}</span>
               </form>
               <IconButton label="Próxima página" size="sm" disabled={page >= book.pageCount} onClick={() => go(page + 1)}>

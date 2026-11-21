@@ -269,8 +269,8 @@ export function evolutionDocument(m: EvolutionModel, periodLabel: string, genera
         { label: 'Horas planejadas', value: formatDuration(m.hours.planned) },
         { label: 'Realizado ÷ planejado', value: m.hours.percent == null ? 'Sem plano' : pct(m.hours.percent) },
         { label: 'Atividades concluídas', value: rateLabel(m.tasks) },
-        { label: 'Exercícios e questões', value: m.questions.total ? `${m.questions.total} · ${accuracyLabel(m.questions)}` : 'Sem registros' },
-        { label: 'Dias com estudo', value: `${m.consistency.studied} de ${m.consistency.elapsed} (maior sequência: ${m.consistency.longest})` },
+        { label: 'Exercícios e questões', value: !m.questions.total ? 'Sem registros' : m.questions.total < MIN_SAMPLE ? `${m.questions.total} (acerto: dados insuficientes)` : `${m.questions.total} (${pct(m.questions.accuracy!)} de acerto)` },
+        { label: 'Dias com estudo', value: `${m.consistency.studied} de ${m.consistency.elapsed}` },
       ],
     },
     { type: 'heading', text: `Comparação com o período anterior (${formatDayKey(m.previous.from)} – ${formatDayKey(m.previous.to)})` },
@@ -284,11 +284,15 @@ export function evolutionDocument(m: EvolutionModel, periodLabel: string, genera
   blocks.push({ type: 'table', columns: ['Tópico', 'Acerto', 'Questões'], rows: m.difficulty.topics.map((d) => [d.name, pct(d.accuracy), d.total]), empty: `${INSUFFICIENT}: nenhum tópico com ${MIN_SAMPLE} ou mais questões no período.` })
   blocks.push({ type: 'heading', text: `Metas: ${m.goals.met.length} cumpridas, ${m.goals.pending.length} pendentes` })
   blocks.push({ type: 'table', columns: ['Meta', 'Situação', 'Progresso'], rows: [...m.goals.pending, ...m.goals.met].map((g) => [g.title, g.met ? 'Cumprida' : g.overdue ? 'Pendente (prazo vencido)' : 'Pendente', `${g.detail} (${pct(g.percent)})`]), empty: 'Nenhuma meta vigente no período.' })
+  // Só as faixas com algum registro: um mês parado não vira uma página de zeros.
+  const active = m.series.filter((p) => p.plannedHours > 0 || p.actualHours > 0 || p.tasks > 0 || p.questions > 0)
   blocks.push({ type: 'heading', text: 'Planejado × realizado e exercícios' })
+  blocks.push({ type: 'paragraph', text: `Maior sequência de dias com estudo no período: ${m.consistency.longest}. A tabela lista só os períodos com algum registro; o acerto aparece a partir de ${MIN_SAMPLE} questões.` })
   blocks.push({
     type: 'table',
+    empty: 'Nenhum registro no período.',
     columns: [GRANULARITY_LABEL[m.granularity], 'Planejado (h)', 'Realizado (h)', 'Atividades', 'Questões', 'Acerto'],
-    rows: m.series.map((p) => [p.label, p.plannedHours.toLocaleString('pt-BR'), p.actualHours.toLocaleString('pt-BR'), p.tasks ? `${p.tasksDone}/${p.tasks}` : '—', p.questions, p.accuracy == null ? '—' : pct(p.accuracy)]),
+    rows: active.map((p) => [p.label, p.plannedHours.toLocaleString('pt-BR'), p.actualHours.toLocaleString('pt-BR'), p.tasks ? `${p.tasksDone}/${p.tasks}` : '—', p.questions, p.accuracy == null ? '—' : pct(p.accuracy)]),
   })
   return {
     title: 'Evolução',

@@ -56,6 +56,8 @@ import { TaskDialog, type TaskDraft } from './TaskDialog'
 import { TimeGrid } from './TimeGrid'
 import { WeekTools } from './WeekTools'
 import { LastReadLine } from './LastReadLine'
+import { TodayRoutine } from '@/components/TodayRoutine'
+import { CguToday } from '@/components/CguToday'
 import { firstName, greeting, itemActivity, readPref, taskActivity, writePref, type DayChip, type PlanEvent, type PlanView } from './model'
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
@@ -387,8 +389,8 @@ export default function PlanningPage() {
         }}
         className="flex gap-2"
       >
-        <Input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder={`Adicionar tarefa para ${view === 'day' && anchor !== today ? formatDayKey(anchor, 'weekday') : 'hoje'} e pressionar Enter — ex.: "19h Python 1h"`} aria-label="Adicionar tarefa rápida" className="h-11" />
-        <Button type="submit" className="h-11" disabled={!quick.trim()}>
+        <Input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder={`Nova tarefa para ${view === 'day' && anchor !== today ? formatDayKey(anchor, 'weekday') : 'hoje'} — ex.: 19h Python 1h`} aria-label="Adicionar tarefa rápida" className="h-11" />
+        <Button type="submit" className="h-11 max-sm:hidden" disabled={!quick.trim()}>
           Adicionar
         </Button>
       </form>
@@ -409,7 +411,7 @@ export default function PlanningPage() {
           <p className="min-w-0 flex-1 text-sm text-ink">
             <strong className="font-semibold">{overdue.length} atividade(s) ficaram para trás.</strong> <span className="text-muted">Veja uma sugestão de novos horários antes de mudar qualquer coisa.</span>
           </p>
-          <Button variant="primary" size="sm" icon={<RotateCcw className="size-4" />} onClick={() => setReplanOpen(true)}>
+          <Button size="sm" icon={<RotateCcw className="size-4" />} onClick={() => setReplanOpen(true)}>
             Reorganizar minha semana
           </Button>
         </div>
@@ -606,6 +608,8 @@ export default function PlanningPage() {
 
           <div className="space-y-5 xl:col-start-2 xl:row-start-2">
             <ContinueCard tz={tz} extra={<LastReadLine />} />
+            <TodayRoutine hideWhenEmpty />
+            <CguToday onlyWhenInUse />
             <InboxCard onOrganize={organize} />
             <WeekSummary activities={weekActivities} overdue={overdue.length} studiedBySubject={weekStats.stats.bySubject} studiedTotal={weekStats.stats.total} availableMinutes={availableMinutes} onAvailability={() => void ensurePlanThenEdit()} />
           </div>

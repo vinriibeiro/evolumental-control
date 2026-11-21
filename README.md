@@ -4,6 +4,8 @@ Plataforma de controle de estudos em geral — concursos, faculdade, carreira em
 
 ![Logo](public/brand/logo-full.svg)
 
+> **VLM Control 2.0** — a tela inicial agora é o **Meu Planejamento** (agenda do dia, semana e mês, tarefas em poucos cliques e "Reorganizar minha semana"), e a navegação tem só seis áreas: Meu Planejamento, Trilhas de Estudo (Ciência de Dados: SQL, Python, Machine Learning, Inglês e Power BI, com diagnóstico e projetos práticos), Biblioteca, Sala de Estudos, Metas e Evolução, e Configurações. Identidade branco, preto e vermelho. Decisões, mapa das telas antigas para as novas e migrações em [docs/VLM-2.0.md](docs/VLM-2.0.md). A tabela abaixo descreve os módulos herdados da 1.x, que continuam disponíveis dentro dessas áreas.
+
 ## Sumário
 
 - [Funcionalidades](#funcionalidades)

@@ -44,7 +44,7 @@ export default function ProjectsPage() {
     return m
   }, [sessions.data])
 
-  const rows = projects.data ?? []
+  const rows = useMemo(() => projects.data ?? [], [projects.data])
   const byTemplate = new Map(rows.filter((p) => p.template_key).map((p) => [p.template_key!, p]))
   const mine = topicFilter ? rows.filter((p) => (p.topic_keys ?? []).includes(topicFilter)) : rows
   const templates = topicFilter ? DS_PROJECT_TEMPLATES.filter((t) => t.topicKeys.includes(topicFilter)) : DS_PROJECT_TEMPLATES
@@ -129,7 +129,7 @@ export default function ProjectsPage() {
           ]}
         />
         <form
-          className="ml-auto flex min-w-0 flex-1 gap-2 sm:max-w-sm"
+          className="flex w-full min-w-0 gap-2 sm:ml-auto sm:w-auto sm:max-w-sm sm:flex-1"
           onSubmit={(e) => {
             e.preventDefault()
             if (!name.trim()) return

@@ -53,8 +53,6 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
   const handles = useRef(new Map<number, PdfCanvasHandle>())
   const ratios = useRef(new Map<number, number>())
   const [near, setNear] = useState<Set<number>>(() => new Set([page]))
-  const nearRef = useRef(near)
-  nearRef.current = near
   const pageRef = useRef(page)
   pageRef.current = page
   const visibleRef = useRef(onVisiblePage)
@@ -89,7 +87,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     [scrollToPage],
   )
 
-  // Quais páginas estão perto da área visível (uma tela e meia para cima e para baixo).
+  // Quais páginas estão perto da área visível (uma tela para cima e uma para baixo).
   useEffect(() => {
     const root = area.current
     if (mode !== 'continuous' || !root || typeof IntersectionObserver === 'undefined') return
@@ -105,7 +103,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
           return next
         })
       },
-      { root, rootMargin: '150% 0px' },
+      { root, rootMargin: '100% 0px' },
     )
     slots.current.forEach((slot) => observer.observe(slot))
     return () => observer.disconnect()
@@ -120,14 +118,16 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
       frame = 0
       if (Date.now() < jumpUntil.current) return
       const probe = root.getBoundingClientRect().top + Math.min(root.clientHeight * 0.35, 240)
-      let current: number | null = null
-      for (const number of [...nearRef.current].sort((a, b) => a - b)) {
-        const rect = slots.current.get(number)?.getBoundingClientRect()
-        if (!rect || rect.bottom <= probe) continue
-        current = number
-        break
+      // As páginas estão empilhadas em ordem: busca binária pela primeira que termina abaixo da linha.
+      let low = 1
+      let high = slots.current.size
+      while (low < high) {
+        const middle = (low + high) >> 1
+        const rect = slots.current.get(middle)?.getBoundingClientRect()
+        if (rect && rect.bottom <= probe) low = middle + 1
+        else high = middle
       }
-      if (current !== null && current !== pageRef.current) visibleRef.current(current)
+      if (slots.current.has(low) && low !== pageRef.current) visibleRef.current(low)
     }
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(measure)

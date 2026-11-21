@@ -228,7 +228,8 @@ export function TrendLine({
 export function ConsistencyGrid({ days, format }: { days: Array<{ day: string; seconds: number; label: string }>; format: (v: number) => string }) {
   const max = Math.max(...days.map((d) => d.seconds), 1)
   const level = (s: number) => (s <= 0 ? 0 : Math.min(4, Math.ceil((s / max) * 4)))
-  const shades = ['var(--surface-2)', 'color-mix(in srgb, var(--accent-strong) 30%, var(--bg))', 'color-mix(in srgb, var(--accent-strong) 55%, var(--bg))', 'color-mix(in srgb, var(--accent-strong) 80%, var(--bg))', 'var(--ink)']
+  // Um só tom (do cinza claro ao preto): o vermelho fica reservado para pontos de atenção.
+  const shades = ['var(--surface-2)', 'color-mix(in srgb, var(--ink) 22%, var(--bg))', 'color-mix(in srgb, var(--ink) 45%, var(--bg))', 'color-mix(in srgb, var(--ink) 70%, var(--bg))', 'var(--ink)']
   return (
     <div>
       <div className="grid auto-cols-max grid-flow-col grid-rows-7 justify-start gap-[3px] overflow-x-auto pb-1" role="img" aria-label="Constância diária de estudo">
