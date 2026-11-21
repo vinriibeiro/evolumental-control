@@ -155,7 +155,7 @@ export default function VideosPage() {
           const pct = g.total ? Math.round((g.done / g.total) * 100) : 0
           return (
             <li key={g.id}>
-              <button type="button" aria-expanded={open} onClick={() => setExpanded((e) => ({ ...e, [g.id]: !open }))} className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface">
+              <button type="button" aria-expanded={open} onClick={() => setExpanded((e) => ({ ...e, [g.id]: !open }))} className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-surface-2">
                 <span className={cn('tabular grid size-8 shrink-0 place-items-center rounded-full text-xs font-semibold', pct === 100 ? 'bg-success/15 text-success' : 'bg-surface-2 text-ink')} aria-hidden>
                   {pct === 100 ? <CheckCircle2 className="size-4" /> : i + 1}
                 </span>

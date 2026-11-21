@@ -153,7 +153,7 @@ try {
   await page.screenshot({ path: `${out}/celular-aula.png`, fullPage: true })
   console.log('OK | catálogo e aula no celular sem rolagem horizontal')
 
-  for (const path of ['/videos', '/biblioteca', '/cronometro']) {
+  for (const path of ['/videos', '/biblioteca', '/sala']) {
     await page.goto(`${base}${path}`)
     await page.getByRole('main').waitFor()
   }

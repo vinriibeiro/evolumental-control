@@ -296,7 +296,7 @@ function ImportCsvModal({ open, onClose, deckId, subjectId, topicId }: { open: b
         </>
       }
     >
-      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line p-6 text-center hover:bg-surface">
+      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line p-6 text-center hover:bg-surface-2">
         <Upload className="size-6 text-muted" />
         <span className="text-sm text-ink">{fileName || 'Escolher arquivo .csv'}</span>
         <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => onFile(e.target.files?.[0])} />

@@ -73,7 +73,7 @@ export function CourseOutline({ view, progress, currentLessonId, organize, onOrg
           return (
             <li key={e.node.id} className="py-0.5">
               <div className="flex items-center gap-1">
-                <button type="button" aria-expanded={open} onClick={() => setCollapsed((c) => ({ ...c, [e.node.id]: open }))} className={cn('flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-surface', e.node.hidden && 'opacity-50')}>
+                <button type="button" aria-expanded={open} onClick={() => setCollapsed((c) => ({ ...c, [e.node.id]: open }))} className={cn('flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-surface-2', e.node.hidden && 'opacity-50')}>
                   <ChevronDown className={cn('mt-0.5 size-4 shrink-0 text-muted transition-transform', !open && '-rotate-90')} aria-hidden />
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-snug font-semibold text-ink">{e.title}</span>
@@ -111,7 +111,7 @@ export function CourseOutline({ view, progress, currentLessonId, organize, onOrg
               onClick={() => onOpen(l)}
               className={cn(
                 'flex min-w-0 flex-1 items-start gap-2 rounded-lg border-l-2 py-1.5 pr-2 pl-2 text-left transition-colors',
-                active ? 'border-accent-strong bg-accent/15 text-ink' : 'border-transparent text-muted hover:bg-surface hover:text-ink',
+                active ? 'border-accent-strong bg-accent/15 text-ink' : 'border-transparent text-muted hover:bg-surface-2 hover:text-ink',
                 (l.primary.hidden || l.folder?.hidden) && 'opacity-50',
               )}
             >
@@ -153,7 +153,7 @@ export function CourseOutline({ view, progress, currentLessonId, organize, onOrg
           <label className="flex items-center gap-2 text-xs text-ink">
             <input type="checkbox" checked={pendingOnly} onChange={(e) => setPendingOnly(e.target.checked)} /> Só pendentes
           </label>
-          <button type="button" aria-pressed={organize} onClick={() => onOrganize(!organize)} className={cn('inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs', organize ? 'bg-accent text-accent-ink' : 'text-ink hover:bg-surface')}>
+          <button type="button" aria-pressed={organize} onClick={() => onOrganize(!organize)} className={cn('inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs', organize ? 'bg-accent text-accent-ink' : 'text-ink hover:bg-surface-2')}>
             <Pencil className="size-3" aria-hidden /> {organize ? 'Concluir organização' : 'Organizar'}
           </button>
         </div>

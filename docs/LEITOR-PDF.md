@@ -3,9 +3,18 @@
 ## Onde abrir
 
 - **Cursos:** abra uma aula ou anexo PDF e clique em **Ler e marcar PDF**. O visualizador padrão continua disponível.
-- **Biblioteca → Seus PDFs:** use **Adicionar PDF** para arquivos do computador, até 100 MiB por arquivo.
+- **Biblioteca** (`/biblioteca`): use **Adicionar livros** para PDFs do computador, até 100 MiB por arquivo. Eles ficam na mesma estante dos EPUBs (ver `docs/BIBLIOTECA.md`) e abrem em `/livros/pdf/:id`.
 
-O leitor oferece texto selecionável, quatro cores de destaque, desenho livre por mouse/caneta/toque, notas editáveis, marcadores de página, busca por texto, zoom, modo foco, desfazer alterações recentes e retomada da página.
+## Recursos do leitor
+
+- **Navegação:** página anterior/próxima, ir para uma página, setas do teclado. **Rolagem contínua** (padrão) ou uma página por vez; a escolha fica guardada no navegador.
+- **Zoom:** aumentar, diminuir, **ajustar à largura** e **ajustar à página**. **Tela cheia** (onde o navegador permite; nos demais, o leitor ocupa a janela toda). Esc sai.
+- **Busca no documento** pelo texto do PDF, sem diferenciar acentos, com contador e botões de trecho anterior/próximo.
+- **Retomada automática:** a posição é salva sozinha e o PDF reabre na última página lida.
+- **Progresso de navegação:** parcela das páginas já abertas (uma página conta depois de ficar aberta por um instante). É uma estimativa automática, não uma confirmação de leitura; não existe "marcar página como lida".
+- **Iniciar/Continuar estudo:** liga o cronômetro do app com o PDF como origem da sessão; com a sessão em andamento, o botão vira o atalho para a Sala de Estudos.
+- **Anotações:** painel com notas do documento ou de uma página (adicionar, editar, excluir, clicar para ir à página), além da lista de destaques, desenhos e páginas marcadas.
+- **Marcações na página:** texto selecionável, quatro cores de destaque, desenho livre por mouse/caneta/toque, nota presa a um ponto, marcadores de página e desfazer.
 
 ## PDFs dos cursos no Drive
 
@@ -19,13 +28,13 @@ As referências e marcas são armazenadas no navegador, isoladas por conta da pl
 
 ## PDFs importados do computador
 
-O arquivo original é copiado para o IndexedDB deste navegador, em um espaço separado por conta. O conteúdo é deduplicado por SHA256; adicionar o mesmo arquivo preserva as marcas. PDFs e marcas não sincronizam com Supabase ou outros aparelhos.
+O arquivo original é copiado para o IndexedDB deste navegador, em um espaço separado por conta. O id do PDF é o SHA-256 do conteúdo: adicionar o mesmo arquivo, mesmo com outro nome, não duplica e preserva as marcas. Na importação o app lê a contagem de páginas e o autor e guarda uma miniatura da primeira página como capa (PDFs antigos ganham a capa na primeira vez que forem abertos). PDFs e marcas não sincronizam com Supabase ou outros aparelhos.
 
 ## Salvar e exportar
 
 As alterações são salvas automaticamente; o estado de gravação aparece no cabeçalho. Falhas de armazenamento são informadas e permitem tentar novamente. **Exportar PDF** gera uma cópia: destaques e desenhos são incorporados às páginas e notas viram comentários nativos. O original permanece intacto.
 
-Exporte antes de remover um PDF ou limpar os dados do navegador. O backup global de tabelas em Configurações ainda não inclui os arquivos e as marcações deste leitor. A exportação de cada PDF é a forma de guardar uma cópia das marcas.
+Exporte antes de **excluir permanentemente** um PDF ou limpar os dados do navegador (remover da estante e arquivar não apagam nada). O backup global de tabelas em Configurações ainda não inclui os arquivos e as marcações deste leitor. A exportação de cada PDF é a forma de guardar uma cópia das marcas.
 
 ## Limites
 
@@ -33,7 +42,8 @@ Exporte antes de remover um PDF ou limpar os dados do navegador. O backup global
 - PDFs protegidos podem ser lidos com senha, sem guardá-la. A exportação com pdf-lib exige um arquivo sem criptografia; uma mensagem explica a limitação quando necessário.
 - O leitor do Drive precisa de internet, autorização válida e permissão no arquivo. Se a autorização expirar, use **Autorizar novamente**.
 - A conclusão da aula continua manual e independente de abrir, marcar ou percorrer páginas.
-- O leitor renderiza uma página por vez e limita o tamanho do canvas para controlar o uso de memória.
+- Na rolagem contínua só as páginas próximas da área visível são desenhadas (as demais são espaços reservados), e o tamanho do canvas é limitado, para controlar o uso de memória.
+- Nos PDFs dos cursos (Drive) o leitor é o mesmo, sem o atalho de estudo e sem registro de páginas visitadas.
 
 ## Validação
 

@@ -1,5 +1,6 @@
 /** PDFs locais. O arquivo original e as marcações ficam neste navegador, separados por conta. */
 import Dexie, { type Table } from 'dexie'
+import { normalizeShelfState, type ShelfState } from '@/lib/library'
 
 /** Coordenadas no espaço nativo do PDF, em pontos, sem aplicar zoom ou rotação da tela. */
 export interface PdfPoint {
@@ -24,6 +25,12 @@ export interface PdfAnnotation {
   quote?: string
   createdAt: string
   strokeWidth?: number
+  /**
+   * Só em notas: "document" = anotação do documento como um todo (não aparece presa a uma página).
+   * A página continua gravada (a que estava aberta), para a exportação ter onde colocar o comentário.
+   */
+  scope?: 'document'
+  updatedAt?: string
 }
 
 export interface PdfBook {
@@ -38,7 +45,29 @@ export interface PdfBook {
   addedAt: string
   updatedAt: string
   lastReadAt?: string
+  author?: string
+  /** Assunto livre definido pelo usuário (filtro da estante). */
+  subject?: string
+  favorite?: boolean
+  /** Ausente = na estante. "archived"/"hidden" tiram o PDF da estante sem apagar nada. */
+  shelf?: ShelfState
+  /** Páginas já abertas no leitor (sem repetição): base do "progresso de navegação". */
+  visitedPages?: number[]
+  /** Miniatura da primeira página, gerada uma vez e guardada aqui. */
+  cover?: ArrayBuffer
+  coverType?: string
 }
+
+/** Arquivo já lido, validado e identificado (SHA-256 do conteúdo), antes de entrar na estante. */
+export interface PdfProbe {
+  id: string
+  data: ArrayBuffer
+  title: string
+  fileName: string
+}
+
+/** Dados da estante: não fazem parte da leitura e, por isso, não disputam com o leitor aberto em outra aba. */
+export type PdfShelfPatch = Partial<Pick<PdfBook, 'title' | 'author' | 'subject' | 'favorite' | 'shelf' | 'cover' | 'coverType' | 'pageCount'>>
 
 interface PdfFile {
   id: string
@@ -59,7 +88,8 @@ class PdfDb extends Dexie {
 
 export const PDF_MAX_FILE_BYTES = 100 * 1024 * 1024
 export const PDF_CONFLICT_MESSAGE = 'Este PDF foi alterado em outra aba. Reabra o leitor antes de continuar; exporte suas marcações atuais para preservá-las.'
-type ReadingPatch = Partial<Pick<PdfBook, 'currentPage' | 'pageCount' | 'annotations' | 'bookmarks' | 'lastReadAt'>>
+export type PdfReadingPatch = Partial<Pick<PdfBook, 'currentPage' | 'pageCount' | 'annotations' | 'bookmarks' | 'lastReadAt' | 'visitedPages'>>
+type ReadingPatch = PdfReadingPatch
 
 function positivePage(value: number): boolean {
   return Number.isSafeInteger(value) && value >= 1
@@ -121,7 +151,11 @@ export class PdfLibrary {
     return (await this.db.files.get(id))?.data
   }
 
-  async add(file: File): Promise<PdfBook> {
+  /**
+   * Lê e valida o arquivo sem guardar nada. O id é o SHA-256 do conteúdo: dois arquivos idênticos
+   * têm o mesmo id, seja qual for o nome do arquivo.
+   */
+  async inspect(file: File): Promise<PdfProbe> {
     if (file.size > PDF_MAX_FILE_BYTES) throw new Error('O PDF ultrapassa o limite de 100 MiB por arquivo.')
     if (file.size < 5) throw new Error('O arquivo não é um PDF válido.')
     const data = await file.arrayBuffer()
@@ -131,10 +165,15 @@ export class PdfLibrary {
     if (!globalThis.crypto?.subtle) throw new Error('Para importar PDFs com segurança, abra a plataforma em HTTPS ou localhost.')
     const digest = await globalThis.crypto.subtle.digest('SHA-256', data)
     const id = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return { id, data, fileName: file.name, title: file.name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim() || 'PDF sem título' }
+  }
+
+  async add(file: File, probe?: PdfProbe): Promise<PdfBook> {
+    const { id, data, title } = probe ?? (await this.inspect(file))
     const stamp = new Date().toISOString()
     const book: PdfBook = {
       id,
-      title: file.name.replace(/\.pdf$/i, '').replace(/[_]+/g, ' ').trim() || 'PDF sem título',
+      title,
       fileName: file.name,
       size: data.byteLength,
       pageCount: 1,
@@ -185,6 +224,7 @@ export class PdfLibrary {
       if (patch.annotations != null) changes.annotations = annotations
       if (patch.bookmarks != null) changes.bookmarks = [...new Set(bookmarks)].sort((a, b) => a - b)
       if (patch.lastReadAt != null) changes.lastReadAt = patch.lastReadAt
+      if (patch.visitedPages != null) changes.visitedPages = [...new Set(patch.visitedPages.filter((page) => positivePage(page) && page <= pageCount))].sort((a, b) => a - b)
       await this.db.books.update(id, changes)
       const revision = crypto.randomUUID()
       await this.db.revisions.put({ id, revision })
@@ -192,6 +232,35 @@ export class PdfLibrary {
     })
   }
 
+  /**
+   * Atualiza os dados da estante (título, autor, assunto, favorito, estante, capa). Não mexe na
+   * posição nem nas marcações e não muda a revisão: o leitor aberto em outra aba continua válido.
+   */
+  async setShelfData(id: string, patch: PdfShelfPatch): Promise<void> {
+    await this.db.transaction('rw', this.db.books, async () => {
+      const book = await this.db.books.get(id)
+      if (!book) throw new Error('Este PDF não está mais na biblioteca deste navegador.')
+      const changes: PdfShelfPatch = {}
+      if (patch.title !== undefined) {
+        const title = patch.title.trim().slice(0, 500)
+        if (!title) throw new Error('Informe o título do PDF.')
+        changes.title = title
+      }
+      if (patch.author !== undefined) changes.author = patch.author.trim().slice(0, 500) || undefined
+      if (patch.subject !== undefined) changes.subject = patch.subject.trim().slice(0, 120) || undefined
+      if (patch.favorite !== undefined) changes.favorite = Boolean(patch.favorite)
+      if (patch.shelf !== undefined) changes.shelf = normalizeShelfState(patch.shelf)
+      if (patch.cover !== undefined) {
+        changes.cover = patch.cover
+        changes.coverType = patch.coverType ?? 'image/jpeg'
+      }
+      // A contagem real de páginas só é aceita antes da primeira leitura; depois, quem manda é o leitor.
+      if (patch.pageCount !== undefined && positivePage(patch.pageCount) && !book.lastReadAt && book.annotations.length === 0 && book.bookmarks.length === 0) changes.pageCount = patch.pageCount
+      if (Object.keys(changes).length) await this.db.books.update(id, changes)
+    })
+  }
+
+  /** Exclusão permanente: apaga o arquivo, a posição, as marcações e as anotações deste PDF. */
   async remove(id: string): Promise<void> {
     await this.db.transaction('rw', this.db.books, this.db.files, this.db.revisions, async () => {
       await this.db.books.delete(id)

@@ -1,45 +1,59 @@
-# Biblioteca (leitor de EPUB)
+# Biblioteca (estante de EPUB e PDF)
 
-Aba **Biblioteca**: estante com capas e leitor em tela cheia (estilo Kindle) para livros em EPUB.
+**Biblioteca** (`/biblioteca`, `src/pages/library/LibraryPage.tsx`): uma estante única para livros em EPUB e PDF, com leitor dentro do app. O endereço antigo `/livros` leva para a mesma estante; os leitores ficam em `/livros/:id` (EPUB) e `/livros/pdf/:id` (PDF, ver `docs/LEITOR-PDF.md`).
 
-> **Desde 07/11/2026:** o item **Biblioteca** do menu abre uma pasta com todos os materiais (Matérias, Trilhas, Cursos, Livros, Áudios, Flashcards e Banco de questões), cada um em seu cartão, na ordem do fluxo de estudo (`/biblioteca`, `src/pages/library/LibraryHubPage.tsx`). A estante de livros descrita aqui passou para **Livros** (`/livros`; leitores em `/livros/:id` e `/livros/pdf/:id`; os endereços antigos `/biblioteca/...` continuam abrindo). Inglês, Vídeos, Revisões e Desempenho saíram desta pasta: Revisões foi para Calendário e Desempenho para Metas e relatórios; Inglês e Vídeos continuam acessíveis pela URL e pela busca (Ctrl K). Dentro de cada material **não há barra de abas**: no alto da página fica só o botão **Voltar para a Biblioteca** (grupo com `back` em `src/app/nav.ts`, renderizado pelo `AppShell`).
+## Estante
 
-## Modo leitura (tela inteira)
+- **Grade ou lista** (a escolha fica guardada no navegador). Capa do EPUB ou miniatura da primeira página do PDF; sem imagem, uma capa tipográfica com título e autor.
+- **Busca** por título ou autor, sem diferenciar maiúsculas nem acentos. **Assunto**: texto livre definido em *Editar detalhes* (junto de título e autor); assim que existe um assunto, aparece o filtro por assunto.
+- **Situação**: Todos, Em andamento, Favoritos (estrela), Arquivados e Removidos.
+- **Último livro acessado** em destaque, com o botão **Continuar**. O mesmo dado alimenta a tela inicial (`useLastRead()` em `src/pages/library/lastRead.ts`).
+- **Progresso**: no EPUB é a posição no livro ("42% lido"). No PDF é o **progresso de navegação**: a parcela das páginas já abertas no leitor. É uma estimativa automática, não uma confirmação de leitura; ninguém precisa marcar página como lida.
 
-- A página do livro ocupa a tela toda. As barras de cima e de baixo flutuam sobre o texto e somem sozinhas alguns segundos depois de abrir; por isso mostrar ou esconder os controles não refaz a paginação.
+## Antiduplicidade
+
+Antes de adicionar, cada arquivo é comparado com tudo o que já está guardado (inclusive arquivados e removidos). A regra está em `findDuplicate` (`src/lib/library.ts`), nesta ordem:
+
+1. **Mesmo conteúdo** (SHA-256 do arquivo, que também é o id do livro): é o mesmo livro, ainda que o nome do arquivo seja outro. Não duplica; se o livro estava arquivado ou removido, volta para a estante com a leitura de onde parou.
+2. **Mesmo ISBN** (lido do EPUB; ISBN-10 e ISBN-13 equivalem), **mesmo identificador** do livro ou **mesmo título e autor** (ignorando acentos, caixa, pontuação e marcas como "(1)" e "- Cópia"): os arquivos são diferentes, então é só uma suspeita. O app pergunta "Parece que este livro já está na estante… Adicionar mesmo assim?" e respeita a resposta. Nada é removido sozinho.
+3. Mesmo título com autores conhecidos e diferentes não é tratado como duplicata.
+
+No modo Supabase vale o mesmo: a estante local é sincronizada antes da comparação e a chave primária `(user_id, id)` impede o mesmo conteúdo duas vezes na conta.
+
+## Remover, arquivar e excluir
+
+| Ação | O que faz | Reversível |
+| --- | --- | --- |
+| **Remover da estante** | Some da estante e vai para *Removidos*. Arquivo, posição, marcadores e anotações ficam guardados. | Sim (*Voltar para a estante*) |
+| **Arquivar** | Some da estante e vai para *Arquivados*, com tudo guardado. | Sim |
+| **Excluir permanentemente** | Apaga o arquivo guardado e os dados de leitura daquele livro (no EPUB sincronizado, da conta e de todos os aparelhos). Pede confirmação com o nome do livro. Os outros livros e o arquivo original no computador não são tocados. | Não |
+
+## Leitor de EPUB (tela inteira)
+
+- A página do livro ocupa a tela toda. As barras de cima e de baixo flutuam sobre o texto e somem sozinhas alguns segundos depois de abrir.
 - **Toque:** laterais viram a página, o meio mostra ou esconde os controles. Deslizar para os lados também vira a página. No teclado: setas, PageUp/PageDown, Tab mostra os controles, Esc fecha.
-- **Tela cheia de verdade** (sem a barra do navegador nem a do sistema): no celular o leitor entra sozinho ao abrir o livro, quando o navegador permite (Android/Chrome). Há um botão no topo e a opção "Abrir os livros em tela cheia" nos ajustes. O iPhone não oferece esse recurso a páginas da web: lá, instale o app na tela de início para ler sem as barras do Safari.
-- Enquanto o leitor está aberto a tela não apaga (Wake Lock, onde existe), a barra do sistema assume a cor do papel e o conteúdo respeita o entalhe e a barra de gestos do aparelho.
-- Um rodapé discreto mostra hora, capítulo e progresso.
+- **Tela cheia de verdade**: no celular o leitor entra sozinho ao abrir o livro, quando o navegador permite (Android/Chrome). O iPhone não oferece esse recurso a páginas da web: lá, instale o app na tela de início.
+- **Iniciar/Continuar estudo** (ícone de play no topo): liga o cronômetro do app com o livro como origem da sessão. Com a sessão em andamento, o mesmo botão leva à Sala de Estudos. Só existe uma sessão ativa por vez.
+- **Marcadores e anotações**: um painel só. Anotações simples, do livro todo ou presas ao trecho aberto (clicar leva até ele); dá para editar e excluir.
+- **Iluminação e aparência**: fundos Claro, Papel, Sépia, Cinza, Escuro e Noite; brilho; luz quente; tamanho, fonte, entrelinha, margens e texto justificado. As preferências ficam no navegador (`localStorage`, chave `evolumental.leitor`).
 
-### Iluminação e aparência
+## Onde os dados ficam
 
-- **Fundo:** Claro, Papel, Sépia, Cinza, Escuro e Noite (preto real, texto fosco, para ler no escuro).
-- **Brilho** (20 a 100%) e **Luz quente** (0 a 100%, reduz a luz azul): duas películas sobre a página, sem alterar o brilho do aparelho.
-- **Ambiente:** atalhos Dia, Fim de tarde e Noite, que combinam fundo, brilho e luz quente.
-- **Texto:** tamanho, fonte (do livro, serifa, sem serifa), espaço entre linhas, margens e texto justificado. Ao mudar, o leitor refaz as páginas e volta ao mesmo trecho.
-- As preferências ficam no navegador (`localStorage`, chave `evolumental.leitor`); as regras estão em `src/lib/library.ts` e a tela em `src/pages/library/ReaderPage.tsx`.
+- Os livros sempre ficam guardados no navegador do aparelho (IndexedDB `evolumental-library…`), para ler sem internet.
+- **Modo Supabase**: cada EPUB também vai para um espaço **privado** da conta (bucket `livros` + tabela `library_books`, com RLS). Posição, marcadores, assunto, favorito, situação na estante e anotações sincronizam entre aparelhos; vale a alteração mais recente. Limite do plano gratuito: 50 MiB por arquivo (acima disso o livro fica só no aparelho).
+- **PDFs** e suas marcações ficam só no navegador, nos dois modos (ver `docs/LEITOR-PDF.md`).
+- **Modo local**: nada sai do navegador.
 
-## Como funciona
+## Ativar no Supabase (uma vez por migração)
 
-- Os livros sempre ficam guardados também no navegador do aparelho (IndexedDB `evolumental-library…`), para ler sem internet.
-- **Modo Supabase** (variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` configuradas): cada livro também vai para um espaço **privado** da conta. Só o dono acessa, depois do login (RLS). Os livros aparecem em qualquer aparelho em que a pessoa entrar; o arquivo é baixado na primeira vez que o livro é aberto naquele aparelho.
-- **Modo local** (sem Supabase): nada sai do navegador. Em outro aparelho é preciso adicionar os arquivos de novo.
-- A posição de leitura e os marcadores sincronizam entre aparelhos; vale a alteração mais recente.
-- Limite do plano gratuito do Supabase: **50 MiB por arquivo**. Livros maiores ficam só no aparelho em que foram adicionados (a estante mostra "Só neste aparelho"). Para levá-los à nuvem, reduza as imagens do EPUB.
-- Só EPUB. PDFs precisam ser convertidos antes.
+1. Projeto no Supabase → **SQL Editor** → **New query**.
+2. Execute `supabase/migrations/20261031000000_library.sql` (cria `library_books` e o bucket privado `livros`).
+3. Execute `supabase/migrations/20261121010000_v2_library.sql` (aditiva: colunas `subject`, `favorite`, `shelf_state`, `notes`, `isbn`, `identifier`; não altera nenhuma linha existente e traz o bloco de reversão comentado no fim).
 
-## Ativar a nuvem no Supabase (uma vez)
-
-1. Abra o projeto no Supabase → **SQL Editor** → **New query**.
-2. Cole o conteúdo de `supabase/migrations/20261031000000_library.sql` e execute (**Run**).
-3. Confira em **Storage** se existe o bucket **livros** com o selo de privado, e em **Table Editor** a tabela `library_books`.
-4. Abra a aba Biblioteca no app, já logado. Se a migração não foi aplicada, a estante mostra um aviso explicando o que falta e continua funcionando só localmente.
-
-A migração cria a tabela `library_books` e o bucket `livros` (privado, 50 MiB por arquivo), com políticas que limitam cada usuário à própria pasta `<user_id>/`.
+Sem a segunda migração o app continua funcionando: livros e posição de leitura sincronizam como antes, a estante mostra um aviso, e assunto, favoritos, arquivamento e anotações dos EPUBs ficam só no aparelho. Quando a migração é aplicada, esses dados sobem na sincronização seguinte.
 
 ## Observações
 
-- Excluir a conta apaga as linhas de `library_books`, mas os arquivos já enviados ao bucket `livros` precisam ser removidos pelo painel do Supabase (Storage), pois o banco não apaga arquivos de armazenamento.
+- Excluir a conta apaga as linhas de `library_books`, mas os arquivos já enviados ao bucket `livros` precisam ser removidos pelo painel do Supabase (Storage).
 - "Zerar meus dados" não mexe nos livros.
 - Material protegido por direitos autorais: use só cópias suas, para uso pessoal.

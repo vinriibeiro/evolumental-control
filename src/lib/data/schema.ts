@@ -51,6 +51,10 @@ export const RELATIONS: Relation[] = [
   { child: 'course_nodes', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
   { child: 'course_nodes', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
   { child: 'course_progress', column: 'last_node_id', parent: 'course_nodes', onDelete: 'set null' },
+  { child: 'study_sessions', column: 'task_id', parent: 'calendar_tasks', onDelete: 'set null' },
+  { child: 'study_sessions', column: 'project_id', parent: 'projects', onDelete: 'set null' },
+  { child: 'calendar_tasks', column: 'project_id', parent: 'projects', onDelete: 'set null' },
+  { child: 'inbox_items', column: 'task_id', parent: 'calendar_tasks', onDelete: 'set null' },
 ]
 
 export const TABLES: TableName[] = [
@@ -75,6 +79,9 @@ export const TABLES: TableName[] = [
   'course_sources',
   'course_nodes',
   'course_progress',
+  'inbox_items',
+  'projects',
+  'assessments',
 ]
 
 /**
@@ -93,6 +100,7 @@ export const RESET_TABLES: TableName[] = [
   'reviews',
   'study_goals',
   'course_progress',
+  'inbox_items',
 ]
 
 /** Tabelas afetadas (recursivamente) quando uma linha de `table` é excluída. */
@@ -121,6 +129,13 @@ export const UNIQUE_RULES: Partial<Record<TableName, Array<{ name: string; colum
   course_sources: [{ name: 'course_sources_folder_key', columns: ['user_id', 'drive_folder_id'], where: () => true }],
   course_nodes: [{ name: 'course_nodes_placement_key', columns: ['user_id', 'source_id', 'placement_key'], where: () => true }],
   course_progress: [{ name: 'course_progress_drive_key', columns: ['user_id', 'drive_id'], where: () => true }],
+  calendar_tasks: [
+    { name: 'calendar_tasks_series_day', columns: ['user_id', 'series_id', 'date'], where: (r) => r.series_id != null },
+    { name: 'calendar_tasks_origin', columns: ['user_id', 'origin_key'], where: (r) => r.origin_key != null },
+  ],
+  subjects: [{ name: 'subjects_trail_key', columns: ['user_id', 'trail_key'], where: (r) => r.trail_key != null }],
+  topics: [{ name: 'topics_trail_key', columns: ['user_id', 'trail_key'], where: (r) => r.trail_key != null }],
+  projects: [{ name: 'projects_template_key', columns: ['user_id', 'template_key'], where: (r) => r.template_key != null }],
 }
 
 type Defaults = { [K in TableName]: Partial<Tables[K]> }
@@ -130,7 +145,7 @@ export const DEFAULTS: Defaults = {
   profiles: { display_name: null, settings: {} },
   subjects: {
     description: null,
-    color: '#DEB887',
+    color: '#171717',
     icon: null,
     priority: 3,
     difficulty: 3,
@@ -142,6 +157,7 @@ export const DEFAULTS: Defaults = {
     exam: null,
     sort_order: 0,
     archived_at: null,
+    trail_key: null,
   },
   topics: {
     parent_id: null,
@@ -154,6 +170,9 @@ export const DEFAULTS: Defaults = {
     estimated_minutes: null,
     notes: null,
     completed_at: null,
+    trail_key: null,
+    knowledge: null,
+    practiced_at: null,
   },
   study_materials: { subject_id: null, topic_id: null, url: null, notes: null },
   study_sessions: {
@@ -171,13 +190,33 @@ export const DEFAULTS: Defaults = {
     plan_item_id: null,
     cycle_id: null,
     cycle_item_id: null,
+    task_id: null,
+    project_id: null,
+    source: null,
   },
   study_session_pauses: { kind: 'pause', ended_at: null },
   study_plans: { description: null, status: 'active' },
   study_plan_items: { subject_id: null, topic_id: null, activity_type: 'theory', status: 'pending', notes: null },
   study_cycles: { description: null, status: 'paused', current_index: 0, current_progress_seconds: 0, completed_rounds: 0, auto_advance: true },
   study_cycle_items: { topic_id: null, sort_order: 0, weight: 1, break_minutes: 0, activity_type: 'theory' },
-  calendar_tasks: { description: null, start_time: null, duration_minutes: null, subject_id: null, topic_id: null, kind: 'task', done: false },
+  calendar_tasks: {
+    description: null,
+    start_time: null,
+    duration_minutes: null,
+    subject_id: null,
+    topic_id: null,
+    kind: 'task',
+    done: false,
+    category: null,
+    priority: 2,
+    fixed: false,
+    due_date: null,
+    series_id: null,
+    recurrence: null,
+    done_at: null,
+    origin_key: null,
+    project_id: null,
+  },
   reviews: { subject_id: null, topic_id: null, status: 'planned', done_at: null, session_id: null, notes: null, origin: 'manual' },
   flashcard_decks: { description: null, folder: null, subject_id: null, topic_id: null, archived: false },
   flashcards: {
@@ -194,7 +233,7 @@ export const DEFAULTS: Defaults = {
   },
   flashcard_reviews: { interval_before: 0, interval_after: 0 },
   mind_maps: { description: null, folder: null, subject_id: null, topic_id: null, data: { nodes: [], edges: [] } },
-  study_goals: { title: null, subject_id: null, status: 'active', end_date: null, previous_goal_id: null },
+  study_goals: { title: null, subject_id: null, status: 'active', end_date: null, previous_goal_id: null, kind: 'metric', checklist: null, due_date: null, done_at: null },
   question_records: { subject_id: null, topic_id: null, board: null, exam: null, source: null, notes: null },
   course_sources: { label: null, config: { courseLevel: 1, excluded: [] }, last_sync_at: null, last_sync_status: 'never', last_sync_report: null },
   course_nodes: {
@@ -216,6 +255,26 @@ export const DEFAULTS: Defaults = {
     topic_id: null,
   },
   course_progress: { completed_at: null, last_opened_at: null, last_node_id: null },
+  inbox_items: { processed_at: null, task_id: null },
+  projects: {
+    description: null,
+    objective: null,
+    track: null,
+    skills: [],
+    difficulty: 1,
+    status: 'not_started',
+    steps: [],
+    deliverables: [],
+    due_date: null,
+    repo_url: null,
+    published: false,
+    notes: null,
+    template_key: null,
+    topic_keys: [],
+    started_at: null,
+    completed_at: null,
+  },
+  assessments: { answers: [], topics: [], total: 0, correct: 0, start_key: null },
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
@@ -240,4 +299,7 @@ export const TABLE_LABELS: Record<TableName, string> = {
   course_sources: 'fontes do Drive',
   course_nodes: 'itens de cursos',
   course_progress: 'progresso em cursos',
+  inbox_items: 'itens da caixa de entrada',
+  projects: 'projetos',
+  assessments: 'diagnósticos',
 }

@@ -19,7 +19,7 @@ export function Notifications() {
   const live = useLiveSession()
 
   const items = [
-    live.data && { icon: Timer, text: live.data.status === 'pending_review' ? 'Uma sessão aguarda confirmação.' : 'Há uma sessão de estudo em andamento.', to: '/cronometro' },
+    live.data && { icon: Timer, text: live.data.status === 'pending_review' ? 'Uma sessão aguarda confirmação.' : 'Há uma sessão de estudo em andamento.', to: '/sala' },
     (reviews.data ?? 0) > 0 && { icon: Brain, text: `${reviews.data} revisão(ões) para hoje ou atrasada(s).`, to: '/revisoes' },
     (cards.data ?? 0) > 0 && { icon: Layers, text: `${cards.data} flashcard(s) para revisar.`, to: '/flashcards/revisar?modo=vencidos' },
     (blocks.data ?? 0) > 0 && { icon: CalendarClock, text: `${blocks.data} bloco(s) do cronograma pendente(s) hoje.`, to: '/cronograma' },
@@ -44,7 +44,7 @@ export function Notifications() {
               <ul>
                 {items.map((it) => (
                   <li key={it.to}>
-                    <Link to={it.to} onClick={() => setOpen(false)} className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm text-ink hover:bg-surface">
+                    <Link to={it.to} onClick={() => setOpen(false)} className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm text-ink hover:bg-surface-2">
                       <it.icon className="mt-0.5 size-4 shrink-0 text-accent-strong" />
                       <span>{it.text}</span>
                     </Link>

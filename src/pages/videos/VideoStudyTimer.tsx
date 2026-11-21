@@ -102,7 +102,7 @@ export function VideoStudyTimer({ subjectId, topicId, activity = 'video' }: { su
               <Button type="submit" size="sm" variant="primary" loading={actions.pending} icon={<Play className="size-3.5" aria-hidden />}>Iniciar foco</Button>
             </form>
           ) : s.status === 'pending_review' ? (
-            <Link to="/cronometro" className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink">Revisar e salvar sessão</Link>
+            <Link to="/sala" className="rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-ink">Revisar e salvar sessão</Link>
           ) : (
             <>
               <span className={cn('tabular text-2xl font-semibold tracking-tight', due || ending ? 'text-warning' : 'text-ink')} aria-live="off">{overtime > 0 ? '+' : ''}{formatClock(overtime > 0 ? overtime : status?.remaining ?? netSeconds(s, s.pauses, now))}</span>

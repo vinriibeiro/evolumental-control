@@ -75,7 +75,7 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
 
   return (
     <div className="space-y-6">
-      <PageHeader title={displayTitle(node)} description={courseTitle} actions={<Link to={backTo} className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface"><ArrowLeft className="size-4" aria-hidden />Voltar ao curso</Link>} />
+      <PageHeader title={displayTitle(node)} description={courseTitle} actions={<Link to={backTo} className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-2"><ArrowLeft className="size-4" aria-hidden />Voltar ao curso</Link>} />
       <Card className="mx-auto max-w-2xl overflow-hidden">
         <div className="border-b border-line bg-accent/5 p-6 sm:p-8">
           <span className="flex size-14 items-center justify-center rounded-2xl border border-accent/20 bg-bg text-accent-strong"><FileText className="size-6" aria-hidden /></span>

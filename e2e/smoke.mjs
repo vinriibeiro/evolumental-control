@@ -56,7 +56,8 @@ await step('importa estrutura de tópicos (3 níveis)', async () => {
 })
 
 await step('cronômetro: iniciar, pausar, continuar, recarregar e finalizar', async () => {
-  await page.goto(`${BASE}/cronometro`)
+  await page.goto(`${BASE}/cronometro`) // endereço antigo: redireciona para a Sala de Estudos
+  await page.waitForURL((url) => url.pathname === '/sala')
   await page.getByLabel('Matéria').first().selectOption({ label: 'Direito Administrativo' })
   const start = page.getByRole('button', { name: 'Iniciar', exact: true })
   await start.dblclick() // clique duplo não pode criar duas sessões
@@ -81,10 +82,69 @@ await step('cronômetro: iniciar, pausar, continuar, recarregar e finalizar', as
   await page.getByRole('heading', { name: 'Nova sessão de estudo' }).waitFor()
 })
 
-await step('dashboard reflete a sessão salva', async () => {
-  await page.goto(BASE)
-  await page.getByText('Tempo por matéria').waitFor()
+await step('histórico e tela inicial refletem a sessão salva', async () => {
+  await page.goto(`${BASE}/sala/historico`)
   await page.getByText('Direito Administrativo').first().waitFor()
+  await page.goto(BASE)
+  await page.getByText('Continuar de onde parei').waitFor()
+})
+
+// ------------------------------------------------------------------ 2.0
+await step('planejamento: tarefa rápida só com título e com horário/duração no texto', async () => {
+  await page.goto(BASE)
+  const quick = page.getByLabel('Adicionar tarefa rápida')
+  await quick.fill('Pagar internet')
+  await quick.press('Enter')
+  await page.getByText('Tarefa adicionada para hoje.').first().waitFor()
+  await quick.fill('06h Revisar anotações 30min')
+  await quick.press('Enter')
+  await page.getByRole('button', { name: /Revisar anotações/ }).first().waitFor()
+})
+
+await step('fluxo C: tarefa atrasada → prévia de replanejamento → confirmação → agenda atualizada', async () => {
+  await page.goto(BASE)
+  await page.getByRole('button', { name: /Reorganizar minha semana/ }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByText('Novos horários sugeridos').waitFor()
+  await d.getByRole('button', { name: 'Aceitar todas' }).click()
+  await page.getByText('atividade(s) reagendada(s)', { exact: false }).waitFor()
+  await page.getByRole('button', { name: /Reorganizar minha semana/ }).first().click()
+  await page.getByRole('dialog').getByText('Nenhuma atividade atrasada.').waitFor()
+  await page.keyboard.press('Escape')
+})
+
+await step('trilhas: ativa a trilha de Ciência de Dados sem duplicar', async () => {
+  await page.goto(`${BASE}/trilhas`)
+  await page.getByRole('button', { name: 'Ativar trilha' }).click()
+  await page.getByRole('heading', { name: 'Trilha de Ciência de Dados' }).waitFor()
+  await page.getByText('0 de 54 tópicos concluídos', { exact: false }).waitFor()
+  await page.reload()
+  await page.getByText('0 de 54 tópicos concluídos', { exact: false }).waitFor()
+})
+
+await step('fluxo A: diagnóstico de SQL → resultado → recomendação', async () => {
+  await page.goto(`${BASE}/diagnostico/sql`)
+  await page.getByRole('button', { name: /Avaliação rápida/ }).click()
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole('button', { name: 'Não sei' }).click()
+  }
+  await page.getByRole('button', { name: 'Encerrar e ver resultado' }).click()
+  await page.getByRole('heading', { name: 'Resultado do diagnóstico' }).waitFor()
+  await page.getByText('Ponto de partida sugerido').waitFor()
+  await page.getByRole('button', { name: 'Ir para o tópico' }).click()
+  await page.getByText('Objetivo de aprendizagem').waitFor()
+})
+
+await step('fluxo B: tópico → projeto prático → entregáveis → progresso', async () => {
+  await page.goto(`${BASE}/projetos?topico=ds.python.eda`)
+  await page.getByRole('radio', { name: /Modelos sugeridos/ }).click()
+  await page.getByRole('button', { name: 'Começar este projeto' }).first().click()
+  const d = page.getByRole('dialog')
+  await d.getByRole('checkbox').first().click()
+  await d.getByText(/Em desenvolvimento · 1 de/).waitFor()
+  await d.getByRole('button', { name: 'Fechar', exact: true }).last().click()
+  await page.getByRole('radio', { name: /Modelos sugeridos/ }).click()
+  await page.getByRole('button', { name: 'Abrir meu projeto' }).first().waitFor()
 })
 
 await step('flashcards: criar baralho e cartão, revisar com revelação', async () => {
@@ -157,7 +217,7 @@ await step('questões: valida acertos > total e registra', async () => {
   await page.getByText('80%').first().waitFor()
 })
 
-const pages = ['/', '/espaco', '/materias', '/cronometro', '/cronograma', '/ciclos', '/calendario', '/flashcards', '/revisoes', '/questoes', '/metas', '/relatorios', '/configuracoes']
+const pages = ['/', '/rotinas', '/revisoes', '/ciclos', '/trilhas', '/projetos', '/laboratorio', '/materias', '/flashcards', '/biblioteca', '/cursos', '/sala', '/sala/historico', '/metas', '/evolucao', '/relatorio-semanal', '/questoes', '/configuracoes']
 for (const [label, vp] of [
   ['desktop', { width: 1366, height: 860 }],
   ['celular', { width: 390, height: 844 }],

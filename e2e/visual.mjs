@@ -34,7 +34,7 @@ for (const [d, t, m, subj] of [
   ['2026-10-20', '19:00', '120', 'Direito Administrativo'],
   ['2026-10-21', '07:00', '45', 'Informática'],
 ]) {
-  await page.goto(`${B}/cronometro`)
+  await page.goto(`${B}/sala`)
   await page.getByRole('button', { name: 'Lançamento manual' }).click()
   const dlg = page.getByRole('dialog')
   await dlg.getByLabel('Matéria').selectOption({ label: subj })
@@ -110,7 +110,7 @@ await page.goto(B)
 await page.getByText('Tempo por matéria').waitFor()
 await page.waitForTimeout(800)
 await shot('dashboard-escuro')
-await page.goto(`${B}/calendario`)
+await page.goto(`${B}/`)
 await page.waitForTimeout(800)
 await shot('calendario-escuro')
 

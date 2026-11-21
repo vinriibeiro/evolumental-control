@@ -123,6 +123,74 @@ describe('biblioteca local de PDFs', () => {
     await expect(library.update('inexistente', { currentPage: 2 })).rejects.toThrow(/não está mais/)
   })
 
+  it('identifica o arquivo pelo conteúdo antes de guardar: nomes diferentes, mesmo id', async () => {
+    const library = shelf()
+    const probe = await library.inspect(pdfFile('Original.pdf'))
+    expect(probe).toMatchObject({ title: 'Original', fileName: 'Original.pdf' })
+    expect(probe.id).toMatch(/^[a-f0-9]{64}$/)
+    expect(await library.list()).toEqual([])
+    expect((await library.inspect(pdfFile('copia com outro nome.pdf'))).id).toBe(probe.id)
+    expect((await library.inspect(pdfFile('Original.pdf', '%PDF-1.7\noutro conteúdo'))).id).not.toBe(probe.id)
+    const book = await library.add(pdfFile('Original.pdf'), probe)
+    expect(book.id).toBe(probe.id)
+    await expect(library.inspect(pdfFile('falso.pdf', 'nao sou um PDF'))).rejects.toThrow(/assinatura/)
+  })
+
+  it('remover da estante ou arquivar mantém arquivo, posição e marcações; só a exclusão apaga', async () => {
+    const library = shelf()
+    const book = await library.add(pdfFile())
+    const other = await library.add(pdfFile('outro.pdf', '%PDF-1.7\noutro'))
+    await library.update(book.id, { pageCount: 6, currentPage: 3, annotations: [mark], bookmarks: [2] })
+    for (const state of ['hidden', 'archived'] as const) {
+      await library.setShelfData(book.id, { shelf: state })
+      expect(await library.get(book.id)).toMatchObject({ shelf: state, currentPage: 3, annotations: [mark], bookmarks: [2] })
+      expect(await library.file(book.id)).toBeDefined()
+    }
+    await library.setShelfData(book.id, { shelf: 'active' })
+    expect((await library.get(book.id))?.shelf).toBe('active')
+    await library.remove(book.id)
+    expect(await library.file(book.id)).toBeUndefined()
+    // a exclusão permanente de um PDF não toca nos outros
+    expect(await library.get(other.id)).toBeDefined()
+    expect(await library.file(other.id)).toBeDefined()
+  })
+
+  it('dados da estante (título, autor, assunto, favorito, capa) não disputam com o leitor aberto', async () => {
+    const library = shelf()
+    const book = await library.add(pdfFile())
+    await library.setShelfData(book.id, { title: ' Título Novo ', author: ' Fulana ', subject: 'Direito', favorite: true, cover: new Uint8Array([1, 2, 3]).buffer, pageCount: 40 })
+    expect(await library.get(book.id)).toMatchObject({ title: 'Título Novo', author: 'Fulana', subject: 'Direito', favorite: true, coverType: 'image/jpeg', pageCount: 40 })
+    // o leitor que já tinha o PDF aberto continua podendo salvar: a revisão não mudou
+    await library.update(book.id, { currentPage: 2, lastReadAt: '2026-11-21T12:00:00.000Z' })
+    await library.setShelfData(book.id, { subject: '', pageCount: 3 })
+    const saved = await library.get(book.id)
+    expect(saved).toMatchObject({ currentPage: 2, favorite: true, pageCount: 40 })
+    expect(saved?.subject).toBeUndefined()
+    await expect(library.setShelfData(book.id, { title: '  ' })).rejects.toThrow(/título/)
+    await expect(library.setShelfData('inexistente', { favorite: true })).rejects.toThrow(/não está mais/)
+  })
+
+  it('guarda as páginas visitadas sem repetição e só as que existem (base do progresso de navegação)', async () => {
+    const library = shelf()
+    const book = await library.add(pdfFile())
+    await library.update(book.id, { pageCount: 5, currentPage: 4, visitedPages: [4, 1, 4, 9, 0, 2] })
+    expect((await library.get(book.id))?.visitedPages).toEqual([1, 2, 4])
+    // gravações que não falam de visitas não as apagam
+    await library.update(book.id, { bookmarks: [2] })
+    expect((await library.get(book.id))?.visitedPages).toEqual([1, 2, 4])
+  })
+
+  it('aceita anotação do documento todo e anotação de página sem alfinete', async () => {
+    const library = shelf()
+    const book = await library.add(pdfFile())
+    const notes: PdfAnnotation[] = [
+      { id: 'n1', page: 1, type: 'note', color: '#f2cc4d', text: 'do documento', scope: 'document', createdAt: '2026-11-21T10:00:00.000Z' },
+      { id: 'n2', page: 2, type: 'note', color: '#f2cc4d', text: 'da página 2', createdAt: '2026-11-21T10:01:00.000Z' },
+    ]
+    await library.update(book.id, { pageCount: 3, annotations: notes })
+    expect((await library.get(book.id))?.annotations).toEqual(notes)
+  })
+
   it('rejeita snapshot de outra aba sem apagar as marcas já salvas', async () => {
     const scope = `pdf-test-${++nextScope}`
     const first = shelf(scope)

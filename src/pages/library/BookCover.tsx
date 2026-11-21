@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
-import { coverHue } from '@/lib/library'
 import { cn } from '@/lib/cn'
-import type { BookRecord } from '@/services/library'
 
-/** Capa do livro: usa a imagem do EPUB; sem ela, gera uma capa com o título. */
-export function BookCover({ book, className }: { book: Pick<BookRecord, 'title' | 'author' | 'cover' | 'coverType'>; className?: string }) {
+interface CoverBook {
+  title: string
+  author?: string
+  cover?: ArrayBuffer
+  coverType?: string
+}
+
+/**
+ * Capa do livro: a imagem do EPUB ou a miniatura da primeira página do PDF. Sem imagem, uma capa
+ * tipográfica neutra (título e autor), no mesmo formato, para a grade não ficar desalinhada.
+ */
+export function BookCover({ book, className, tag, compact }: { book: CoverBook; className?: string; tag?: string; /** Miniatura (lista): sem espaço para título, mostra só o tipo. */ compact?: boolean }) {
   const [url, setUrl] = useState<string | null>(null)
   const { cover, coverType } = book
 
@@ -19,18 +27,22 @@ export function BookCover({ book, className }: { book: Pick<BookRecord, 'title' 
   }, [cover, coverType])
 
   if (url) {
-    return <img src={url} alt={`Capa de ${book.title}`} className={cn('aspect-[2/3] w-full rounded-md object-cover shadow-sm', className)} loading="lazy" />
+    return <img src={url} alt={`Capa de ${book.title}`} className={cn('aspect-[2/3] w-full rounded-md border border-line bg-surface-2 object-cover', className)} loading="lazy" />
   }
-  const hue = coverHue(book.title)
+  if (compact) {
+    return (
+      <div role="img" aria-label={`Capa de ${book.title}`} className={cn('flex aspect-[2/3] w-full items-center justify-center rounded-md border border-line bg-surface-2', className)}>
+        <span className="text-[9px] font-semibold tracking-wider text-muted uppercase">{tag}</span>
+      </div>
+    )
+  }
   return (
-    <div
-      role="img"
-      aria-label={`Capa de ${book.title}`}
-      className={cn('flex aspect-[2/3] w-full flex-col justify-between rounded-md p-3 text-white shadow-sm', className)}
-      style={{ background: `linear-gradient(160deg, hsl(${hue} 45% 38%), hsl(${(hue + 40) % 360} 50% 24%))` }}
-    >
-      <span className="line-clamp-5 text-sm font-semibold leading-snug">{book.title}</span>
-      <span className="line-clamp-2 text-xs opacity-80">{book.author}</span>
+    <div role="img" aria-label={`Capa de ${book.title}`} className={cn('flex aspect-[2/3] w-full flex-col justify-between overflow-hidden rounded-md border border-line bg-surface-2 p-3', className)}>
+      <span className="line-clamp-5 text-sm leading-snug font-semibold tracking-tight break-words text-ink">{book.title}</span>
+      <span className="flex items-end justify-between gap-2 text-[11px] text-muted">
+        <span className="line-clamp-2 min-w-0">{book.author}</span>
+        {tag && <span className="shrink-0 font-semibold tracking-wider uppercase">{tag}</span>}
+      </span>
     </div>
   )
 }

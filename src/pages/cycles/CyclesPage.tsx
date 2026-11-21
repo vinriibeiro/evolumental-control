@@ -118,7 +118,7 @@ export function CyclesPanel({ compact = false }: { compact?: boolean }) {
                 <button
                   key={c.id}
                   onClick={() => setSelectedId(c.id)}
-                  className={cn('flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left', c.id === selected.id ? 'border-accent-strong bg-accent/15' : 'border-line hover:bg-surface')}
+                  className={cn('flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left', c.id === selected.id ? 'border-accent-strong bg-accent/15' : 'border-line hover:bg-surface-2')}
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-ink">{c.name}</span>
@@ -232,7 +232,7 @@ function CycleDetail(props: {
   const startCurrent = () => {
     if (!summary.current) return
     const remaining = Math.max(1, Math.ceil((summary.current.duration_minutes * 60 - cycle.current_progress_seconds) / 60))
-    navigate(`/cronometro?item=${summary.current.id}&minutos=${remaining}`)
+    navigate(`/sala?item=${summary.current.id}&minutos=${remaining}`)
   }
 
   // Aulas em vídeo da matéria do bloco: o cronômetro de lá já vem ligado ao bloco e com o tempo que falta.

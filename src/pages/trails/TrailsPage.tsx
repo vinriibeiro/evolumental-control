@@ -47,8 +47,8 @@ export default function TrailsPage() {
   return (
     <div>
       <PageHeader
-        title="Trilhas de estudo"
-        description="Trilhas prontas por carreira e por matéria, com tópicos na ordem recomendada. Adicione ao seu estudo com um clique e ajuste como quiser."
+        title="Outras trilhas"
+        description="Catálogo de trilhas prontas por carreira e por matéria (concursos e tecnologia). Sua trilha principal de Ciência de Dados fica na aba Trilhas."
       />
       <Tabs
         value={tab}
@@ -240,7 +240,7 @@ function CareerDetail({ trail, onBack, onInstall, embedded }: { trail: CareerTra
             const isOpen = open === key
             return (
               <Card key={key} className="overflow-hidden">
-                <button className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}>
+                <button className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}>
                   <span className="text-xl leading-none" aria-hidden>
                     {s.icon}
                   </span>

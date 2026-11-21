@@ -100,6 +100,7 @@ export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
   topics_completed: 'Tópicos concluídos',
   flashcards_reviewed: 'Flashcards revisados',
   study_days: 'Dias de estudo',
+  projects_completed: 'Projetos concluídos',
 }
 export const GOAL_PERIOD_LABELS: Record<GoalPeriod, string> = { daily: 'Diária', weekly: 'Semanal', monthly: 'Mensal' }
 
@@ -109,8 +110,11 @@ export const PRIORITY_LABELS = ['', 'Muito baixa', 'Baixa', 'Média', 'Alta', 'M
 export const DIFFICULTY_LABELS = ['', 'Muito fácil', 'Fácil', 'Média', 'Difícil', 'Muito difícil']
 export const MASTERY_TOPIC_LABELS = ['Nenhum', 'Inicial', 'Básico', 'Intermediário', 'Bom', 'Domínio']
 
-/** Cores sugeridas para matérias: mesma ordem da paleta categórica validada. */
-export const SUBJECT_COLORS = ['#2A78D6', '#EB6834', '#1BAF7A', '#EDA100', '#E87BA4', '#008300', '#6250D6', '#E34948', '#DEB887', '#3B2B20']
+/** Cores sugeridas para matérias: identidade 2.0 (preto, vermelho e neutros). Matérias antigas mantêm a cor que já tinham. */
+export const SUBJECT_COLORS = ['#171717', '#B91C1C', '#525252', '#737373', '#A3A3A3', '#7F1D1D', '#404040', '#D4D4D4', '#DC2626', '#262626']
 
 export const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 export const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+/** Pilares das trilhas (campo `track` de projetos e diagnósticos). */
+export const TRACK_LABELS: Record<string, string> = { sql: 'SQL', python: 'Python', ml: 'Machine Learning', ingles: 'Inglês', powerbi: 'Power BI' }

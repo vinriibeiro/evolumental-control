@@ -7,12 +7,24 @@
  *   aparelhos. Em modo local (sem Supabase) nada sai do navegador.
  */
 import Dexie, { type Table } from 'dexie'
-import { isEpubFile, titleFromFileName } from '@/lib/library'
+import { findIsbn, isEpubFile, normalizeShelfState, titleFromFileName, type ShelfState } from '@/lib/library'
 
 export interface Bookmark {
   cfi: string
   label: string
   createdAt: string
+}
+
+/** Anotação simples do leitor: solta (do livro todo) ou presa a um trecho (cfi). */
+export interface BookNote {
+  id: string
+  text: string
+  /** Posição (EPUB CFI) do trecho; ausente = anotação do livro como um todo. */
+  cfi?: string
+  /** Onde a anotação foi feita, em texto (capítulo e progresso). */
+  label?: string
+  createdAt: string
+  updatedAt?: string
 }
 
 /** Situação do livro na nuvem: synced (guardado), pending (falta enviar), too-large (acima do limite), off (modo local). */
@@ -40,6 +52,17 @@ export interface BookRecord {
   /** O arquivo do livro está guardado neste aparelho? (false = só na nuvem, baixa ao abrir) */
   fileLocal: boolean
   cloud: CloudState
+  /** Assunto livre definido pelo usuário (filtro da estante). */
+  subject?: string
+  favorite?: boolean
+  /** Ausente = na estante. "archived"/"hidden" tiram o livro da estante sem apagar nada. */
+  shelf?: ShelfState
+  notes?: BookNote[]
+  /** ISBN (13 dígitos) e identificador persistente lidos do EPUB: usados na antiduplicidade. */
+  isbn?: string
+  identifier?: string
+  /** Assunto, favorito, estante ou anotações mudaram enquanto a nuvem ainda não tinha as colunas novas. */
+  metaPending?: boolean
 }
 
 interface BookFile {
@@ -93,6 +116,16 @@ export interface CloudBook {
   coverType?: string
   hasCover: boolean
   updatedAt: string
+  /**
+   * Campos da estante v2. `shelf` ausente indica que o Supabase ainda não tem a migração
+   * 20261121010000_v2_library.sql: nesse caso nenhum destes campos veio da nuvem.
+   */
+  subject?: string
+  favorite?: boolean
+  shelf?: ShelfState
+  notes?: BookNote[]
+  isbn?: string
+  identifier?: string
 }
 
 export interface LibraryCloud {
@@ -104,6 +137,8 @@ export interface LibraryCloud {
   downloadCover(id: string): Promise<ArrayBuffer | undefined>
   /** Apaga o arquivo, a capa e os metadados. */
   remove(id: string): Promise<void>
+  /** true quando a nuvem ainda não tem as colunas da estante v2 (assunto, favorito, arquivo, anotações). */
+  schemaOutdated?(): boolean
 }
 
 // ---------------------------------------------------------------------
@@ -116,6 +151,10 @@ export interface EpubMetadata {
   cover?: ArrayBuffer
   coverType?: string
   weights?: number[]
+  /** Identificador único declarado no pacote (dc:identifier). */
+  identifier?: string
+  /** ISBN em 13 dígitos, quando o livro declara um. */
+  isbn?: string
 }
 
 interface ZipLike {
@@ -175,6 +214,21 @@ function sectionWeights(book: SpineBook): number[] | undefined {
   return out.some((w) => w > 0) ? out : undefined
 }
 
+/** Todos os dc:identifier do pacote (OPF), com o esquema declarado: é onde o ISBN costuma estar. */
+async function packageIdentifiers(book: { container?: { packagePath?: string }; archive: unknown }): Promise<Array<{ value: string; scheme?: string }>> {
+  const path = book.container?.packagePath
+  const zip = (book.archive as { zip?: ZipLike }).zip
+  const entry = path ? (zip?.file(path) ?? zip?.file(decodeURIComponent(path))) : null
+  if (!entry) return []
+  const opf = new TextDecoder().decode(await entry.async('arraybuffer'))
+  const out: Array<{ value: string; scheme?: string }> = []
+  for (const m of opf.matchAll(/<(?:dc:)?identifier\b([^>]*)>([^<]*)<\/(?:dc:)?identifier>/gi)) {
+    const value = m[2].trim()
+    if (value) out.push({ value, scheme: m[1] })
+  }
+  return out
+}
+
 /** Lê título, autor e capa de dentro do próprio EPUB. Lança erro se o arquivo não for um EPUB válido. */
 export async function readEpubMetadata(data: ArrayBuffer, fileName: string): Promise<EpubMetadata> {
   await assertEpubStructure(data)
@@ -183,10 +237,17 @@ export async function readEpubMetadata(data: ArrayBuffer, fileName: string): Pro
   const book = ePub(data as unknown as string, { replacements: 'none' })
   try {
     await withTimeout(book.ready, 30_000)
-    const meta = (await book.loaded.metadata) as { title?: string; creator?: string }
+    const meta = (await book.loaded.metadata) as { title?: string; creator?: string; identifier?: string }
     const out: EpubMetadata = {
       title: (meta.title ?? '').trim() || titleFromFileName(fileName),
       author: (meta.creator ?? '').trim() || 'Autor desconhecido',
+    }
+    try {
+      const identifiers = await packageIdentifiers(book as unknown as Parameters<typeof packageIdentifiers>[0])
+      out.identifier = (meta.identifier ?? '').trim().slice(0, 500) || identifiers[0]?.value.slice(0, 500) || undefined
+      out.isbn = findIsbn(identifiers)
+    } catch {
+      // identificadores são opcionais: sem eles a antiduplicidade usa o conteúdo e o título
     }
     try {
       const coverPath = (await book.loaded.cover) as string | null
@@ -234,6 +295,26 @@ async function contentId(data: ArrayBuffer): Promise<string> {
 export type UploadOutcome = 'synced' | 'too-large' | 'failed' | 'off'
 export type AddResult = { status: 'added' | 'duplicate'; book: BookRecord; upload: UploadOutcome }
 
+/**
+ * Arquivo já lido e identificado, antes de entrar na estante: permite checar duplicatas (e perguntar
+ * ao usuário) sem ler o arquivo duas vezes. `existing` vem preenchido quando o conteúdo já está aqui.
+ */
+export interface EpubProbe {
+  id: string
+  data: ArrayBuffer
+  fileName: string
+  size: number
+  existing?: BookRecord
+  meta?: EpubMetadata
+}
+
+/** Campos que o usuário pode editar na estante. */
+export interface BookDetails {
+  title?: string
+  author?: string
+  subject?: string
+}
+
 export interface SyncSummary {
   /** Livros que vieram da nuvem e ainda não existiam neste aparelho. */
   fromCloud: number
@@ -246,6 +327,9 @@ export interface SyncSummary {
 }
 
 const now = () => new Date().toISOString()
+
+/** Campos que só existem na nuvem depois da migração 20261121010000_v2_library.sql. */
+const SHELF_FIELDS = ['subject', 'favorite', 'shelf', 'notes'] as const
 
 function toCloud(b: BookRecord): CloudBook {
   return {
@@ -263,7 +347,19 @@ function toCloud(b: BookRecord): CloudBook {
     coverType: b.coverType,
     hasCover: Boolean(b.cover),
     updatedAt: b.updatedAt,
+    subject: b.subject || undefined,
+    favorite: Boolean(b.favorite),
+    shelf: b.shelf ?? 'active',
+    notes: b.notes ?? [],
+    isbn: b.isbn,
+    identifier: b.identifier,
   }
+}
+
+/** Campos da estante v2 como vieram da nuvem; vazio quando a nuvem ainda não os conhece. */
+function shelfFieldsFromCloud(r: CloudBook): Partial<BookRecord> {
+  if (r.shelf === undefined) return {}
+  return { subject: r.subject || undefined, favorite: Boolean(r.favorite), shelf: normalizeShelfState(r.shelf), notes: r.notes ?? [] }
 }
 
 export class Library {
@@ -291,11 +387,27 @@ export class Library {
     return this.db.books.get(id)
   }
 
-  /** Adiciona um EPUB à estante (e à nuvem, se houver). Livros idênticos não são duplicados. */
-  async add(file: File): Promise<AddResult> {
+  /**
+   * Lê e identifica o arquivo sem guardar nada. O id é a impressão digital do conteúdo (SHA-256
+   * truncado): dois arquivos idênticos têm o mesmo id, seja qual for o nome do arquivo.
+   */
+  async inspect(file: File): Promise<EpubProbe> {
     if (!isEpubFile(file.name, file.type)) throw new Error(`"${file.name}" não é um EPUB. A biblioteca aceita só arquivos .epub.`)
     const data = await file.arrayBuffer()
     const id = await contentId(data)
+    const probe: EpubProbe = { id, data, fileName: file.name, size: file.size }
+    const existing = await this.db.books.get(id)
+    if (existing) return { ...probe, existing }
+    try {
+      return { ...probe, meta: await readEpubMetadata(data, file.name) }
+    } catch {
+      throw new Error(`Não consegui abrir "${file.name}". O arquivo parece estar corrompido ou não é um EPUB válido.`)
+    }
+  }
+
+  /** Adiciona um EPUB à estante (e à nuvem, se houver). Livros idênticos não são duplicados. */
+  async add(file: File, probe?: EpubProbe): Promise<AddResult> {
+    const { id, data, meta: probed } = probe ?? (await this.inspect(file))
     const existing = await this.db.books.get(id)
     if (existing) {
       // veio da nuvem sem o arquivo: aproveita os bytes que o usuário acabou de escolher
@@ -307,11 +419,14 @@ export class Library {
       }
       return { status: 'duplicate', book: { ...existing, fileLocal: true }, upload: existing.cloud === 'off' ? 'off' : existing.cloud === 'synced' ? 'synced' : 'failed' }
     }
-    let meta: EpubMetadata
-    try {
-      meta = await readEpubMetadata(data, file.name)
-    } catch {
-      throw new Error(`Não consegui abrir "${file.name}". O arquivo parece estar corrompido ou não é um EPUB válido.`)
+    let meta = probed
+    if (!meta) {
+      // o livro saiu da estante entre a inspeção e a gravação: lê os metadados agora
+      try {
+        meta = await readEpubMetadata(data, file.name)
+      } catch {
+        throw new Error(`Não consegui abrir "${file.name}". O arquivo parece estar corrompido ou não é um EPUB válido.`)
+      }
     }
     const stamp = now()
     const book: BookRecord = {
@@ -329,6 +444,8 @@ export class Library {
       updatedAt: stamp,
       fileLocal: true,
       cloud: this.cloud ? 'pending' : 'off',
+      isbn: meta.isbn,
+      identifier: meta.identifier,
     }
     await this.db.transaction('rw', this.db.books, this.db.files, async () => {
       await this.db.files.put({ id, data })
@@ -395,18 +512,50 @@ export class Library {
           updatedAt: r.updatedAt,
           fileLocal: false,
           cloud: 'synced',
+          isbn: r.isbn,
+          identifier: r.identifier,
+          ...shelfFieldsFromCloud(r),
         })
         summary.fromCloud++
         continue
       }
+      if (local.metaPending && r.shelf !== undefined) {
+        // A nuvem ganhou as colunas da estante v2 depois que este aparelho já tinha assunto, favorito,
+        // estante ou anotações: esses campos sobem daqui, somados ao que outro aparelho na mesma
+        // situação já tenha enviado (nenhuma anotação se perde). A posição de leitura continua
+        // seguindo a regra de sempre: vale a mais recente.
+        const reading = r.updatedAt > local.updatedAt ? { location: r.location, progress: r.progress, lastReadAt: r.lastReadAt, bookmarks: r.bookmarks } : {}
+        const mine = new Set((local.notes ?? []).map((n) => n.id))
+        const merged: BookRecord = {
+          ...local,
+          ...reading,
+          subject: local.subject || r.subject || undefined,
+          favorite: Boolean(local.favorite || r.favorite),
+          shelf: normalizeShelfState(local.shelf) !== 'active' ? local.shelf : normalizeShelfState(r.shelf),
+          notes: [...(r.notes ?? []).filter((n) => !mine.has(n.id)), ...(local.notes ?? [])],
+          updatedAt: now(),
+          cloud: 'synced',
+          metaPending: false,
+        }
+        try {
+          await cloud.upsert(toCloud(merged))
+          await this.db.books.put(merged)
+        } catch {
+          // sem conexão: tenta de novo na próxima sincronização
+        }
+        continue
+      }
       if (r.updatedAt > local.updatedAt) {
         await this.db.books.update(r.id, {
+          title: r.title,
+          author: r.author,
           location: r.location,
           progress: r.progress,
           lastReadAt: r.lastReadAt,
           bookmarks: r.bookmarks,
           updatedAt: r.updatedAt,
           cloud: 'synced',
+          ...shelfFieldsFromCloud(r),
         })
       } else {
         if (r.updatedAt < local.updatedAt) await cloud.upsert(toCloud(local)).catch(() => undefined)
@@ -459,7 +608,53 @@ export class Library {
     await this.db.books.update(id, { ...changes, updatedAt: now() })
     const book = await this.db.books.get(id)
     // sincronização em segundo plano: se falhar, a próxima abertura da estante reconcilia
-    if (book && this.cloud && book.cloud === 'synced') void this.cloud.upsert(toCloud(book)).catch(() => undefined)
+    const cloud = this.cloud
+    if (book && cloud && book.cloud === 'synced') {
+      void cloud
+        .upsert(toCloud(book))
+        .then(async () => {
+          // nuvem sem as colunas novas: marca para reenviar quando a migração for aplicada
+          if (cloud.schemaOutdated?.() && !book.metaPending && SHELF_FIELDS.some((f) => f in changes)) await this.db.books.update(id, { metaPending: true })
+        })
+        .catch(() => undefined)
+    }
+  }
+
+  /** A nuvem desta conta ainda não tem as colunas da estante v2? (assunto, favorito etc. ficam só no aparelho) */
+  get cloudSchemaOutdated(): boolean {
+    return Boolean(this.cloud?.schemaOutdated?.())
+  }
+
+  /** Título, autor e assunto editados pelo usuário. Título vazio é recusado; assunto vazio limpa o assunto. */
+  async setDetails(id: string, details: BookDetails): Promise<void> {
+    const changes: Partial<BookRecord> = {}
+    if (details.title !== undefined) {
+      const title = details.title.trim().slice(0, 500)
+      if (!title) throw new Error('Informe o título do livro.')
+      changes.title = title
+    }
+    if (details.author !== undefined) changes.author = details.author.trim().slice(0, 500) || 'Autor desconhecido'
+    if (details.subject !== undefined) changes.subject = details.subject.trim().slice(0, 120) || undefined
+    await this.touch(id, changes)
+  }
+
+  async setFavorite(id: string, favorite: boolean): Promise<void> {
+    await this.touch(id, { favorite })
+  }
+
+  /** Tira da estante (hidden), arquiva ou devolve à estante. O arquivo e os dados de leitura ficam intactos. */
+  async setShelf(id: string, shelf: ShelfState): Promise<void> {
+    await this.touch(id, { shelf: normalizeShelfState(shelf) })
+  }
+
+  /** Substitui as anotações do livro. Devolve a lista gravada. */
+  async saveNotes(id: string, notes: BookNote[]): Promise<BookNote[]> {
+    const clean = notes
+      .map((n) => ({ ...n, text: n.text.trim().slice(0, 10_000) }))
+      .filter((n) => n.id && n.text)
+      .slice(0, 2000)
+    await this.touch(id, { notes: clean })
+    return clean
   }
 
   async saveProgress(id: string, location: string, progress: number): Promise<void> {
@@ -515,6 +710,10 @@ export async function resetLibrariesForTests(): Promise<void> {
 export function cloudErrorMessage(e: unknown): string {
   const err = e as { message?: string; code?: string; statusCode?: string | number } | null
   const msg = err?.message ?? String(e)
+  // coluna ausente (e não a tabela): o projeto tem a Biblioteca, mas não as colunas da estante v2
+  if (err?.code === 'PGRST204' || err?.code === '42703') {
+    return 'A Biblioteca na nuvem está desatualizada no seu Supabase (falta aplicar a migração 20261121010000_v2_library.sql).'
+  }
   if (err?.code === '42P01' || err?.code === 'PGRST205' || /library_books|schema cache/i.test(msg)) {
     return 'A Biblioteca na nuvem ainda não foi ativada no seu Supabase (falta aplicar a migração 20261031000000_library.sql).'
   }

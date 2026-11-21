@@ -2,7 +2,7 @@
 // (início, pausa, retomada, troca de fase, fim) — nunca a cada segundo.
 // Todas são seguras contra cliques repetidos: atualizações são condicionais
 // ao status atual e inserções usam IDs gerados no cliente.
-import type { ActivityType, StudySession, TimerConfig, TimerMode, UserSettings } from '@/types/db'
+import type { ActivityType, SessionSource, StudySession, TimerConfig, TimerMode, UserSettings } from '@/types/db'
 import { DataError, eq, gte, inList, isNull, type DataBackend, type SessionWithPauses } from '@/lib/data/types'
 import { acknowledgePhase, advancePhase, initialTimerState, netSeconds, openPause, phaseAt, pomodoroPhases } from '@/lib/timer/engine'
 import { applyStudy, currentItem, type PartialDecision } from '@/lib/cycle'
@@ -32,6 +32,11 @@ export interface StartParams {
   plan_item_id?: string | null
   cycle_id?: string | null
   cycle_item_id?: string | null
+  /** Tarefa do planejamento que originou a sessão. */
+  task_id?: string | null
+  project_id?: string | null
+  /** Conteúdo de onde o estudo começou (tópico, livro, PDF, exercício…). */
+  source?: SessionSource | null
 }
 
 export function buildTimerConfig(p: StartParams): { config: TimerConfig | null; planned: number | null } {
@@ -91,6 +96,9 @@ export async function startSession(backend: DataBackend, p: StartParams, id: str
         plan_item_id: p.plan_item_id ?? null,
         cycle_id: link?.cycle_id ?? p.cycle_id ?? null,
         cycle_item_id: link?.cycle_item_id ?? p.cycle_item_id ?? null,
+        task_id: p.task_id ?? null,
+        project_id: p.project_id ?? null,
+        source: p.source ?? null,
       },
     ])
     return row
@@ -206,6 +214,7 @@ export async function confirmSession(backend: DataBackend, s: SessionWithPauses,
   }
 
   if (s.plan_item_id) await refreshPlanItemStatus(backend, s.plan_item_id)
+  if (s.task_id) await refreshTaskDone(backend, s.task_id)
 
   if (s.cycle_id && s.cycle_item_id) {
     const cycle = await backend.get('study_cycles', s.cycle_id)
@@ -274,6 +283,20 @@ export async function refreshPlanItemStatus(backend: DataBackend, planItemId: st
   const total = sessions.reduce((a, x) => a + netSeconds(x, x.pauses), 0)
   const status = total >= item.duration_minutes * 60 * 0.9 ? 'done' : total > 0 ? 'partial' : item.status
   if (status !== item.status) await backend.update('study_plan_items', [eq('id', planItemId)], { status })
+}
+
+/**
+ * Tarefa do planejamento ligada à sessão: fica concluída quando o tempo estudado nela cobre 90% da duração prevista
+ * (ou, sem duração prevista, ao salvar a sessão). Nunca desmarca uma tarefa já concluída.
+ */
+export async function refreshTaskDone(backend: DataBackend, taskId: string) {
+  const task = await backend.get('calendar_tasks', taskId)
+  if (!task || task.done) return
+  const sessions = await backend.listSessions({ filters: [eq('task_id', taskId), eq('status', 'completed')] })
+  const total = sessions.reduce((a, x) => a + netSeconds(x, x.pauses), 0)
+  if (total > 0 && (!task.duration_minutes || total >= task.duration_minutes * 60 * 0.9)) {
+    await backend.update('calendar_tasks', [eq('id', taskId), eq('done', false)], { done: true, done_at: new Date().toISOString() })
+  }
 }
 
 export interface ManualSessionInput {

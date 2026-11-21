@@ -129,7 +129,7 @@ export function TimerSetup() {
                 onClick={() => setActivity(a)}
                 className={cn(
                   'h-9 rounded-full border px-3.5 text-sm transition-colors',
-                  activity === a ? 'border-accent-strong bg-accent/10 font-semibold text-ink' : 'border-line text-muted hover:bg-surface hover:text-ink',
+                  activity === a ? 'border-accent-strong bg-accent/10 font-semibold text-ink' : 'border-line text-muted hover:bg-surface-2 hover:text-ink',
                 )}
               >
                 {ACTIVITY_LABELS[a]}

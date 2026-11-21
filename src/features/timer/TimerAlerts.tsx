@@ -67,12 +67,12 @@ export function TimerAlerts() {
     document.title = `${due ? '⏰ ' : paused ? '⏸ ' : ending ? '⌛ ' : ''}${shown} · ${base}`
   }, [s, now, status, due, ending])
 
-  if ((!due && !ending) || location.pathname.startsWith('/cronometro')) return null
+  if ((!due && !ending) || location.pathname.startsWith('/sala')) return null
   return (
     <div role={due ? 'alert' : 'status'} className="global-timer-alert animate-fade-in fixed inset-x-4 top-20 z-40 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-accent bg-bg px-4 py-3 shadow-lg">
       <BellRing className="size-5 shrink-0 text-accent-strong" />
       <p className="min-w-0 flex-1 text-sm text-ink">{ending ? 'Seu tempo está acabando.' : status?.phase?.kind === 'break' ? 'A pausa terminou.' : 'Tempo de foco concluído!'}</p>
-      <Button size="sm" variant="primary" onClick={() => navigate('/cronometro')}>
+      <Button size="sm" variant="primary" onClick={() => navigate('/sala')}>
         Abrir
       </Button>
     </div>

@@ -201,7 +201,7 @@ export default function CguPlanPage() {
             const done = ts.filter((t) => plan.state.done[t.id]).length
             return (
               <li key={d.day}>
-                <button type="button" onClick={() => setShown(d.day)} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-surface ${d.day === shown ? 'bg-surface font-medium' : ''}`}>
+                <button type="button" onClick={() => setShown(d.day)} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-surface-2 ${d.day === shown ? 'bg-surface font-medium' : ''}`}>
                   <span className="tabular w-8 shrink-0 text-muted">{d.day}</span>
                   <span className="min-w-0 flex-1 truncate text-ink">{d.theme}</span>
                   <span className="tabular shrink-0 text-xs text-muted">

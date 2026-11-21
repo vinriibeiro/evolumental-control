@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { BellRing, Coffee, Flag, NotebookPen, Pause, Play, RotateCcw, SkipForward, Square, Volume2, VolumeX, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { BellRing, Coffee, Flag, Focus, NotebookPen, Pause, Play, RotateCcw, SkipForward, Square, Volume2, VolumeX, X } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Field'
 import { Badge, Card } from '@/components/ui/layout'
@@ -17,7 +18,7 @@ import { cn } from '@/lib/cn'
 import { useSessionActions } from '@/features/timer/useLiveSession'
 import type { StartParams } from '@/services/sessions'
 
-export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
+export function ActiveTimer({ session: s, onFocus }: { session: SessionWithPauses; onFocus?: () => void }) {
   const now = useNow(250)
   const actions = useSessionActions()
   const settings = useSettings()
@@ -77,22 +78,25 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface/60 px-5 py-4 sm:px-7">
-        <span className="size-2.5 shrink-0 rounded-full" style={{ background: lookups.subjectColor(s.subject_id) }} />
-        <span className="min-w-0 truncate text-sm font-medium text-ink">
-          {lookups.subjectName(s.subject_id)}
-          {s.topic_id && <span className="font-normal text-muted"> › {lookups.topicName(s.topic_id)}</span>}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-ink">{s.source?.label ?? (s.topic_id ? lookups.topicName(s.topic_id) : lookups.subjectName(s.subject_id))}</span>
+          {(s.source?.label || s.topic_id) && s.subject_id && <span className="block truncate text-xs text-muted">{lookups.subjectName(s.subject_id)}</span>}
         </span>
-        <span className="flex-1" />
+        {s.source?.href && s.source.href !== '/' && (
+          <Link to={s.source.href} className="text-xs font-medium text-ink underline underline-offset-2">
+            Abrir conteúdo
+          </Link>
+        )}
         <Badge>{ACTIVITY_LABELS[s.activity_type]}</Badge>
         <Badge>{MODE_LABELS[s.mode]}</Badge>
       </div>
 
       <div className="flex flex-col items-center px-4 py-7 sm:py-9">
-        <span className={cn('mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium', paused ? 'border-line bg-surface text-muted' : 'border-accent/25 bg-accent/10 text-ink')}>
-          <span className={cn('size-1.5 rounded-full', paused ? 'bg-muted' : 'bg-accent-strong')} aria-hidden />
+        <span className={cn('mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium', paused ? 'border-line bg-surface-2 text-muted' : 'border-line bg-bg text-ink')}>
+          <span className={cn('size-1.5 rounded-full', paused ? 'bg-muted' : 'bg-accent')} aria-hidden />
           {inBreak ? 'Intervalo para recarregar' : paused ? 'Seu tempo está pausado' : 'Um momento só para aprender'}
         </span>
-        <div className="relative flex aspect-square w-full max-w-[22rem] items-center justify-center rounded-full bg-surface/50">
+        <div className="relative flex aspect-square w-full max-w-[22rem] items-center justify-center rounded-full">
           <svg viewBox="0 0 200 200" className="absolute inset-0 size-full -rotate-90" aria-hidden>
             <circle cx="100" cy="100" r="82" fill="none" stroke="var(--border)" strokeWidth="0.5" strokeDasharray="1 5" />
             <circle cx="100" cy="100" r="92" fill="none" stroke="var(--border)" strokeWidth="3" />
@@ -102,7 +106,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
                 cy="100"
                 r="92"
                 fill="none"
-                stroke={st.phase?.kind === 'break' ? 'var(--info)' : 'var(--accent-strong)'}
+                stroke={st.phase?.kind === 'break' ? 'var(--muted)' : 'var(--ink)'}
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={2 * Math.PI * 92}
@@ -128,7 +132,7 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
         </div>
 
         {st.due && (
-          <div role="alert" className="animate-fade-in mt-6 flex w-full max-w-lg flex-col items-center gap-3 rounded-xl border border-accent bg-accent/15 p-4 text-center">
+          <div role="alert" className="animate-fade-in mt-6 flex w-full max-w-lg flex-col items-center gap-3 rounded-xl border border-accent/50 p-4 text-center">
             <p className="flex items-center gap-2 text-sm font-semibold text-ink">
               <BellRing className="size-4" />
               {st.phase?.kind === 'break' ? 'A pausa terminou. Hora de voltar!' : s.mode === 'countdown' ? 'Tempo planejado concluído!' : 'Período de foco concluído!'}
@@ -182,6 +186,11 @@ export function ActiveTimer({ session: s }: { session: SessionWithPauses }) {
           {hasPhase && !st.due && (s.mode === 'pomodoro' || s.mode === 'intervals') && next && (
             <Button size="sm" variant="ghost" icon={<SkipForward className="size-4" />} onClick={() => act(() => actions.nextPhase(s))} disabled={actions.pending}>
               Pular fase
+            </Button>
+          )}
+          {onFocus && (
+            <Button size="sm" variant="ghost" icon={<Focus className="size-4" />} onClick={onFocus}>
+              Modo foco
             </Button>
           )}
           <Button size="sm" variant="ghost" icon={<NotebookPen className="size-4" />} onClick={() => setNotesOpen(true)}>

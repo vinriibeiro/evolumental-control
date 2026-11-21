@@ -17,6 +17,8 @@ export interface Breakdown {
 }
 
 const NONE = '__none__'
+/** Chave usada nos mapas por matéria para registros sem matéria. */
+export const NO_SUBJECT = NONE
 
 export function breakdown(sessions: SessionWithPauses[], tz: string, range: DayRange): Breakdown {
   const byDay = new Map<DayKey, number>()
@@ -60,6 +62,17 @@ export function streak(byDay: Map<DayKey, number>, today: DayKey): number {
     d = addDays(d, -1)
   }
   return n
+}
+
+/** Maior sequência de dias consecutivos com estudo dentro do intervalo. */
+export function longestStreak(byDay: Map<DayKey, number>, range: DayRange): number {
+  let best = 0
+  let run = 0
+  for (const d of eachDay(range.from, range.to)) {
+    run = (byDay.get(d) ?? 0) > 0 ? run + 1 : 0
+    if (run > best) best = run
+  }
+  return best
 }
 
 export function series(byDay: Map<DayKey, number>, range: DayRange): Array<{ day: DayKey; seconds: number }> {

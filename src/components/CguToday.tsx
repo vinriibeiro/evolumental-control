@@ -6,14 +6,19 @@ import { CguShortcuts } from '@/components/CguShortcuts'
 import { useCguPlan } from '@/hooks/useCguPlan'
 import { BLOCK_COLORS, BLOCK_LABELS, TOTAL_DAYS, minutesOf } from '@/lib/cguPlan'
 
-/** Cartão "CGU · Hoje" em Meu espaço: primeira tarefa pendente do dia, minutos previstos, Começar/Continuar e acesso ao plano. */
-export function CguToday() {
+/**
+ * Cartão "CGU · Hoje": primeira tarefa pendente do dia, minutos previstos, Começar/Continuar e acesso ao plano.
+ * Na tela inicial (`onlyWhenInUse`) só aparece para quem já começou o plano, para não ocupar espaço de quem não o usa.
+ */
+export function CguToday({ onlyWhenInUse = false }: { onlyWhenInUse?: boolean }) {
   const plan = useCguPlan()
+  const inUse = Boolean(plan.state.startDate || plan.state.current || Object.keys(plan.state.done).length)
   const planned = minutesOf(plan.tasks)
   const done = planned - minutesOf(plan.pending)
   const task = plan.next
   const resolved = task ? plan.resolve(task) : null
   const continuing = Boolean(task && plan.state.current === task.id)
+  if (onlyWhenInUse && !inUse) return null
 
   return (
     <Card data-testid="cgu-today">
