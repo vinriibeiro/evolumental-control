@@ -44,7 +44,7 @@ export function Notifications() {
               <ul>
                 {items.map((it) => (
                   <li key={it.to}>
-                    <Link to={it.to} onClick={() => setOpen(false)} className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm text-ink hover:bg-surface">
+                    <Link to={it.to} onClick={() => setOpen(false)} className="flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm text-ink hover:bg-surface-2">
                       <it.icon className="mt-0.5 size-4 shrink-0 text-accent-strong" />
                       <span>{it.text}</span>
                     </Link>

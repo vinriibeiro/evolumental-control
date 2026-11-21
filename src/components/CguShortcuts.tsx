@@ -40,7 +40,7 @@ export function CguShortcuts({ plan, tasks }: { plan: ShortcutsPlan; tasks: read
                       type="button"
                       onClick={() => plan.open(t)}
                       aria-label={`${openLabel(t)}: ${t.title}`}
-                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
+                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
                     >
                       <span className="min-w-0 flex-1 break-words text-sm text-ink">{t.title}</span>
                       <span className="tabular shrink-0 text-xs text-muted">{t.minutes} min</span>

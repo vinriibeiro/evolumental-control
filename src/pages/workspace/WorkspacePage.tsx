@@ -233,7 +233,7 @@ export default function WorkspacePage() {
           { to: '/metas', icon: Check, label: 'Minhas metas' },
         ].map((q) => (
           <Link key={q.to} to={q.to}>
-            <Card className="flex items-center gap-3 p-4 hover:bg-surface">
+            <Card className="flex items-center gap-3 p-4 hover:bg-surface-2">
               <q.icon className="size-5 shrink-0 text-accent-strong" />
               <span className="truncate text-sm font-medium text-ink">{q.label}</span>
             </Card>

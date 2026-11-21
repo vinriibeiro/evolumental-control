@@ -34,17 +34,47 @@ const INDEXES: Record<TableName, string> = {
   course_sources: 'id',
   course_nodes: 'id, source_id, parent_id, drive_id',
   course_progress: 'id, drive_id',
+  inbox_items: 'id',
+  projects: 'id, status',
+  assessments: 'id, track, taken_at',
 }
 
+/** Tabelas criadas na 2.0 (caixa de entrada, projetos e diagnósticos). */
+const V3_TABLES = ['inbox_items', 'projects', 'assessments']
+/** Tabelas da versão 2 do banco local (antes da 2.0). */
+const INDEXES_V2 = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !V3_TABLES.includes(t)))
 /** Tabelas da versão 1 do banco local (antes de Cursos). */
-const INDEXES_V1 = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !t.startsWith('course_')))
+const INDEXES_V1 = Object.fromEntries(Object.entries(INDEXES_V2).filter(([t]) => !t.startsWith('course_')))
+
+/** Colunas novas da 2.0 nas tabelas que já existiam: as linhas antigas recebem o valor padrão, sem perder nada. */
+const V3_COLUMNS: Partial<Record<TableName, string[]>> = {
+  subjects: ['trail_key'],
+  topics: ['trail_key', 'knowledge', 'practiced_at'],
+  study_sessions: ['task_id', 'project_id', 'source'],
+  calendar_tasks: ['category', 'priority', 'fixed', 'due_date', 'series_id', 'recurrence', 'done_at', 'origin_key', 'project_id'],
+  study_goals: ['kind', 'checklist', 'due_date', 'done_at'],
+}
 
 class LocalDb extends Dexie {
   constructor(name: string) {
     super(name)
     this.version(1).stores(INDEXES_V1)
     // v2: cursos e materiais do Google Drive (tabelas novas; as existentes não mudam)
-    this.version(2).stores(INDEXES)
+    this.version(2).stores(INDEXES_V2)
+    // v3 (VLM Control 2.0): tabelas novas e colunas novas com valor padrão nas linhas que já existiam
+    this.version(3)
+      .stores(INDEXES)
+      .upgrade(async (tx) => {
+        for (const [table, columns] of Object.entries(V3_COLUMNS)) {
+          const defaults = DEFAULTS[table as TableName] as Record<string, unknown>
+          await tx
+            .table(table)
+            .toCollection()
+            .modify((row: Record<string, unknown>) => {
+              for (const c of columns) if (row[c] === undefined) row[c] = defaults[c] ?? null
+            })
+        }
+      })
   }
   t(table: TableName): Table<AnyRow, string> {
     return this.table(table)
@@ -302,6 +332,8 @@ export class LocalBackend implements DataBackend {
           r.status = 'not_started'
           r.mastery = 0
           r.completed_at = null
+          r.knowledge = null
+          r.practiced_at = null
           r.updated_at = this.now()
         })
     })

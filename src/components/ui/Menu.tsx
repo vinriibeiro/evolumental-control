@@ -30,7 +30,7 @@ export function MenuItem({ icon, children, onClick, danger, disabled }: { icon?:
       role="menuitem"
       disabled={disabled}
       onClick={onClick}
-      className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-surface disabled:opacity-50', danger ? 'text-danger' : 'text-ink')}
+      className={cn('flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-surface-2 disabled:opacity-50', danger ? 'text-danger' : 'text-ink')}
     >
       {icon}
       {children}

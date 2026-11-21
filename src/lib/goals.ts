@@ -1,5 +1,5 @@
 // Progresso de metas, sempre calculado a partir dos registros (nada armazenado).
-import type { FlashcardReview, GoalPeriod, QuestionRecord, StudyGoal, Topic } from '@/types/db'
+import type { FlashcardReview, GoalPeriod, Project, QuestionRecord, StudyGoal, Topic } from '@/types/db'
 import type { SessionWithPauses } from '@/lib/data/types'
 import { breakdown } from '@/lib/stats'
 import { addDays, addMonths, dayKey, endOfMonth, periodRange, startOfMonth, startOfWeek, type DayRange } from '@/lib/time'
@@ -9,6 +9,8 @@ export interface GoalData {
   questions: QuestionRecord[]
   topics: Pick<Topic, 'subject_id' | 'completed_at'>[]
   reviews: Pick<FlashcardReview, 'reviewed_at'>[]
+  /** Projetos práticos (para a meta de projetos concluídos). */
+  projects?: Pick<Project, 'completed_at' | 'status'>[]
   timezone: string
 }
 
@@ -52,6 +54,8 @@ export function goalValue(goal: Pick<StudyGoal, 'metric' | 'subject_id'>, range:
       return data.topics.filter((t) => t.completed_at && subjectOk(t.subject_id) && inRange(t.completed_at)).length
     case 'flashcards_reviewed':
       return data.reviews.filter((r) => inRange(r.reviewed_at)).length
+    case 'projects_completed':
+      return (data.projects ?? []).filter((p) => p.status === 'done' && p.completed_at && inRange(p.completed_at)).length
   }
 }
 

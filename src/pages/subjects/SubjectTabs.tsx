@@ -35,7 +35,7 @@ export function SubjectCardsTab({ subjectId }: { subjectId: string }) {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {decks.data!.map((d) => (
             <Link key={d.id} to={`/flashcards/${d.id}`}>
-              <Card className="p-4 hover:bg-surface">
+              <Card className="p-4 hover:bg-surface-2">
                 <p className="truncate font-medium text-ink">{d.name}</p>
                 {d.description && <p className="mt-1 line-clamp-2 text-xs text-muted">{d.description}</p>}
               </Card>

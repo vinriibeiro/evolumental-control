@@ -403,7 +403,7 @@ function ProfileMenu() {
             </div>
             <button
               role="menuitem"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface-2"
               onClick={() => {
                 setOpen(false)
                 navigate('/configuracoes')
@@ -417,7 +417,7 @@ function ProfileMenu() {
             {auth.mode === 'supabase' && (
               <button
                 role="menuitem"
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-danger hover:bg-surface"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-danger hover:bg-surface-2"
                 onClick={async () => {
                   setOpen(false)
                   await auth.signOut()

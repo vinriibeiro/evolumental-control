@@ -100,6 +100,7 @@ export const GOAL_METRIC_LABELS: Record<GoalMetric, string> = {
   topics_completed: 'Tópicos concluídos',
   flashcards_reviewed: 'Flashcards revisados',
   study_days: 'Dias de estudo',
+  projects_completed: 'Projetos concluídos',
 }
 export const GOAL_PERIOD_LABELS: Record<GoalPeriod, string> = { daily: 'Diária', weekly: 'Semanal', monthly: 'Mensal' }
 

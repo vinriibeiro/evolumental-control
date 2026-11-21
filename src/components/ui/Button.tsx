@@ -7,10 +7,10 @@ type Size = 'sm' | 'md' | 'lg'
 
 const variants: Record<Variant, string> = {
   primary: 'bg-accent text-accent-ink hover:bg-accent-strong border border-transparent',
-  secondary: 'bg-bg text-ink border border-line hover:bg-surface',
-  ghost: 'bg-transparent text-ink border border-transparent hover:bg-surface',
+  secondary: 'bg-bg text-ink border border-line hover:bg-surface-2',
+  ghost: 'bg-transparent text-ink border border-transparent hover:bg-surface-2',
   danger: 'bg-danger text-white border border-transparent hover:opacity-90',
-  dark: 'bg-accent text-accent-ink border border-transparent hover:bg-accent-strong shadow-sm',
+  dark: 'bg-ink text-bg border border-transparent hover:opacity-85',
 }
 const sizes: Record<Size, string> = {
   sm: 'h-8 px-3 text-sm gap-1.5',
@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-xl font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex shrink-0 items-center justify-center rounded-lg font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50',
         variants[variant],
         sizes[size],
         className,

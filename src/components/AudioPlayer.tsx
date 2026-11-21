@@ -188,7 +188,7 @@ export function AudioPlayer({ library, tracks, onPlayed, onRemove }: Props) {
         {tracks.map((t, i) => {
           const active = current?.index === i
           return (
-            <li key={t.id} className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm', active ? 'bg-surface' : 'hover:bg-surface')}>
+            <li key={t.id} className={cn('flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm', active ? 'bg-surface' : 'hover:bg-surface-2')}>
               <IconButton label={`Tocar ${displayTrackName(t.name, t.fileName)}`} size="sm" onClick={() => void startTrack(i, 1)}>
                 {active && playing ? <Pause className="size-3.5" aria-hidden /> : <Play className="size-3.5" aria-hidden />}
               </IconButton>

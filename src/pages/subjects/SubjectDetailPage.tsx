@@ -339,7 +339,7 @@ function TopicTree({
                         role="treeitem"
                         aria-expanded={hasChildren ? !isCollapsed : undefined}
                         aria-level={n.depth + 1}
-                        className="flex items-center gap-1 border-b border-line py-1.5 pr-2 last:border-b-0 hover:bg-surface"
+                        className="flex items-center gap-1 border-b border-line py-1.5 pr-2 last:border-b-0 hover:bg-surface-2"
                         style={{ paddingLeft: `${Math.min(n.depth, 8) * 20 + 4}px` }}
                       >
                         {term ? <span className="w-7" /> : handle}

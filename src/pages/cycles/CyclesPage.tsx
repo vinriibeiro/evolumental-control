@@ -118,7 +118,7 @@ export function CyclesPanel({ compact = false }: { compact?: boolean }) {
                 <button
                   key={c.id}
                   onClick={() => setSelectedId(c.id)}
-                  className={cn('flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left', c.id === selected.id ? 'border-accent-strong bg-accent/15' : 'border-line hover:bg-surface')}
+                  className={cn('flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left', c.id === selected.id ? 'border-accent-strong bg-accent/15' : 'border-line hover:bg-surface-2')}
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-ink">{c.name}</span>

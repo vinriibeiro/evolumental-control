@@ -29,7 +29,7 @@ export function useLiveSession() {
   })
 }
 
-const AFFECTED: TableName[] = ['study_sessions', 'study_session_pauses', 'topics', 'study_cycles', 'study_plan_items', 'reviews']
+const AFFECTED: TableName[] = ['study_sessions', 'study_session_pauses', 'topics', 'study_cycles', 'study_plan_items', 'reviews', 'calendar_tasks']
 
 /**
  * Ações do cronômetro. Um único "trinco" impede ações concorrentes na mesma

@@ -757,7 +757,7 @@ function MonthGrid({ days, anchor, today, items, studied, onPick }: { days: DayK
           const list = items.filter((i) => i.date === d && i.status !== 'rescheduled').sort((a, b) => a.start_time.localeCompare(b.start_time))
           const out = d.slice(0, 7) !== anchor.slice(0, 7)
           return (
-            <button key={d} onClick={() => onPick(d)} className={cn('flex min-h-24 min-w-0 flex-col gap-0.5 rounded-lg border p-1 text-left', d === today ? 'border-accent-strong' : 'border-line hover:bg-surface', out && 'opacity-40')}>
+            <button key={d} onClick={() => onPick(d)} className={cn('flex min-h-24 min-w-0 flex-col gap-0.5 rounded-lg border p-1 text-left', d === today ? 'border-accent-strong' : 'border-line hover:bg-surface-2', out && 'opacity-40')}>
               <span className="flex items-center justify-between text-xs font-semibold text-ink">
                 {Number(d.slice(8))}
                 {(studied.get(d) ?? 0) > 0 && <span className="tabular rounded bg-success/15 px-1 text-[10px] font-medium text-success">{formatDuration(studied.get(d)!)}</span>}

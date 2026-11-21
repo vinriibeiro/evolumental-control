@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn'
 
 export function Card({ className, children, ...rest }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn('evl-card min-w-0 rounded-2xl border border-line bg-surface', className)} {...rest}>
+    <div className={cn('evl-card min-w-0 rounded-xl border border-line bg-surface', className)} {...rest}>
       {children}
     </div>
   )
@@ -57,9 +57,9 @@ export function Progress({ value, className, color, label }: { value: number; cl
       aria-valuemax={100}
       aria-valuenow={Math.round(v)}
       aria-label={label}
-      className={cn('h-2 w-full overflow-hidden rounded-full bg-surface-2', className)}
+      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-track', className)}
     >
-      <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${v}%`, background: color ?? 'var(--accent-strong)' }} />
+      <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${v}%`, background: color ?? 'var(--ink)' }} />
     </div>
   )
 }
@@ -69,7 +69,7 @@ export function StatCard({ label, value, hint, icon, children }: { label: string
     <Card className="flex flex-col gap-2 p-5">
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-xs font-medium text-muted">{label}</span>
-        {icon && <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-accent/8 text-accent-strong">{icon}</span>}
+        {icon && <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink">{icon}</span>}
       </div>
       <div className="tabular truncate text-2xl font-semibold tracking-tight text-ink" title={typeof value === 'string' ? value : undefined}>
         {value}
@@ -94,7 +94,7 @@ export function Segmented<T extends string>({
   size?: 'sm' | 'md'
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-0.5">
+    <div role="radiogroup" aria-label={label} className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface-2 p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
@@ -126,7 +126,7 @@ export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; on
           onClick={() => onChange(t.value)}
           className={cn(
             '-mb-px border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
-            value === t.value ? 'border-accent-strong text-ink' : 'border-transparent text-muted hover:text-ink',
+            value === t.value ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink',
           )}
         >
           {t.label}
@@ -140,7 +140,7 @@ export function LoadMore({ hasMore, loading, onClick }: { hasMore: boolean; load
   if (!hasMore) return null
   return (
     <div className="flex justify-center py-4">
-      <button onClick={onClick} disabled={loading} className="rounded-lg border border-line px-4 py-2 text-sm text-ink hover:bg-surface disabled:opacity-50">
+      <button onClick={onClick} disabled={loading} className="rounded-lg border border-line px-4 py-2 text-sm text-ink hover:bg-surface-2 disabled:opacity-50">
         {loading ? 'Carregando…' : 'Carregar mais'}
       </button>
     </div>

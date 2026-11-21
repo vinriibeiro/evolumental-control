@@ -160,7 +160,7 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
               </h3>
               <div className="flex flex-wrap gap-2">
                 {searchLinks(topic.name, subject.name).map((l) => (
-                  <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-3 text-sm text-ink hover:bg-surface">
+                  <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-3 text-sm text-ink hover:bg-surface-2">
                     {l.label} <ExternalLink className="size-3" />
                   </a>
                 ))}

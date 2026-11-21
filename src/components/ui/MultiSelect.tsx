@@ -48,7 +48,7 @@ export function MultiSelect<T extends string>({ label, options, value, onChange,
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'mt-1.5 flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm transition-colors hover:bg-surface',
+          'mt-1.5 flex h-9 w-full items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm transition-colors hover:bg-surface-2',
           picked.length ? 'border-accent-strong text-ink' : 'border-line text-ink',
         )}
       >
@@ -67,7 +67,7 @@ export function MultiSelect<T extends string>({ label, options, value, onChange,
           </div>
           <div className="scroll-thin max-h-64 space-y-1 overflow-y-auto py-1">
             {options.map((o) => (
-              <Checkbox key={o.value} label={o.label} className="w-full rounded px-1 py-0.5 hover:bg-surface" checked={value.includes(o.value)} onChange={(e) => onChange(e.target.checked ? [...value, o.value] : value.filter((v) => v !== o.value))} />
+              <Checkbox key={o.value} label={o.label} className="w-full rounded px-1 py-0.5 hover:bg-surface-2" checked={value.includes(o.value)} onChange={(e) => onChange(e.target.checked ? [...value, o.value] : value.filter((v) => v !== o.value))} />
             ))}
           </div>
         </div>

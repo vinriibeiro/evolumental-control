@@ -31,9 +31,56 @@ export type GoalMetric =
   | 'topics_completed'
   | 'flashcards_reviewed'
   | 'study_days'
+  | 'projects_completed'
 export type GoalPeriod = 'daily' | 'weekly' | 'monthly'
 export type GoalStatus = 'active' | 'paused' | 'superseded' | 'archived'
 export type TaskKind = 'task' | 'deadline' | 'exam' | 'other'
+/** Meta por número (horas, sessões, questões…) ou por entregas (lista de itens a concluir até uma data). */
+export type GoalKind = 'metric' | 'deliverable'
+/** Como o conhecimento de um tópico foi evidenciado: declarado por mim ou demonstrado numa avaliação. Nunca vem só do tempo estudado. */
+export type TopicKnowledge = 'self' | 'demonstrated'
+export type ProjectStatus = 'not_started' | 'in_progress' | 'in_review' | 'done'
+
+export interface CheckItem {
+  id: string
+  text: string
+  done: boolean
+  /** Link do entregável (repositório, notebook, painel…). */
+  url?: string | null
+}
+
+/** Regra de repetição de uma tarefa. As ocorrências são gravadas como tarefas comuns com o mesmo `series_id`. */
+export interface TaskRecurrence {
+  freq: 'daily' | 'weekly'
+  /** Dias da semana (0 = domingo … 6 = sábado), para `weekly`. */
+  days?: number[]
+  until?: ISODate | null
+}
+
+/** De onde a sessão foi iniciada: o cronômetro reconhece o conteúdo sem perguntar de novo. */
+export interface SessionSource {
+  kind: 'topic' | 'book' | 'pdf' | 'course' | 'exercise' | 'project' | 'task' | 'review'
+  id: string
+  label: string
+  /** Caminho dentro do app para voltar ao conteúdo. */
+  href?: string
+}
+
+export interface WeekTemplate {
+  id: string
+  name: string
+  items: Array<{
+    weekday: number
+    start_time: string | null
+    duration_minutes: number | null
+    title: string
+    category: string | null
+    subject_id: UUID | null
+    topic_id: UUID | null
+    fixed: boolean
+    priority: number
+  }>
+}
 
 interface Owned {
   id: UUID
@@ -79,6 +126,14 @@ export interface UserSettings {
   srs: SrsParams
   /** Bloco de notas rápido do "Meu espaço de estudos". */
   scratchpad?: string
+  /** Categorias de tarefa criadas por mim (além das cinco iniciais). */
+  taskCategories?: Array<{ id: string; label: string }>
+  /** Limite de minutos de estudo por dia, usado ao reorganizar a semana. */
+  dailyStudyLimitMinutes?: number
+  /** Janela preferida para encaixar estudos ('HH:MM'). */
+  preferredWindow?: { start: string; end: string }
+  /** Modelos de semana salvos (atividades relativas ao dia da semana). */
+  weekTemplates?: WeekTemplate[]
 }
 
 export interface Subject extends Owned {
@@ -96,6 +151,8 @@ export interface Subject extends Owned {
   exam: string | null
   sort_order: number
   archived_at: ISODateTime | null
+  /** Identificador estável do pilar da trilha (ex.: 'ds.sql'); evita instalar a mesma trilha duas vezes. */
+  trail_key: string | null
 }
 
 export interface Topic extends Owned {
@@ -111,6 +168,11 @@ export interface Topic extends Owned {
   estimated_minutes: number | null
   notes: string | null
   completed_at: ISODateTime | null
+  /** Identificador estável do tópico na trilha (ex.: 'ds.sql.join'). */
+  trail_key: string | null
+  knowledge: TopicKnowledge | null
+  /** Quando registrei que fiz o exercício prático do tópico. */
+  practiced_at: ISODateTime | null
 }
 
 export interface StudyMaterial extends Owned {
@@ -160,6 +222,9 @@ export interface StudySession extends Owned {
   plan_item_id: UUID | null
   cycle_id: UUID | null
   cycle_item_id: UUID | null
+  task_id: UUID | null
+  project_id: UUID | null
+  source: SessionSource | null
 }
 
 export interface StudySessionPause {
@@ -244,6 +309,19 @@ export interface CalendarTask extends Owned {
   topic_id: UUID | null
   kind: TaskKind
   done: boolean
+  /** Categoria ('estudos', 'trabalho', 'pessoal', 'compromissos', 'outros' ou uma criada por mim); null em tarefas antigas. */
+  category: string | null
+  /** 1 = baixa, 2 = normal, 3 = alta. */
+  priority: number
+  /** Compromisso fixo: a reorganização da semana nunca move. */
+  fixed: boolean
+  due_date: ISODate | null
+  series_id: UUID | null
+  recurrence: TaskRecurrence | null
+  done_at: ISODateTime | null
+  /** Chave de origem (ex.: 'trail:ds.sql.join'); impede criar a mesma atividade duas vezes. */
+  origin_key: string | null
+  project_id: UUID | null
 }
 
 export interface Review extends Owned {
@@ -327,6 +405,11 @@ export interface StudyGoal extends Owned {
   start_date: ISODate
   end_date: ISODate | null
   previous_goal_id: UUID | null
+  kind: GoalKind
+  /** Entregas da meta (para `deliverable`). */
+  checklist: CheckItem[] | null
+  due_date: ISODate | null
+  done_at: ISODateTime | null
 }
 
 export interface QuestionRecord extends Owned {
@@ -423,6 +506,72 @@ export interface CourseProgress extends Owned {
   last_node_id: UUID | null
 }
 
+// ---------------------------------------------------------------------
+// VLM Control 2.0: caixa de entrada, projetos práticos e diagnósticos
+// ---------------------------------------------------------------------
+
+/** Ideia, tarefa ou lembrete anotado às pressas, para organizar depois. */
+export interface InboxItem extends Owned {
+  text: string
+  processed_at: ISODateTime | null
+  /** Tarefa criada a partir deste item (quando foi organizado). */
+  task_id: UUID | null
+}
+
+export interface Project extends Owned {
+  name: string
+  description: string | null
+  objective: string | null
+  /** Pilar principal ('sql', 'python', 'ml', 'ingles', 'powerbi') ou null. */
+  track: string | null
+  skills: string[]
+  /** 1 = iniciante, 2 = intermediário, 3 = avançado. */
+  difficulty: number
+  status: ProjectStatus
+  steps: CheckItem[]
+  deliverables: CheckItem[]
+  due_date: ISODate | null
+  repo_url: string | null
+  /** Publicado (repositório público, portfólio…). */
+  published: boolean
+  notes: string | null
+  /** Modelo de origem: o mesmo modelo não vira dois projetos. */
+  template_key: string | null
+  /** Tópicos das trilhas (trail_key) que o projeto pratica; o projeto é um só, mesmo ligado a vários. */
+  topic_keys: string[]
+  started_at: ISODateTime | null
+  completed_at: ISODateTime | null
+}
+
+export interface AssessmentAnswer {
+  question_id: string
+  /** Tópico da trilha avaliado (trail_key). */
+  topic_key: string
+  level: 1 | 2 | 3
+  chosen: number | null
+  correct: boolean
+}
+
+export interface AssessmentTopicResult {
+  topic_key: string
+  asked: number
+  correct: number
+  /** demonstrated = acertou tudo com pelo menos 2 questões; partial = acertou a única questão feita; gap = errou alguma. */
+  outcome: 'demonstrated' | 'partial' | 'gap'
+}
+
+/** Resultado de um diagnóstico. Cada tentativa é um registro novo: o histórico nunca é sobrescrito. */
+export interface Assessment extends Owned {
+  track: string
+  taken_at: ISODateTime
+  answers: AssessmentAnswer[]
+  topics: AssessmentTopicResult[]
+  total: number
+  correct: number
+  /** Tópico sugerido como ponto de partida (trail_key) ou null se nada ficou pendente. */
+  start_key: string | null
+}
+
 export interface Tables {
   profiles: Profile
   subjects: Subject
@@ -445,6 +594,9 @@ export interface Tables {
   course_sources: CourseSource
   course_nodes: CourseNode
   course_progress: CourseProgress
+  inbox_items: InboxItem
+  projects: Project
+  assessments: Assessment
 }
 
 export type TableName = keyof Tables

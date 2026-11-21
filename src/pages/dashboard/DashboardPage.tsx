@@ -170,7 +170,7 @@ export default function DashboardPage() {
               { to: '/livros', label: 'Meus livros', description: 'Retome sua leitura', icon: BookOpen },
               { to: '/flashcards/revisar?modo=vencidos', label: 'Flashcards', description: cardsDue.data != null ? `${cardsDue.data} para revisar` : 'Repetição espaçada', icon: Layers },
               { to: '/banco-de-questoes/desafios', label: 'Desafios de código', description: 'Python, SQL e Git', icon: Code2 },
-            ].map((item) => <Link key={item.to} to={item.to} className="group flex min-h-24 flex-col items-start rounded-xl border border-line bg-surface/50 p-3.5 transition-colors hover:border-accent-strong/40 hover:bg-surface">
+            ].map((item) => <Link key={item.to} to={item.to} className="group flex min-h-24 flex-col items-start rounded-xl border border-line bg-surface/50 p-3.5 transition-colors hover:border-accent-strong/40 hover:bg-surface-2">
               <span className="mb-2 flex w-full items-center justify-between text-accent-strong"><item.icon className="size-[18px]" aria-hidden /><ArrowRight className="size-3.5 text-muted transition-transform group-hover:translate-x-0.5" aria-hidden /></span>
               <span className="text-xs font-semibold text-ink">{item.label}</span>
               <span className="mt-1 text-[11px] text-muted">{item.description}</span>

@@ -90,7 +90,7 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
         <Badge>{STYLE_LABELS[q.estilo]}</Badge>
         <span className="flex-1" />
         <span className="text-[11px] text-muted">{q.id}</span>
-        <button type="button" aria-pressed={favorite} aria-label={favorite ? 'Tirar das favoritas' : 'Favoritar'} onClick={onFavorite} className="rounded p-1 text-muted hover:bg-surface hover:text-ink">
+        <button type="button" aria-pressed={favorite} aria-label={favorite ? 'Tirar das favoritas' : 'Favoritar'} onClick={onFavorite} className="rounded p-1 text-muted hover:bg-surface-2 hover:text-ink">
           <Star className={cn('size-4', favorite && 'fill-current text-warning')} />
         </button>
       </div>
@@ -110,7 +110,7 @@ function QuestionCard({ q, number, chosen, favorite, onAnswer, onFavorite }: { q
                 onClick={() => setSelected(o.key)}
                 className={cn(
                   'flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors',
-                  !answered && !isSelected && 'border-line text-ink hover:bg-surface',
+                  !answered && !isSelected && 'border-line text-ink hover:bg-surface-2',
                   isSelected && 'border-accent-strong bg-accent/20 text-ink',
                   answered && isRight && 'border-success bg-success/10 text-ink',
                   answered && isChosen && !isRight && 'border-danger bg-danger/10 text-ink',

@@ -45,7 +45,7 @@ export default function LibraryHubPage() {
           <li key={t.to} className="grid">
             <Link
               to={t.to}
-              className="group flex min-h-36 flex-col rounded-2xl border border-line bg-surface/50 p-4 transition-colors hover:border-accent-strong/40 hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
+              className="group flex min-h-36 flex-col rounded-2xl border border-line bg-surface/50 p-4 transition-colors hover:border-accent-strong/40 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong"
             >
               <span className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2 text-accent-strong">
