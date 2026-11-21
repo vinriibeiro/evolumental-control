@@ -19,7 +19,7 @@ export function Notifications() {
   const live = useLiveSession()
 
   const items = [
-    live.data && { icon: Timer, text: live.data.status === 'pending_review' ? 'Uma sessão aguarda confirmação.' : 'Há uma sessão de estudo em andamento.', to: '/cronometro' },
+    live.data && { icon: Timer, text: live.data.status === 'pending_review' ? 'Uma sessão aguarda confirmação.' : 'Há uma sessão de estudo em andamento.', to: '/sala' },
     (reviews.data ?? 0) > 0 && { icon: Brain, text: `${reviews.data} revisão(ões) para hoje ou atrasada(s).`, to: '/revisoes' },
     (cards.data ?? 0) > 0 && { icon: Layers, text: `${cards.data} flashcard(s) para revisar.`, to: '/flashcards/revisar?modo=vencidos' },
     (blocks.data ?? 0) > 0 && { icon: CalendarClock, text: `${blocks.data} bloco(s) do cronograma pendente(s) hoje.`, to: '/cronograma' },

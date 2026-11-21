@@ -82,7 +82,7 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
             <Button className="w-full sm:w-auto" icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
               Editar
             </Button>
-            <Button className="w-full sm:w-auto" variant="primary" icon={<Play className="size-4" />} onClick={() => navigate(`/cronometro?materia=${subject.id}&topico=${topic.id}`)}>
+            <Button className="w-full sm:w-auto" variant="primary" icon={<Play className="size-4" />} onClick={() => navigate(`/sala?materia=${subject.id}&topico=${topic.id}`)}>
               Iniciar estudo
             </Button>
           </div>

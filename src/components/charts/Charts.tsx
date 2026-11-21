@@ -23,6 +23,8 @@ export function ChartCard({
   legend,
   action,
   className,
+  summary,
+  empty,
 }: {
   title: string
   description?: string
@@ -31,6 +33,10 @@ export function ChartCard({
   legend?: Series[]
   action?: ReactNode
   className?: string
+  /** Frase que resume o gráfico para leitores de tela (alternativa em texto). */
+  summary?: string
+  /** Quando não há base para o gráfico: mostra esta mensagem no lugar dele (ex.: "Dados insuficientes"). */
+  empty?: string | null
 }) {
   const [asTable, setAsTable] = useState(false)
   return (
@@ -42,14 +48,14 @@ export function ChartCard({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {action}
-          {table && (
+          {table && !empty && (
             <IconButton size="sm" label={asTable ? 'Ver gráfico' : 'Ver tabela'} onClick={() => setAsTable((t) => !t)}>
               {asTable ? <BarChart3 className="size-4" /> : <Table2 className="size-4" />}
             </IconButton>
           )}
         </div>
       </div>
-      {legend && legend.length > 1 && !asTable && (
+      {legend && legend.length > 1 && !asTable && !empty && (
         <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1" aria-label="Legenda">
           {legend.map((l) => (
             <li key={l.key} className="flex items-center gap-1.5 text-xs text-muted">
@@ -59,13 +65,16 @@ export function ChartCard({
           ))}
         </ul>
       )}
-      {asTable && table ? (
+      {empty ? (
+        <p className="flex flex-1 items-center justify-center py-10 text-center text-sm text-muted">{empty}</p>
+      ) : asTable && table ? (
         <div className="scroll-thin max-h-72 overflow-auto">
           <table className="w-full text-xs">
+            <caption className="sr-only">{title}</caption>
             <thead>
               <tr className="border-b border-line text-left text-muted">
                 {table.columns.map((c, i) => (
-                  <th key={c} className={`px-2 py-1.5 font-medium ${i > 0 ? 'text-right' : ''}`}>
+                  <th key={c} scope="col" className={`px-2 py-1.5 font-medium ${i > 0 ? 'text-right' : ''}`}>
                     {c}
                   </th>
                 ))}
@@ -84,6 +93,11 @@ export function ChartCard({
             </tbody>
           </table>
         </div>
+      ) : summary ? (
+        // O desenho vira uma imagem com descrição; os números completos ficam em "Ver tabela".
+        <div role="img" aria-label={summary}>
+          {children}
+        </div>
       ) : (
         children
       )}
@@ -100,7 +114,7 @@ function TooltipBox({ active, payload, label, format, labelFormat }: {
 }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-line bg-bg px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-line bg-bg px-3 py-2 text-xs shadow-sm">
       <p className="mb-1 font-medium text-ink">{labelFormat ? labelFormat(String(label ?? payload[0]?.payload?.label ?? '')) : (label ?? String(payload[0]?.payload?.label ?? ''))}</p>
       {payload.map((p) => (
         <p key={String(p.dataKey)} className="flex items-center gap-2 text-muted">
@@ -145,23 +159,29 @@ export function ColumnChart({
   )
 }
 
-/** Barras horizontais com uma cor por item (identidade segue a entidade). */
-export function RankBars({ items, format, emptyText = 'Sem dados no período.' }: { items: Array<{ label: string; value: number; color: string }>; format: (v: number) => string; emptyText?: string }) {
+/**
+ * Barras horizontais. Sem `color`, todas saem em preto: a posição já diz o que importa.
+ * `note` acrescenta um detalhe ao lado do valor (ex.: o planejado, o tamanho da amostra).
+ */
+export function RankBars({ items, format, emptyText = 'Sem dados no período.', max: fixedMax }: { items: Array<{ label: string; value: number; color?: string; note?: string }>; format: (v: number) => string; emptyText?: string; max?: number }) {
   if (items.length === 0) return <p className="py-10 text-center text-sm text-muted">{emptyText}</p>
-  const max = Math.max(...items.map((i) => i.value), 1)
+  const max = fixedMax ?? Math.max(...items.map((i) => i.value), 1)
   return (
     <ul className="flex flex-col gap-2.5">
       {items.map((i) => (
-        <li key={i.label} className="group" title={`${i.label}: ${format(i.value)}`}>
+        <li key={i.label} className="group" title={`${i.label}: ${format(i.value)}${i.note ? ` · ${i.note}` : ''}`}>
           <div className="mb-1 flex justify-between gap-2 text-xs">
             <span className="flex min-w-0 items-center gap-1.5 text-ink">
-              <span className="size-2.5 shrink-0 rounded-sm" style={{ background: i.color }} aria-hidden />
+              {i.color && <span className="size-2.5 shrink-0 rounded-sm" style={{ background: i.color }} aria-hidden />}
               <span className="truncate">{i.label}</span>
             </span>
-            <span className="tabular shrink-0 text-muted">{format(i.value)}</span>
+            <span className="tabular shrink-0 text-muted">
+              <span className="font-medium text-ink">{format(i.value)}</span>
+              {i.note && ` · ${i.note}`}
+            </span>
           </div>
           <div className="h-2 w-full rounded-full bg-surface-2">
-            <div className="h-2 rounded-full transition-[width] duration-500 group-hover:opacity-80" style={{ width: `${(i.value / max) * 100}%`, background: i.color }} />
+            <div className="h-2 rounded-full transition-[width] duration-500 group-hover:opacity-80" style={{ width: `${Math.min(100, (i.value / max) * 100)}%`, background: i.color ?? 'var(--ink)' }} />
           </div>
         </li>
       ))}

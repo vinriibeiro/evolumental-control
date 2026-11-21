@@ -1,5 +1,11 @@
-import { useMemo, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { useBackend } from '@/app/data'
+import { invalidateTables } from '@/hooks/data'
+import { useSettings } from '@/hooks/useSettings'
+import { todayKey } from '@/lib/time'
+import { recordLabExercise } from '@/services/dsTrail'
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronRight, Code2, Database, Download, GitBranch, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, PageHeader, Progress, Segmented } from '@/components/ui/layout'
@@ -52,6 +58,27 @@ function ChallengeWorkspace({ scope }: { scope: string }) {
     const target = candidates.find((challenge) => !done.has(challenge.id)) ?? candidates[0]
     update({ track, level: target.level, selectedId: target.id })
   }
+  // Vindo de um tópico da trilha (/laboratorio?trilha=sql&nivel=basic): abre direto nos desafios daquele assunto.
+  const [params] = useSearchParams()
+  useEffect(() => {
+    const t = params.get('trilha')
+    const l = params.get('nivel')
+    if (t === 'python' || t === 'sql' || t === 'git') chooseFilters(t, LEVELS.some((x) => x.value === l) ? (l as ChallengeLevel) : undefined)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Desafio verificado conta como exercício resolvido (uma vez só por desafio), alimentando metas e relatórios.
+  const backend = useBackend()
+  const qc = useQueryClient()
+  const { timezone } = useSettings()
+  const passed = (challenge: { id: string; track: ChallengeTrack; title: string }) => {
+    update({ verified: { [challenge.id]: true } })
+    recordLabExercise(backend, challenge, todayKey(timezone))
+      .then((created) => {
+        if (created) void invalidateTables(qc, ['question_records'])
+      })
+      .catch(() => {})
+  }
+
   const selectNext = () => {
     if (!next || next.id === selected.id) return
     update({ level: next.level, selectedId: next.id })
@@ -122,7 +149,7 @@ function ChallengeWorkspace({ scope }: { scope: string }) {
             legacyDone={state.completed.includes(selected.id)}
             nextTitle={next?.id !== selected.id ? next?.title : undefined}
             onDraft={(draft) => update({ drafts: { [selected.id]: draft } })}
-            onPassed={() => update({ verified: { [selected.id]: true } })}
+            onPassed={() => passed(selected)}
             onNext={selectNext}
           />
         </div>

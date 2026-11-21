@@ -6,6 +6,11 @@ import type { PdfAnnotation, PdfPoint, PdfRect } from '@/services/pdfLibrary'
 export type PdfTool = 'read' | 'highlight' | 'ink' | 'note'
 export interface PdfCanvasHandle { highlightSelection(): void }
 
+/** Texto comparável na busca: sem acentos nem caixa ("estatistica" encontra "Estatística"). */
+export function searchKey(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
 interface Props {
   document: PDFDocumentProxy
   page: number
@@ -15,6 +20,15 @@ interface Props {
   color: string
   annotations: PdfAnnotation[]
   search: string
+  /** Qual trecho encontrado nesta página está selecionado (ordem dentro da página); o leitor rola até ele. */
+  activeMatch?: number
+  /** Pedido para rolar até o trecho ativo; o leitor avisa em onMatchRevealed para o pedido valer uma vez só. */
+  revealMatch?: boolean
+  onMatchRevealed?: () => void
+  /** Tamanho provável da página antes de ela ser desenhada (rolagem contínua: evita saltos). */
+  estimate?: { width: number; height: number }
+  /** Proporção real (altura / largura) da página, assim que conhecida. */
+  onRatio?: (page: number, ratio: number) => void
   onAnnotate: (annotation: PdfAnnotation) => void
   onNote: (point: PdfPoint) => void
   onError: (message: string) => void
@@ -22,7 +36,7 @@ interface Props {
 
 /** The canvas and selectable text share one PDF.js viewport, including native page rotation. */
 export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPageCanvas(
-  { document: pdf, page, zoom, availableWidth, tool, color, annotations, search, onAnnotate, onNote, onError }, ref,
+  { document: pdf, page, zoom, availableWidth, tool, color, annotations, search, activeMatch, revealMatch, onMatchRevealed, estimate, onRatio, onAnnotate, onNote, onError }, ref,
 ) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const text = useRef<HTMLDivElement>(null)
@@ -37,6 +51,11 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
   const drawing = useRef<number | null>(null)
   const errorRef = useRef(onError)
   errorRef.current = onError
+  const ratioRef = useRef(onRatio)
+  ratioRef.current = onRatio
+  const revealedRef = useRef(onMatchRevealed)
+  revealedRef.current = onMatchRevealed
+  const textDivs = useRef<HTMLElement[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -47,10 +66,12 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
     setDraft([])
     points.current = []
     drawing.current = null
+    textDivs.current = []
     const render = async () => {
       const pdfPage = await pdf.getPage(page)
       if (cancelled || !canvas.current || !text.current) return
       const base = pdfPage.getViewport({ scale: 1 })
+      ratioRef.current?.(page, base.height / base.width)
       const scale = Math.min((Math.max(220, availableWidth) / base.width) * zoom, 4)
       const view = pdfPage.getViewport({ scale })
       const outputScale = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(16_000_000 / (view.width * view.height)))
@@ -75,11 +96,7 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
       layer = new TextLayer({ textContentSource: content, container: text.current, viewport: view })
       await layer.render()
       if (cancelled) return
-      if (search.trim()) {
-        for (const span of layer.textDivs) {
-          if (span.textContent?.toLocaleLowerCase('pt-BR').includes(search.trim().toLocaleLowerCase('pt-BR'))) span.classList.add('pdf-search-hit')
-        }
-      }
+      textDivs.current = layer.textDivs
       setReady(true)
     }
     void render().catch((error: unknown) => {
@@ -90,7 +107,25 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
       }
     })
     return () => { cancelled = true; rendering?.cancel(); layer?.cancel() }
-  }, [pdf, page, zoom, availableWidth, search, renderAttempt])
+  }, [pdf, page, zoom, availableWidth, renderAttempt])
+
+  // A busca só pinta o texto já desenhado: trocar o termo ou o trecho ativo não redesenha a página.
+  useEffect(() => {
+    if (!ready) return
+    const term = searchKey(search.trim())
+    let order = 0
+    for (const span of textDivs.current) {
+      const hit = Boolean(term) && searchKey(span.textContent ?? '').includes(term)
+      const active = hit && order === activeMatch
+      span.classList.toggle('pdf-search-hit', hit)
+      span.classList.toggle('pdf-search-active', active)
+      if (active && revealMatch) {
+        span.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+        revealedRef.current?.()
+      }
+      if (hit) order++
+    }
+  }, [ready, search, activeMatch, revealMatch])
 
   const highlight = () => {
     const selection = window.getSelection()
@@ -138,9 +173,9 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
   }
 
   return <div className="flex flex-col items-center gap-3">
-    {!ready && !renderError && <p role="status" className="text-xs text-muted">Preparando página {page}…</p>}
     {renderError && <div role="alert" className="max-w-lg space-y-3 rounded-xl border border-danger/30 bg-bg p-5 text-center"><p className="text-sm font-semibold text-ink">Não foi possível exibir a página {page}</p><p className="break-words text-xs leading-relaxed text-muted">{renderError}</p><Button size="sm" onClick={() => setRenderAttempt((attempt) => attempt + 1)}>Tentar exibir novamente</Button></div>}
-    <div ref={surface} className="pdf-page relative shrink-0 bg-white shadow-lg" style={{ width: viewport?.width ?? 400, height: viewport?.height ?? 560, display: renderError ? 'none' : undefined }} data-page-number={page} aria-busy={!ready && !renderError}>
+    <div ref={surface} className="pdf-page relative shrink-0 border border-line bg-white" style={{ width: viewport?.width ?? estimate?.width ?? 400, height: viewport?.height ?? estimate?.height ?? 560, display: renderError ? 'none' : undefined }} data-page-number={page} aria-busy={!ready && !renderError}>
+      {!ready && !renderError && <p role="status" className="absolute inset-x-0 top-6 text-center text-xs text-[#6b6b6b]">Preparando página {page}…</p>}
       <canvas ref={canvas} aria-label={`Página ${page} do PDF`} className="block" />
       <div ref={text} className="pdf-text-layer" style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'none' : undefined }} onPointerUp={() => { if (tool === 'highlight') highlight() }} />
       {viewport && <svg viewBox={`0 0 ${viewport.width} ${viewport.height}`} className="absolute inset-0 size-full" aria-label={tool === 'ink' ? 'Área de desenho livre' : tool === 'note' ? 'Clique para adicionar uma nota' : undefined}

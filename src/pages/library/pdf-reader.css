@@ -17,7 +17,12 @@
 .pdf-text-layer .markedContent { display: contents; }
 .pdf-text-layer ::selection { background: #599fe966; color: transparent; }
 .pdf-text-layer .pdf-search-hit { background: #f8dc6b80; }
-.pdf-reader[data-focus='true'] { position: fixed; inset: 0; z-index: 45; overflow-y: auto; background: var(--bg); padding: 1rem; }
+.pdf-text-layer .pdf-search-active { background: #b91c1c59; outline: 1px solid #b91c1c; }
+/* Tela cheia: o leitor cobre a janela e a área das páginas ocupa toda a altura que sobra. */
+.pdf-reader[data-focus='true'] { position: fixed; inset: 0; z-index: 45; overflow: hidden; background: var(--bg); padding: 0.5rem; padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.pdf-reader[data-focus='true'] .pdf-reader-body { flex: 1 1 0; grid-template-rows: minmax(0, 1fr); }
+.pdf-reader[data-focus='true'] .pdf-reader-area { height: auto; min-height: 0; flex: 1 1 0; }
+.pdf-reader[data-focus='true'] .pdf-reader-notes { max-height: none; }
 body:has(.pdf-reader[data-focus='true']) { overflow: hidden; }
 body:has(.pdf-reader[data-focus='true']) .evl-mobile-nav { display: none; }
 @media print { .pdf-reader-toolbar, .pdf-reader-notes { display: none; } }

@@ -228,7 +228,7 @@ function SubjectCard({
             </div>
             {goal && <Progress value={(weekSeconds / goal) * 100} label={`Meta semanal de ${s.name}`} />}
           </div>
-          <Button size="sm" className="w-full" icon={<Play className="size-3.5" />} onClick={() => navigate(`/cronometro?materia=${s.id}`)} disabled={s.status === 'archived'}>
+          <Button size="sm" className="w-full" icon={<Play className="size-3.5" />} onClick={() => navigate(`/sala?materia=${s.id}`)} disabled={s.status === 'archived'}>
             Estudar agora
           </Button>
         </div>

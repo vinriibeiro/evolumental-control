@@ -21,6 +21,7 @@ import { browserTimeZone } from '@/lib/time'
 import { downloadJson, slugDate } from '@/lib/download'
 import { playChime, unlockAudio } from '@/lib/timer/sound'
 import type { SrsParams, TableName, UserSettings } from '@/types/db'
+import { PlanningSection } from './PlanningSection'
 
 function Section({ icon, title, description, children }: { icon: ReactNode; title: string; description?: string; children: ReactNode }) {
   return (
@@ -69,6 +70,7 @@ export default function SettingsPage() {
       </Section>
 
       <StudySection settings={settings} onSave={save} />
+      <PlanningSection settings={settings} onSave={save} Section={Section} />
       <VoiceSection settings={settings} onSave={save} />
       <SrsSection value={settings.srs} onSave={(srs) => save({ srs }, 'Parâmetros da repetição espaçada salvos.')} />
       <DataSection />

@@ -232,7 +232,7 @@ function CycleDetail(props: {
   const startCurrent = () => {
     if (!summary.current) return
     const remaining = Math.max(1, Math.ceil((summary.current.duration_minutes * 60 - cycle.current_progress_seconds) / 60))
-    navigate(`/cronometro?item=${summary.current.id}&minutos=${remaining}`)
+    navigate(`/sala?item=${summary.current.id}&minutos=${remaining}`)
   }
 
   // Aulas em vídeo da matéria do bloco: o cronômetro de lá já vem ligado ao bloco e com o tempo que falta.

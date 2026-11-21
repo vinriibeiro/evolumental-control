@@ -28,3 +28,8 @@ export function downloadJson(data: unknown, filename: string) {
 export function slugDate() {
   return new Date().toISOString().slice(0, 10)
 }
+
+export function downloadPdf(bytes: Uint8Array, filename: string) {
+  // Copia para um ArrayBuffer próprio: o Blob não aceita visões sobre SharedArrayBuffer.
+  downloadBlob(new Blob([bytes.slice().buffer as ArrayBuffer], { type: 'application/pdf' }), filename)
+}

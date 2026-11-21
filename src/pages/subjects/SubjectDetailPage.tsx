@@ -121,7 +121,7 @@ export default function SubjectDetailPage() {
             <Button icon={<Pencil className="size-4" />} onClick={() => setEditing(true)}>
               Editar
             </Button>
-            <Button variant="primary" icon={<Play className="size-4" />} onClick={() => navigate(`/cronometro?materia=${s.id}`)} disabled={s.status === 'archived'}>
+            <Button variant="primary" icon={<Play className="size-4" />} onClick={() => navigate(`/sala?materia=${s.id}`)} disabled={s.status === 'archived'}>
               Estudar
             </Button>
           </>
@@ -403,7 +403,7 @@ function TopicTree({
                               <MenuItem icon={<FolderInput className="size-4" />} onClick={() => (close(), setMoving(n))}>
                                 Mover para…
                               </MenuItem>
-                              <MenuItem icon={<Play className="size-4" />} onClick={() => (close(), navigate(`/cronometro?materia=${subjectId}&topico=${n.id}`))}>
+                              <MenuItem icon={<Play className="size-4" />} onClick={() => (close(), navigate(`/sala?materia=${subjectId}&topico=${n.id}`))}>
                                 Estudar este tópico
                               </MenuItem>
                               <MenuItem icon={<Trash2 className="size-4" />} danger onClick={() => (close(), void safeDelete(n.id, n.name))}>

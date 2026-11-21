@@ -13,6 +13,7 @@ import {
   Maximize,
   Minimize,
   Minus,
+  Play,
   Plus,
   SunDim,
   SunMedium,
@@ -53,7 +54,10 @@ import {
 } from '@/lib/library'
 import { cn } from '@/lib/cn'
 import { useLibrary } from '@/hooks/useLibrary'
-import { cloudErrorMessage, type Bookmark as BookmarkRecord, type BookRecord, type Library } from '@/services/library'
+import { ROOM_PATH, useStartStudy } from '@/features/timer/useStartStudy'
+import { cloudErrorMessage, type Bookmark as BookmarkRecord, type BookNote, type BookRecord, type Library } from '@/services/library'
+import type { SessionSource } from '@/types/db'
+import { ReaderNotes } from './ReaderNotes'
 
 const PREFS_KEY = 'evolumental.leitor'
 const HINT_KEY = 'evolumental.leitor.dica'
@@ -178,7 +182,7 @@ export default function ReaderPage() {
           title="Livro não encontrado"
           description="Ele pode ter sido removido da estante ou guardado em outro navegador."
           action={
-            <Link to="/livros">
+            <Link to="/biblioteca">
               <Button variant="primary">Voltar à estante</Button>
             </Link>
           }
@@ -217,6 +221,10 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [bookmarks, setBookmarks] = useState<BookmarkRecord[]>(record.bookmarks)
+  const [notes, setNotes] = useState<BookNote[]>(record.notes ?? [])
+  const study = useStartStudy()
+  const studySource = useMemo<SessionSource>(() => ({ kind: 'book', id: record.id, label: record.title, href: `/livros/${record.id}` }), [record.id, record.title])
+  const studying = study.isLiveFor({ source: studySource })
   const [view, setView] = useState({ progress: record.progress, chapter: '', start: '', end: '' })
   const [fullscreen, setFullscreen] = useState(() => typeof document !== 'undefined' && Boolean(document.fullscreenElement))
   const [clock, setClock] = useState(clockNow)
@@ -528,7 +536,7 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
   const leave = useCallback(() => {
     flushSave()
     exitFullscreen()
-    navigate('/livros')
+    navigate('/biblioteca')
   }, [flushSave, exitFullscreen, navigate])
 
   useEffect(() => {
@@ -575,6 +583,35 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
     }
   }
 
+  const changeNotes = (next: BookNote[]) => {
+    const previous = notes
+    setNotes(next)
+    library
+      .saveNotes(record.id, next)
+      .then(setNotes)
+      .catch((e) => {
+        setNotes(previous)
+        toast.error(e)
+      })
+  }
+
+  /** Atalho para o cronômetro do app, com este livro como origem da sessão. Nunca cria uma segunda sessão. */
+  const onStudy = () => {
+    if (studying) {
+      flushSave()
+      exitFullscreen()
+      navigate(ROOM_PATH)
+      return
+    }
+    if (study.live) {
+      // O diálogo padrão ficaria escondido atrás do leitor em tela inteira: aqui o aviso é um toast.
+      const label = study.live.source?.label
+      toast.info(`Já existe uma sessão em andamento${label ? ` ("${label}")` : ''}. Finalize-a na Sala de Estudos antes de começar outra.`)
+      return
+    }
+    void study.start({ activity_type: 'reading', source: studySource, after: 'stay' })
+  }
+
   const setFullscreenPref = (on: boolean) => {
     fsBlocked.current = !on
     setPrefs((p) => ({ ...p, fullscreen: on }))
@@ -598,7 +635,8 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
   const bar = 'absolute inset-x-0 z-20 transition-transform duration-200 ease-out motion-reduce:transition-none'
   const sidePad = READER_MARGIN_PX[prefs.margin]
   const sheet = panel === 'ajustes'
-  const panelTitle = panel === 'indice' ? 'Índice' : panel === 'marcadores' ? 'Marcadores' : 'Aparência e iluminação'
+  const panelTitle = panel === 'indice' ? 'Índice' : panel === 'marcadores' ? 'Marcadores e anotações' : 'Aparência e iluminação'
+  const marksCount = bookmarks.length + notes.length
 
   return (
     <div
@@ -657,6 +695,7 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
         aria-hidden
       >
         <span>{clock}</span>
+        {studying && <span>· em estudo</span>}
         <span className="min-w-0 flex-1 truncate text-center">{view.chapter || record.title}</span>
         <span>{view.progress}%</span>
       </div>
@@ -698,18 +737,32 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
           >
             {marksHere.length ? <BookmarkCheck className="size-5" aria-hidden /> : <Bookmark className="size-5" aria-hidden />}
           </button>
-          <button type="button" className={barBtn} onClick={() => openPanel('marcadores')} aria-label={`Marcadores (${bookmarks.length})`} title="Lista de marcadores">
+          <button type="button" className={barBtn} onClick={() => openPanel('marcadores')} aria-label={`Marcadores e anotações (${marksCount})`} title="Marcadores e anotações">
             <span className="relative inline-flex">
               <BookMarked className="size-5" aria-hidden />
-              {bookmarks.length > 0 && (
+              {marksCount > 0 && (
                 <span className="absolute -right-2 -top-2 min-w-4 rounded-full px-1 text-center text-[10px] font-semibold leading-4 tabular-nums" style={{ background: colors.fg, color: colors.bg }}>
-                  {bookmarks.length}
+                  {marksCount}
                 </span>
               )}
             </span>
           </button>
+          <button
+            type="button"
+            className={barBtn}
+            onClick={onStudy}
+            disabled={study.pending}
+            aria-pressed={studying}
+            aria-label={studying ? 'Sessão em andamento. Abrir a Sala de Estudos' : record.lastReadAt ? 'Continuar estudo' : 'Iniciar estudo'}
+            title={studying ? 'Sessão em andamento: abrir a Sala de Estudos' : record.lastReadAt ? 'Continuar estudo (liga o cronômetro)' : 'Iniciar estudo (liga o cronômetro)'}
+          >
+            <span className="relative inline-flex">
+              <Play className="size-5" aria-hidden />
+              {studying && <span className="absolute -right-1.5 -top-1.5 size-2.5 rounded-full" style={{ background: '#b91c1c' }} aria-hidden />}
+            </span>
+          </button>
           {canFullscreen && (
-            <button type="button" className={barBtn} onClick={() => setFullscreenPref(!fullscreen)} aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} aria-pressed={fullscreen} title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
+            <button type="button" className={cn(barBtn, 'max-sm:hidden')} onClick={() => setFullscreenPref(!fullscreen)} aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} aria-pressed={fullscreen} title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
               {fullscreen ? <Minimize className="size-5" aria-hidden /> : <Maximize className="size-5" aria-hidden />}
             </button>
           )}
@@ -787,6 +840,22 @@ function Reader({ record, library }: { record: BookRecord; library: Library }) {
                     })}
                   </ul>
                 ))}
+              {panel === 'marcadores' && (
+                <>
+                  <h3 className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide opacity-70">Anotações</h3>
+                  <ReaderNotes
+                    notes={notes}
+                    colors={colors}
+                    line={line}
+                    here={view.start ? { cfi: view.start, label: `${view.chapter || 'Trecho do livro'} · ${view.progress}%` } : null}
+                    onChange={changeNotes}
+                    onJump={jumpTo}
+                  />
+                  <h3 className="mt-2 border-t px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide opacity-70" style={{ borderColor: line }}>
+                    Marcadores
+                  </h3>
+                </>
+              )}
               {panel === 'marcadores' &&
                 (bookmarks.length === 0 ? (
                   <p className="p-3 text-sm" style={{ color: colors.muted }}>

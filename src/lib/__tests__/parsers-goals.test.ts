@@ -70,9 +70,9 @@ describe('metas', () => {
     timezone: 'America/Sao_Paulo',
     sessions: [session('2026-10-19T12:00:00Z', '2026-10-19T14:00:00Z'), session('2026-10-20T12:00:00Z', '2026-10-20T13:00:00Z', 's2')],
     questions: [
-      { date: '2026-10-19', total: 20, correct: 15, wrong: 5, subject_id: 's1' },
-      { date: '2026-10-20', total: 10, correct: 5, wrong: 5, subject_id: 's2' },
-    ] as GoalData['questions'],
+      { date: '2026-10-19', total: 20, correct: 15, subject_id: 's1' },
+      { date: '2026-10-20', total: 10, correct: 5, subject_id: 's2' },
+    ],
     topics: [{ subject_id: 's1', completed_at: '2026-10-20T15:00:00Z' }],
     reviews: [{ reviewed_at: '2026-10-20T15:00:00Z' }, { reviewed_at: '2026-10-01T15:00:00Z' }],
   }

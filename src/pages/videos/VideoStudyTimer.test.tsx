@@ -87,7 +87,7 @@ describe('sessão de foco junto à aula (backend local real)', () => {
     await screen.findByRole('button', { name: 'Pausar foco' })
     vi.setSystemTime(T0 + 660000)
     fireEvent.click(screen.getByRole('button', { name: 'Finalizar foco' }))
-    expect(await screen.findByRole('link', { name: 'Revisar e salvar sessão' })).toHaveAttribute('href', '/cronometro')
+    expect(await screen.findByRole('link', { name: 'Revisar e salvar sessão' })).toHaveAttribute('href', '/sala')
     expect((await getLiveSession(backend))?.status).toBe('pending_review')
   })
 

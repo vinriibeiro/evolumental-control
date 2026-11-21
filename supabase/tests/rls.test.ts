@@ -292,6 +292,37 @@ describe('biblioteca (livros privados)', () => {
     });
   });
 
+  it('estante v2: livros antigos ficam na estante; assunto, favorito, arquivo e anotações são só do dono', async () => {
+    await as(ALICE, async () => {
+      const before = await db.query<{ subject: string | null; favorite: boolean; shelf_state: string; notes: unknown[]; isbn: string | null }>(
+        `select subject, favorite, shelf_state, notes, isbn from public.library_books where id = 'aaaa1111'`,
+      );
+      expect(before.rows[0]).toEqual({ subject: null, favorite: false, shelf_state: 'active', notes: [], isbn: null });
+      await db.query(
+        `update public.library_books set subject = 'Estatística', favorite = true, shelf_state = 'hidden', isbn = '9788535902778',
+           notes = '[{"id":"n1","text":"reler o capítulo 2","createdAt":"2026-11-21T10:00:00.000Z"}]'::jsonb where id = 'aaaa1111'`,
+      );
+      // remover da estante não apaga a linha (nem a posição de leitura)
+      expect((await db.query(`select 1 from public.library_books where id = 'aaaa1111' and shelf_state = 'hidden'`)).rows).toHaveLength(1);
+      await expect(db.query(`update public.library_books set shelf_state = 'deleted' where id = 'aaaa1111'`)).rejects.toThrow();
+      await expect(db.query(`update public.library_books set notes = '{}'::jsonb where id = 'aaaa1111'`)).rejects.toThrow();
+      await expect(db.query(`update public.library_books set isbn = '123' where id = 'aaaa1111'`)).rejects.toThrow();
+      await expect(db.query(`update public.library_books set subject = repeat('x', 121) where id = 'aaaa1111'`)).rejects.toThrow();
+    });
+    await as(BOB, async () => {
+      expect((await db.query(`select subject, notes from public.library_books`)).rows).toHaveLength(0);
+      expect((await db.query(`update public.library_books set shelf_state = 'active', favorite = false, notes = '[]'::jsonb where id = 'aaaa1111'`)).affectedRows).toBe(0);
+    });
+    await as(ALICE, async () => {
+      const after = await db.query<{ subject: string; favorite: boolean; shelf_state: string; notes: Array<{ text: string }> }>(
+        `select subject, favorite, shelf_state, notes from public.library_books where id = 'aaaa1111'`,
+      );
+      expect(after.rows[0]).toMatchObject({ subject: 'Estatística', favorite: true, shelf_state: 'hidden' });
+      expect(after.rows[0].notes[0].text).toBe('reler o capítulo 2');
+      await db.query(`update public.library_books set shelf_state = 'active' where id = 'aaaa1111'`);
+    });
+  });
+
   it('anon não acessa a tabela de livros', async () => {
     await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`);
     await expect(db.query(`select * from public.library_books`)).rejects.toThrow();

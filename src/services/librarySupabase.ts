@@ -1,10 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Bookmark, CloudBook, LibraryCloud } from './library'
+import { normalizeShelfState } from '@/lib/library'
+import type { BookNote, Bookmark, CloudBook, LibraryCloud } from './library'
 
 const BUCKET = 'livros'
 const TABLE = 'library_books'
 
-interface Row {
+/** Colunas criadas pela migração 20261121010000_v2_library.sql (estante v2). */
+interface RowV2 {
+  subject: string | null
+  favorite: boolean
+  shelf_state: string
+  notes: BookNote[]
+  isbn: string | null
+  identifier: string | null
+}
+
+interface Row extends Partial<RowV2> {
   user_id: string
   id: string
   title: string
@@ -22,7 +33,11 @@ interface Row {
   updated_at: string
 }
 
+const V2_COLUMNS = ['subject', 'favorite', 'shelf_state', 'notes', 'isbn', 'identifier'] as const
+
 function fromRow(r: Row): CloudBook {
+  // sem shelf_state a linha veio de um projeto que ainda não aplicou a migração v2
+  const v2 = r.shelf_state != null
   return {
     id: r.id,
     title: r.title,
@@ -38,10 +53,16 @@ function fromRow(r: Row): CloudBook {
     coverType: r.cover_type ?? undefined,
     hasCover: r.has_cover,
     updatedAt: r.updated_at,
+    subject: r.subject ?? undefined,
+    favorite: v2 ? Boolean(r.favorite) : undefined,
+    shelf: v2 ? normalizeShelfState(r.shelf_state) : undefined,
+    notes: v2 ? (r.notes ?? []) : undefined,
+    isbn: r.isbn ?? undefined,
+    identifier: r.identifier ?? undefined,
   }
 }
 
-function toRow(userId: string, b: CloudBook): Row {
+function toRow(userId: string, b: CloudBook): Row & RowV2 {
   return {
     user_id: userId,
     id: b.id,
@@ -58,7 +79,25 @@ function toRow(userId: string, b: CloudBook): Row {
     added_at: b.addedAt,
     last_read_at: b.lastReadAt ?? null,
     updated_at: b.updatedAt,
+    subject: b.subject ?? null,
+    favorite: b.favorite ?? false,
+    shelf_state: b.shelf ?? 'active',
+    notes: b.notes ?? [],
+    isbn: b.isbn ?? null,
+    identifier: b.identifier ?? null,
   }
+}
+
+function withoutV2(row: Row): Row {
+  const legacy: Record<string, unknown> = { ...row }
+  for (const column of V2_COLUMNS) delete legacy[column]
+  return legacy as unknown as Row
+}
+
+/** O Supabase recusou a gravação por não conhecer uma das colunas novas? (migração v2 ainda não aplicada) */
+function missingV2Column(error: { code?: string; message?: string }): boolean {
+  if (error.code === 'PGRST204' || error.code === '42703') return true
+  return new RegExp(`(${V2_COLUMNS.join('|')}).*(column|schema cache)|(column|schema cache).*(${V2_COLUMNS.join('|')})`, 'i').test(error.message ?? '')
 }
 
 /**
@@ -69,18 +108,32 @@ export function supabaseCloud(client: SupabaseClient, userId: string): LibraryCl
   const files = () => client.storage.from(BUCKET)
   const epubPath = (id: string) => `${userId}/${id}.epub`
   const coverPath = (id: string) => `${userId}/${id}.cover`
+  // Projeto sem a migração v2: grava só as colunas antigas, para a estante e a posição de leitura
+  // continuarem sincronizando. Assunto, favorito, estante e anotações ficam no aparelho até lá.
+  let legacy = false
 
   return {
     async list() {
       const { data, error } = await client.from(TABLE).select('*').order('added_at', { ascending: true })
       if (error) throw error
-      return ((data ?? []) as Row[]).map(fromRow)
+      const rows = (data ?? []) as Row[]
+      if (rows.length > 0) legacy = rows[0].shelf_state == null
+      return rows.map(fromRow)
     },
 
     async upsert(book) {
-      const { error } = await client.from(TABLE).upsert(toRow(userId, book), { onConflict: 'user_id,id' })
+      const row = toRow(userId, book)
+      if (!legacy) {
+        const { error } = await client.from(TABLE).upsert(row, { onConflict: 'user_id,id' })
+        if (!error) return
+        if (!missingV2Column(error)) throw error
+        legacy = true
+      }
+      const { error } = await client.from(TABLE).upsert(withoutV2(row), { onConflict: 'user_id,id' })
       if (error) throw error
     },
+
+    schemaOutdated: () => legacy,
 
     async uploadFile(id, data) {
       const { error } = await files().upload(epubPath(id), data, { upsert: true, contentType: 'application/epub+zip' })

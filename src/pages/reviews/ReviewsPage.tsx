@@ -125,7 +125,7 @@ export default function ReviewsPage() {
                       {(r.status === 'planned' || r.status === 'postponed') && (
                         <>
                           {r.topic_id && (
-                            <Button size="sm" variant="ghost" icon={<Play className="size-3.5" />} onClick={() => navigate(`/cronometro?materia=${r.subject_id ?? ''}&topico=${r.topic_id}&atividade=review`)}>
+                            <Button size="sm" variant="ghost" icon={<Play className="size-3.5" />} onClick={() => navigate(`/sala?materia=${r.subject_id ?? ''}&topico=${r.topic_id}&atividade=review`)}>
                               Estudar
                             </Button>
                           )}
