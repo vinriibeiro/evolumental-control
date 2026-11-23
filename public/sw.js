@@ -2,7 +2,7 @@
 // - Páginas: rede primeiro (sempre a versão mais nova), cópia em cache como reserva offline.
 // - /assets/*: arquivos com hash no nome, imutáveis → cache primeiro.
 // - Nada de outros domínios (Supabase, APIs) é interceptado.
-const VERSION = 'vlm-v7'
+const VERSION = 'vlm-v8'
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png']
 
 self.addEventListener('install', (event) => {
@@ -36,7 +36,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/') || url.pathname.startsWith('/questoes/')) {
+  if (['/assets/', '/icons/', '/questoes/', '/pdfjs/'].some((path) => url.pathname.startsWith(path))) {
     event.respondWith(
       caches.match(req).then(
         (hit) =>

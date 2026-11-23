@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { ToastProvider } from '@/components/ui/feedback'
+import type { OfflineCoursePdf } from '@/services/drivePdf'
 import type { CourseNode } from '@/types/db'
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
   save: vi.fn(),
   store: vi.fn(),
+  offline: undefined as OfflineCoursePdf | undefined,
 }))
 
 vi.mock('@/hooks/useCourses', () => ({ useCourses: () => ({
@@ -27,7 +30,7 @@ vi.mock('@/lib/googleAuth', async (importOriginal) => ({
   startDriveRedirect: mocks.redirect,
   saveClientId: mocks.save,
 }))
-vi.mock('@/services/drivePdf', () => ({ DrivePdfStore: class {
+vi.mock('@/services/drivePdf', () => ({ readOfflineCoursePdf: async () => mocks.offline, DrivePdfStore: class {
   constructor(...args: unknown[]) { mocks.store(...args) }
 } }))
 vi.mock('@/pages/library/PdfReaderPage', () => ({ PdfReader: (props: { documentId: string; backTo: string; backLabel: string }) => <div data-testid="pdf-reader">{props.documentId} {props.backTo} {props.backLabel}</div> }))
@@ -36,21 +39,22 @@ import CoursePdfReaderPage from '../CoursePdfReaderPage'
 
 const clientId = '123456789012-abcdefgh12345678.apps.googleusercontent.com'
 const pdf = () => ({ id: 'pdf-one', kind: 'item', title: 'Apostila SQL.pdf', custom_title: null, drive_id: 'drive_pdf_reference_123456789', mime_type: 'application/pdf', resource_key: null, status: 'available' } as CourseNode)
-const renderAt = (path = '/cursos/course-one/pdf/pdf-one') => render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/cursos/:id/pdf/:itemId" element={<CoursePdfReaderPage />} /></Routes></MemoryRouter>)
+const renderAt = (path = '/cursos/course-one/pdf/pdf-one') => render(<ToastProvider><MemoryRouter initialEntries={[path]}><Routes><Route path="/cursos/:id/pdf/:itemId" element={<CoursePdfReaderPage />} /></Routes></MemoryRouter></ToastProvider>)
 
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.token = null
   mocks.clientId = null
   mocks.items = [pdf()]
+  mocks.offline = undefined
   mocks.request.mockResolvedValue('read-token-from-user-click')
 })
 afterEach(cleanup)
 
 describe('PDF dos cursos — autorização e referência', () => {
-  it('exibe o material real e explica o escopo sem abrir autorização automaticamente', () => {
+  it('exibe o material real e explica o escopo sem abrir autorização automaticamente', async () => {
     renderAt()
-    expect(screen.getByRole('heading', { name: 'Apostila SQL.pdf' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Apostila SQL.pdf' })).toBeInTheDocument()
     expect(screen.getByText(/acesso de leitura aos arquivos da sua conta/)).toBeInTheDocument()
     expect(screen.getByLabelText('ID público do cliente OAuth do Google')).toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalled()
@@ -58,9 +62,9 @@ describe('PDF dos cursos — autorização e referência', () => {
     expect(screen.getByRole('link', { name: 'Usar visualizador padrão' })).toHaveAttribute('href', '/cursos/course-one?item=pdf-one')
   })
 
-  it('o botão principal leva esta aba ao Google (sem janela) e marca a volta para este PDF', () => {
+  it('o botão principal leva esta aba ao Google (sem janela) e marca a volta para este PDF', async () => {
     renderAt()
-    fireEvent.change(screen.getByLabelText('ID público do cliente OAuth do Google'), { target: { value: clientId } })
+    fireEvent.change(await screen.findByLabelText('ID público do cliente OAuth do Google'), { target: { value: clientId } })
     fireEvent.click(screen.getByRole('button', { name: 'Autorizar leitura do PDF' }))
     expect(mocks.save).toHaveBeenCalledWith(clientId)
     expect(mocks.redirect).toHaveBeenCalledWith(clientId, 'https://www.googleapis.com/auth/drive.readonly', undefined, '/cursos/course-one/pdf/pdf-one')
@@ -70,33 +74,33 @@ describe('PDF dos cursos — autorização e referência', () => {
 
   it('solicita acesso em janela só após o clique e abre o mesmo PDF sem importá-lo na estante', async () => {
     renderAt()
-    fireEvent.change(screen.getByLabelText('ID público do cliente OAuth do Google'), { target: { value: clientId } })
-    fireEvent.click(screen.getByRole('button', { name: 'Autorizar em janela separada' }))
+    fireEvent.change(await screen.findByLabelText('ID público do cliente OAuth do Google'), { target: { value: clientId } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Autorizar em janela separada' }))
     expect(await screen.findByTestId('pdf-reader')).toHaveTextContent('drive_pdf_reference_123456789')
     expect(mocks.request).toHaveBeenCalledWith(clientId)
     expect(mocks.store).toHaveBeenCalledWith('account-one', mocks.items[0], 'read-token-from-user-click')
     expect(screen.getByTestId('pdf-reader')).toHaveTextContent('/cursos/course-one?item=pdf-one')
   })
 
-  it('reutiliza apenas o token válido fornecido pelo cache em memória', () => {
+  it('reutiliza apenas o token válido fornecido pelo cache em memória', async () => {
     mocks.token = 'valid-memory-token'
     renderAt()
-    expect(screen.getByTestId('pdf-reader')).toBeInTheDocument()
+    expect(await screen.findByTestId('pdf-reader')).toBeInTheDocument()
     expect(mocks.request).not.toHaveBeenCalled()
     expect(mocks.store).toHaveBeenCalledWith('account-one', mocks.items[0], 'valid-memory-token')
   })
 
-  it('recusa item que não pertence ao curso solicitado', () => {
+  it('recusa item que não pertence ao curso solicitado', async () => {
     renderAt('/cursos/another-course/pdf/pdf-one')
-    expect(screen.getByRole('heading', { name: 'PDF não encontrado neste curso' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'PDF não encontrado neste curso' })).toBeInTheDocument()
     expect(mocks.store).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
-  it('recusa PDF ausente e não oferece autorização para um item indisponível', () => {
+  it('recusa PDF ausente e não oferece autorização para um item indisponível', async () => {
     mocks.items[0].status = 'missing'
     renderAt()
-    expect(screen.getByRole('heading', { name: 'PDF indisponível no Drive' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'PDF indisponível no Drive' })).toBeInTheDocument()
     expect(mocks.store).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalled()
   })
@@ -105,8 +109,16 @@ describe('PDF dos cursos — autorização e referência', () => {
     mocks.clientId = clientId
     mocks.request.mockRejectedValue(new Error('Autorização cancelada pela pessoa.'))
     renderAt()
-    fireEvent.click(screen.getByRole('button', { name: 'Autorizar em janela separada' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Autorizar em janela separada' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Autorização cancelada pela pessoa.')
     expect(screen.queryByTestId('pdf-reader')).not.toBeInTheDocument()
+  })
+
+  it('abre a cópia salva sem autorização do Google', async () => {
+    mocks.offline = { route: '/cursos/course-one/pdf/pdf-one', node: mocks.items[0], key: 'version', bytes: new ArrayBuffer(1) }
+    renderAt()
+    expect(await screen.findByTestId('pdf-reader')).toBeInTheDocument()
+    expect(mocks.store).toHaveBeenCalledWith('account-one', mocks.items[0], null, undefined, mocks.offline)
+    expect(mocks.request).not.toHaveBeenCalled()
   })
 })

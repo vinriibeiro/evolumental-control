@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import Dexie from 'dexie'
 import { webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DrivePdfStore } from '../drivePdf'
+import { DrivePdfStore, readOfflineCoursePdf } from '../drivePdf'
 import { PDF_MAX_FILE_BYTES, type PdfAnnotation } from '../pdfLibrary'
 import type { CourseNode } from '@/types/db'
 import { PDFDocument, PDFDict, PDFHexString, PDFName } from 'pdf-lib'
@@ -45,7 +45,7 @@ describe('PDF do Drive em memória', () => {
     }
     const inspection = new Dexie(value.dbName)
     await inspection.open()
-    expect(inspection.tables.map((table) => table.name)).toEqual(['records'])
+    expect(await inspection.table('offline').count()).toBe(0)
     const rows = await inspection.table('records').toArray()
     expect(rows).toHaveLength(1)
     const serialized = JSON.stringify(rows)
@@ -53,6 +53,25 @@ describe('PDF do Drive em memória', () => {
     expect(serialized).not.toContain('Versão A')
     expect(Object.keys(rows[0]).sort()).toEqual(['book', 'driveId', 'key', 'revision'])
     inspection.close()
+  })
+
+  it('salva sob solicitação e retoma posição e visitas sem token nem rede', async () => {
+    const scope = `drive-pdf-test-${++serial}`
+    const route = '/cursos/course/pdf/item'
+    const original = store(client(), scope)
+    await original.file(node.drive_id)
+    expect(await readOfflineCoursePdf(scope, route)).toBeUndefined()
+    await original.saveOffline(route)
+    await original.update(node.drive_id, { pageCount: 4, currentPage: 3, visitedPages: [3, 1, 3, 5] })
+    const copy = await readOfflineCoursePdf(scope, route)
+    const fetcher = vi.fn<typeof fetch>()
+    const reopened = new DrivePdfStore(scope, node, null, fetcher, copy)
+    stores.push(reopened)
+    expect(await reopened.get(node.drive_id)).toMatchObject({ currentPage: 3, visitedPages: [1, 3] })
+    expect(Array.from(new Uint8Array((await reopened.file(node.drive_id))!))).toEqual(Array.from(bytes()))
+    expect(fetcher).not.toHaveBeenCalled()
+    await reopened.removeOffline(route)
+    expect(await readOfflineCoursePdf(scope, route)).toBeUndefined()
   })
 
   it('retoma marcas da mesma versão, isola contas e não aplica marcas em conteúdo alterado', async () => {

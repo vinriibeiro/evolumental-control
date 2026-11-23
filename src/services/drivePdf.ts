@@ -1,17 +1,29 @@
-/** O PDF permanece no Drive: somente referências, posição e marcas entram no IndexedDB. */
+/** Grava posição e marcas por versão. Os bytes ficam no IndexedDB só a pedido do usuário. */
 import Dexie, { type Table } from 'dexie'
 import { isDriveId, isResourceKey } from '@/lib/drive'
-import { PDF_CONFLICT_MESSAGE, PDF_MAX_FILE_BYTES, type PdfBook } from '@/services/pdfLibrary'
+import { PDF_CONFLICT_MESSAGE, PDF_MAX_FILE_BYTES, type PdfBook, type PdfReadingPatch } from '@/services/pdfLibrary'
 import type { CourseNode } from '@/types/db'
 
-type ReadingPatch = Partial<Pick<PdfBook, 'currentPage' | 'pageCount' | 'annotations' | 'bookmarks' | 'lastReadAt'>>
 interface RecordRow { key: string; driveId: string; book: PdfBook; revision?: string }
+export interface OfflineCoursePdf { route: string; node: CourseNode; key: string; bytes: ArrayBuffer }
 class DrivePdfDb extends Dexie {
   records!: Table<RecordRow, string>
-  constructor(name: string) { super(name); this.version(1).stores({ records: 'key, driveId' }) }
+  offline!: Table<OfflineCoursePdf, string>
+  constructor(name: string) {
+    super(name)
+    this.version(1).stores({ records: 'key, driveId' })
+    this.version(2).stores({ offline: 'route' })
+  }
 }
 interface LoadedPdf { key: string; book: PdfBook; bytes: ArrayBuffer; revision: string | null }
 const positive = (value: number) => Number.isSafeInteger(value) && value > 0
+const dbName = (scope: string) => `${scope}-drive-pdf`
+
+export async function readOfflineCoursePdf(scope: string, route: string): Promise<OfflineCoursePdf | undefined> {
+  const db = new DrivePdfDb(dbName(scope))
+  try { return await db.offline.get(route) }
+  finally { db.close() }
+}
 
 export class DrivePdfStore {
   readonly dbName: string
@@ -19,11 +31,11 @@ export class DrivePdfStore {
   private loaded: LoadedPdf | null = null
   private loading: { controller: AbortController; promise: Promise<LoadedPdf> } | null = null
 
-  constructor(private readonly scope: string, private readonly node: CourseNode, private readonly token: string, private readonly fetchImpl: typeof fetch = (...args) => fetch(...args)) {
+  constructor(scope: string, private readonly node: CourseNode, private readonly token: string | null, private readonly fetchImpl: typeof fetch = (...args) => fetch(...args), private readonly offline?: OfflineCoursePdf) {
     if (!scope.trim() || !isDriveId(node.drive_id) || node.mime_type !== 'application/pdf' || node.kind !== 'item') throw new Error('Este item não é uma referência PDF válida do Drive.')
     if (node.resource_key != null && !isResourceKey(node.resource_key)) throw new Error('A chave de recurso do PDF é inválida.')
-    if (!token.trim()) throw new Error('Autorize a leitura de PDFs com sua conta Google.')
-    this.dbName = `${this.scope}-drive-pdf`
+    if (!token?.trim() && !offline) throw new Error('Autorize a leitura de PDFs com sua conta Google.')
+    this.dbName = dbName(scope)
     this.db = new DrivePdfDb(this.dbName)
   }
 
@@ -61,7 +73,8 @@ export class DrivePdfStore {
     if (this.loaded) return Promise.resolve(this.loaded)
     if (this.loading) return this.loading.promise
     const controller = new AbortController()
-    const promise = this.fetchPdf(controller.signal).then((loaded) => {
+    const source = this.offline ? this.loadOffline(this.offline) : this.fetchPdf(controller.signal)
+    const promise = source.then((loaded) => {
       controller.signal.throwIfAborted()
       if (this.loading?.controller === controller) this.loaded = loaded
       return loaded
@@ -69,6 +82,23 @@ export class DrivePdfStore {
     this.loading = { controller, promise }
     return promise
   }
+
+  private async loadOffline(copy: OfflineCoursePdf): Promise<LoadedPdf> {
+    const record = await this.db.records.get(copy.key)
+    if (!record || copy.node.drive_id !== this.node.drive_id || record.driveId !== this.node.drive_id) {
+      throw new Error('Esta cópia offline não está disponível. Remova a cópia e abra o arquivo pelo Drive.')
+    }
+    return { key: record.key, book: record.book, revision: record.revision ?? null, bytes: copy.bytes }
+  }
+
+  async saveOffline(route: string): Promise<OfflineCoursePdf> {
+    const { key, bytes } = await this.load()
+    const copy = { route, node: this.node, key, bytes }
+    await this.db.offline.put(copy)
+    return copy
+  }
+
+  async removeOffline(route: string): Promise<void> { await this.db.offline.delete(route) }
 
   private async fetchPdf(signal: AbortSignal): Promise<LoadedPdf> {
     const base = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(this.node.drive_id)}`
@@ -120,9 +150,11 @@ export class DrivePdfStore {
   async get(id: string): Promise<PdfBook | undefined> { return id === this.node.drive_id ? (await this.load()).book : undefined }
   async file(id: string): Promise<ArrayBuffer | undefined> { return id === this.node.drive_id ? (await this.load()).bytes : undefined }
 
-  async update(id: string, patch: ReadingPatch): Promise<void> {
+  async update(id: string, patch: PdfReadingPatch): Promise<void> {
     if (id !== this.node.drive_id) throw new Error('Referência PDF incorreta.')
-    const loaded = await this.load()
+    // Uma gravação enfileirada após o leitor fechar jamais deve baixar o arquivo novamente.
+    const loaded = this.loaded
+    if (!loaded) throw new Error('Abra o PDF antes de salvar o progresso.')
     const next = await this.db.transaction('rw', this.db.records, async () => {
       const row = await this.db.records.get(loaded.key)
       if (!row) throw new Error('A referência deste PDF não está mais disponível.')
@@ -141,6 +173,7 @@ export class DrivePdfStore {
       if (bookmarks.some((number) => !positive(number) || number > count)) throw new Error('Um marcador aponta para uma página inexistente.')
       if (patch.lastReadAt != null && !Number.isFinite(Date.parse(patch.lastReadAt))) throw new Error('A data de leitura é inválida.')
       const book: PdfBook = { ...row.book, pageCount: count, currentPage: Math.min(page, count), annotations, bookmarks: [...new Set(bookmarks)].sort((a, b) => a - b), updatedAt: new Date().toISOString() }
+      if (patch.visitedPages != null) book.visitedPages = [...new Set(patch.visitedPages.filter((number) => positive(number) && number <= count))].sort((a, b) => a - b)
       if (patch.lastReadAt != null) book.lastReadAt = patch.lastReadAt
       const revision = crypto.randomUUID()
       await this.db.records.put({ ...row, book, revision })
