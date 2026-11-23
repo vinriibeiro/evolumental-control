@@ -26,6 +26,13 @@ export class FakeCloud implements LibraryCloud {
     this.books.set(book.id, structuredClone(book))
   }
 
+  async resetReadingProgress(updatedAt: string) {
+    this.guard('resetReadingProgress')
+    for (const [id, book] of this.books) {
+      this.books.set(id, { ...book, lastReadAt: undefined, location: undefined, progress: 0, updatedAt })
+    }
+  }
+
   async uploadFile(id: string, data: ArrayBuffer) {
     this.guard('uploadFile')
     if (this.failUploads) throw new Error('upload recusado')

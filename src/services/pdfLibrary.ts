@@ -151,6 +151,23 @@ export class PdfLibrary {
     return (await this.db.files.get(id))?.data
   }
 
+  async resetReadingProgress(): Promise<void> {
+    const updatedAt = new Date().toISOString()
+    const resetIds: string[] = []
+    await this.db.transaction('rw', this.db.books, this.db.revisions, async () => {
+      await this.db.books.toCollection().modify((book) => {
+        if (!book.lastReadAt && book.currentPage === 1 && !book.visitedPages?.length) return
+        delete book.lastReadAt
+        book.currentPage = 1
+        book.visitedPages = []
+        book.updatedAt = updatedAt
+        resetIds.push(book.id)
+      })
+      await this.db.revisions.bulkPut(resetIds.map((id) => ({ id, revision: crypto.randomUUID() })))
+    })
+    for (const id of resetIds) this.knownRevisions.delete(id)
+  }
+
   /**
    * Lê e valida o arquivo sem guardar nada. O id é o SHA-256 do conteúdo: dois arquivos idênticos
    * têm o mesmo id, seja qual for o nome do arquivo.

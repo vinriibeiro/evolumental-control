@@ -135,6 +135,13 @@ export function supabaseCloud(client: SupabaseClient, userId: string): LibraryCl
 
     schemaOutdated: () => legacy,
 
+    async resetReadingProgress(updatedAt) {
+      const { error } = await client.from(TABLE)
+        .update({ location: null, last_read_at: null, progress: 0, updated_at: updatedAt })
+        .eq('user_id', userId)
+      if (error) throw error
+    },
+
     async uploadFile(id, data) {
       const { error } = await files().upload(epubPath(id), data, { upsert: true, contentType: 'application/epub+zip' })
       if (error) throw error

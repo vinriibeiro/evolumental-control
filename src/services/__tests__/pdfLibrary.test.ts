@@ -24,6 +24,18 @@ afterEach(async () => {
 })
 
 describe('biblioteca local de PDFs', () => {
+  it('zera a posição e as páginas visitadas sem perder marcas nem bytes', async () => {
+    const library = shelf()
+    const file = pdfFile()
+    const book = await library.add(file)
+    await library.update(book.id, { pageCount: 5, currentPage: 3, visitedPages: [1, 3], annotations: [mark], bookmarks: [2], lastReadAt: '2026-11-22T12:00:00Z' })
+    await library.resetReadingProgress()
+    const reset = await library.get(book.id)
+    expect(reset).toMatchObject({ currentPage: 1, visitedPages: [], annotations: [mark], bookmarks: [2] })
+    expect(reset?.lastReadAt).toBeUndefined()
+    expect(new Uint8Array((await library.file(book.id))!)).toEqual(new Uint8Array(await file.arrayBuffer()))
+  })
+
   it('guarda o arquivo original com ID SHA256 e metadados iniciais', async () => {
     const library = shelf()
     const file = pdfFile()

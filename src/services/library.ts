@@ -131,6 +131,7 @@ export interface CloudBook {
 export interface LibraryCloud {
   list(): Promise<CloudBook[]>
   upsert(book: CloudBook): Promise<void>
+  resetReadingProgress(updatedAt: string): Promise<void>
   uploadFile(id: string, data: ArrayBuffer): Promise<void>
   uploadCover(id: string, data: ArrayBuffer, type: string): Promise<void>
   downloadFile(id: string): Promise<ArrayBuffer>
@@ -659,6 +660,18 @@ export class Library {
 
   async saveProgress(id: string, location: string, progress: number): Promise<void> {
     await this.touch(id, { location, progress: Math.max(0, Math.min(100, Math.round(progress))), lastReadAt: now() })
+  }
+
+  async resetReadingProgress(): Promise<void> {
+    const updatedAt = now()
+    await this.cloud?.resetReadingProgress(updatedAt)
+    await this.db.books.toCollection().modify((book) => {
+      if (!book.lastReadAt && !book.location && book.progress === 0) return
+      delete book.lastReadAt
+      delete book.location
+      book.progress = 0
+      book.updatedAt = updatedAt
+    })
   }
 
   /** Liga/desliga o marcador na posição indicada. Devolve a lista nova de marcadores. */

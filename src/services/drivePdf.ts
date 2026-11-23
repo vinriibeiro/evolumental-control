@@ -25,6 +25,24 @@ export async function readOfflineCoursePdf(scope: string, route: string): Promis
   finally { db.close() }
 }
 
+export async function resetDrivePdfReadingProgress(scope: string): Promise<void> {
+  const db = new DrivePdfDb(dbName(scope))
+  const updatedAt = new Date().toISOString()
+  try {
+    await db.records.toCollection().modify((row) => {
+      const book = row.book
+      if (!book.lastReadAt && book.currentPage === 1 && !book.visitedPages?.length) return
+      delete book.lastReadAt
+      book.currentPage = 1
+      book.visitedPages = []
+      book.updatedAt = updatedAt
+      row.revision = crypto.randomUUID()
+    })
+  } finally {
+    db.close()
+  }
+}
+
 export class DrivePdfStore {
   readonly dbName: string
   private readonly db: DrivePdfDb

@@ -12,6 +12,9 @@ import { Card, Segmented } from '@/components/ui/layout'
 import { Spinner, useToast } from '@/components/ui/feedback'
 import { Modal } from '@/components/ui/Modal'
 import { fetchAll, fetchAllSessions, invalidateTables } from '@/hooks/data'
+import { useLibrary } from '@/hooks/useLibrary'
+import { usePdfLibrary } from '@/hooks/usePdfLibrary'
+import { resetDrivePdfReadingProgress } from '@/services/drivePdf'
 import { planImport, runImport, type ImportPlan } from '@/services/importData'
 import { useProfile, useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useSpeech } from '@/hooks/useSpeech'
@@ -323,6 +326,8 @@ function SrsSection({ value, onSave }: { value: SrsParams; onSave: (v: SrsParams
 
 function DataSection() {
   const backend = useBackend()
+  const library = useLibrary()
+  const pdfLibrary = usePdfLibrary()
   const auth = useAuth()
   const toast = useToast()
   const qc = useQueryClient()
@@ -330,7 +335,7 @@ function DataSection() {
   const [busy, setBusy] = useState(false)
   const [plan, setPlan] = useState<{ name: string; plan: ImportPlan } | null>(null)
   const [progress, setProgress] = useState<[number, number] | null>(null)
-  const [danger, setDanger] = useState<'reset' | 'delete' | null>(null)
+  const [danger, setDanger] = useState<'reset' | 'reading' | 'delete' | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const exportAll = async () => {
@@ -397,6 +402,10 @@ function DataSection() {
         await invalidateTables(qc, TABLES)
         toast.success('Progresso zerado. Seu conteúdo (matérias, vídeos, flashcards, livros, áudios e questões) foi mantido.')
         navigate('/')
+      } else if (kind === 'reading') {
+        await library.resetReadingProgress()
+        await Promise.all([pdfLibrary.resetReadingProgress(), resetDrivePdfReadingProgress(library.dbName)])
+        toast.success('Progresso de leitura zerado. Arquivos, marcações e planejamento foram mantidos.')
       } else if (kind === 'delete') {
         await backend.deleteAccount()
         await auth.signOut()
@@ -406,6 +415,7 @@ function DataSection() {
     } catch (e) {
       toast.error(e)
     } finally {
+      if (kind === 'reading') await qc.invalidateQueries({ queryKey: ['library'] })
       setBusy(false)
     }
   }
@@ -434,13 +444,20 @@ function DataSection() {
             <div className="min-w-0 flex-1 basis-64">
               <p className="text-sm font-medium text-ink">Zerar todos os dados</p>
               <p className="text-xs text-muted">
-                Apaga sessões e horas, cronogramas, ciclos, revisões e metas, zera o progresso dos tópicos e volta as preferências ao padrão. Mantém matérias, tópicos, vídeos e links, flashcards, mapas, livros, áudios e questões.
+                Apaga sessões e horas, cronogramas, ciclos, revisões e metas, zera o progresso dos tópicos e volta as preferências ao padrão. O progresso de leitura tem seu próprio comando abaixo.
                 {auth.mode === 'supabase' ? ' Sua conta e seu login continuam.' : ''}
               </p>
             </div>
             <Button variant="danger" onClick={() => setDanger('reset')} disabled={busy}>
               Zerar tudo
             </Button>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            <div className="min-w-0 flex-1 basis-64">
+              <p className="text-sm font-medium text-ink">Zerar progresso de leitura</p>
+              <p className="text-xs text-muted">Volta ao início de todos os EPUBs e PDFs, incluindo os PDFs de cursos neste navegador. Mantém arquivos, marcadores, anotações e planejamento.</p>
+            </div>
+            <Button variant="danger" onClick={() => setDanger('reading')} disabled={busy}>Zerar leituras</Button>
           </div>
           {auth.mode === 'supabase' && (
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
@@ -499,11 +516,13 @@ function DataSection() {
         onClose={() => setDanger(null)}
         onConfirm={confirmDanger}
         word={danger === 'delete' ? 'EXCLUIR' : 'ZERAR'}
-        title={danger === 'delete' ? 'Excluir sua conta?' : 'Zerar todos os dados?'}
+        title={danger === 'delete' ? 'Excluir sua conta?' : danger === 'reading' ? 'Zerar todas as leituras?' : 'Zerar todos os dados?'}
         message={
           danger === 'delete'
             ? 'Sua conta e todos os dados serão apagados para sempre. Não é possível desfazer.'
-            : 'Horas, sessões, cronogramas, ciclos, revisões e metas serão apagados para sempre, e os tópicos voltam a "não iniciado". Matérias, vídeos, flashcards, mapas, livros, áudios e questões não são apagados. Não é possível desfazer.'
+            : danger === 'reading'
+              ? 'A posição, o percentual e o histórico de páginas abertas serão apagados. Os livros e PDFs voltarão ao início. Arquivos, marcações e planejamento serão mantidos.'
+              : 'Horas, sessões, cronogramas, ciclos, revisões e metas serão apagados para sempre, e os tópicos voltam a "não iniciado". Seu conteúdo e seu progresso de leitura ficam guardados. Não é possível desfazer.'
         }
       />
     </>

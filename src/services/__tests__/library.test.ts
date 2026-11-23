@@ -39,6 +39,29 @@ describe('leitura de metadados do EPUB', () => {
 })
 
 describe('estante local (sem nuvem)', () => {
+  it('zera a leitura na nuvem e neste aparelho sem apagar o livro ou as notas', async () => {
+    const cloud = new FakeCloud()
+    const library = shelf(cloud)
+    const other = shelf(cloud)
+    const result = await library.add(await epubFile('leitura.epub', { chapter: 'leitura' }))
+    const [book] = await library.list()
+    expect(result.status).toBe('added')
+    await library.saveProgress(book.id, 'epubcfi(/6/2)', 24)
+    const notes = await library.saveNotes(book.id, [{ id: 'note', text: 'Uma anotação', createdAt: '2026-11-22T12:00:00Z' }])
+    await other.sync()
+    expect((await other.list())[0].progress).toBe(24)
+    await wait()
+    await library.resetReadingProgress()
+    await other.sync()
+    for (const device of [library, other]) {
+      const [reset] = await device.list()
+      expect(reset).toMatchObject({ id: book.id, progress: 0, notes })
+      expect(reset.location).toBeUndefined()
+      expect(reset.lastReadAt).toBeUndefined()
+      expect((await device.open(book.id)).byteLength).toBeGreaterThan(100)
+    }
+  })
+
   it('adiciona o livro com capa e guarda o arquivo', async () => {
     const lib = shelf()
     const r = await lib.add(await epubFile('a.epub', { title: 'Livro A', author: 'Autora', cover: true, chapter: 'a' }))

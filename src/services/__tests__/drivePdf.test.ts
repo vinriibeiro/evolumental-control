@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import Dexie from 'dexie'
 import { webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DrivePdfStore, readOfflineCoursePdf } from '../drivePdf'
+import { DrivePdfStore, readOfflineCoursePdf, resetDrivePdfReadingProgress } from '../drivePdf'
 import { PDF_MAX_FILE_BYTES, type PdfAnnotation } from '../pdfLibrary'
 import type { CourseNode } from '@/types/db'
 import { PDFDocument, PDFDict, PDFHexString, PDFName } from 'pdf-lib'
@@ -87,6 +87,22 @@ describe('PDF do Drive em memória', () => {
     expect((await otherAccount.get(node.drive_id))?.annotations).toEqual([])
     const oldAgain = store(client(), scope)
     expect((await oldAgain.get(node.drive_id))?.annotations).toEqual([mark])
+  })
+
+  it('zera a posição do PDF do curso e mantém a cópia offline e as marcações', async () => {
+    const scope = `drive-pdf-test-${++serial}`
+    const route = '/cursos/course/pdf/item'
+    const original = store(client(), scope)
+    await original.get(node.drive_id)
+    await original.update(node.drive_id, { pageCount: 4, currentPage: 2, visitedPages: [1, 2], annotations: [mark], bookmarks: [2], lastReadAt: '2026-11-22T12:00:00Z' })
+    await original.saveOffline(route)
+    await resetDrivePdfReadingProgress(scope)
+    await expect(original.update(node.drive_id, { currentPage: 2 })).rejects.toThrow(/alterado em outra aba/)
+    const reopened = new DrivePdfStore(scope, node, null, vi.fn<typeof fetch>(), await readOfflineCoursePdf(scope, route))
+    stores.push(reopened)
+    const reset = await reopened.get(node.drive_id)
+    expect(reset).toMatchObject({ currentPage: 1, visitedPages: [], annotations: [mark], bookmarks: [2] })
+    expect(reset?.lastReadAt).toBeUndefined()
   })
 
   it.each([401, 403, 404])('trata HTTP %i sem salvar referências incompletas', async (status) => {
