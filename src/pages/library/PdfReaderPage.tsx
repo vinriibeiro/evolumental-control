@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -21,6 +21,7 @@ import {
   RectangleVertical,
   ScrollText,
   Search,
+  Settings2,
   Undo2,
   X,
   ZoomIn,
@@ -34,13 +35,14 @@ import { Modal } from '@/components/ui/Modal'
 import { ErrorState, Spinner, useToast } from '@/components/ui/feedback'
 import { usePdfLibrary } from '@/hooks/usePdfLibrary'
 import { downloadBlob } from '@/lib/download'
-import { markVisited, navigationProgress, seedVisitedPages } from '@/lib/library'
+import { markVisited, navigationProgress, READER_COLORS, seedVisitedPages, tapZone } from '@/lib/library'
 import { cn } from '@/lib/cn'
 import type { PdfAnnotation, PdfBook, PdfPoint, PdfReadingPatch, PdfShelfPatch } from '@/services/pdfLibrary'
 import type { SessionSource } from '@/types/db'
 import { PdfDocumentView, type PdfDocumentHandle, type PdfViewMode } from './PdfDocumentView'
 import { searchKey, type PdfTool } from './PdfPageCanvas'
 import { PdfNotesPanel } from './PdfNotesPanel'
+import { PdfReadingText } from './PdfReadingText'
 import { renderPdfCover } from './pdfCover'
 import { StudyShortcut } from './StudyShortcut'
 import './pdf-reader.css'
@@ -62,12 +64,15 @@ const TOOLS = [
 ] as const
 const GUIDANCE: Record<PdfTool, string> = {
   read: '',
-  highlight: 'Selecione um trecho para destacar. No celular, selecione e toque em “Marcar seleção”.',
+  highlight: 'Arraste sobre o trecho para destacar. Toque de novo no marca-texto para voltar a rolar.',
   ink: 'Desenhe sobre a página com mouse, caneta ou toque.',
   note: 'Toque em um ponto da página para prender uma nota ali.',
 }
 
 const MODE_KEY = 'vlm.leitor-pdf.modo'
+const APPEARANCE_KEY = 'vlm.leitor-pdf.aparencia'
+const APPEARANCES = { claro: 'Claro', sepia: 'Sépia', noite: 'Noite' } as const
+type Appearance = keyof typeof APPEARANCES
 const MAX_HITS = 500
 /** Tempo que uma página precisa ficar aberta para contar como visitada e virar a posição salva. */
 const DWELL_MS = 700
@@ -99,16 +104,27 @@ interface PdfReaderProps {
   backLabel?: string
   sourceLabel?: string
   storageNotice?: string
+  startInFocus?: boolean
+  documentActions?: ReactNode
+  recovery?: ReactNode
   /** Liga o atalho "Iniciar/Continuar estudo" ao cronômetro do app, com este PDF como origem da sessão. */
   studySource?: (book: PdfBook) => SessionSource
 }
 
-function loadMode(): PdfViewMode {
+function loadMode(fallback: PdfViewMode): PdfViewMode {
   try {
-    return localStorage.getItem(MODE_KEY) === 'single' ? 'single' : 'continuous'
-  } catch {
-    return 'continuous'
-  }
+    const value = localStorage.getItem(MODE_KEY)
+    if (value === 'single' || value === 'continuous') return value
+  } catch { /* usa o modo padrão */ }
+  return fallback
+}
+
+function loadAppearance(key: string, fallback: Appearance): Appearance {
+  try {
+    const value = localStorage.getItem(key)
+    if (value === 'claro' || value === 'sepia' || value === 'noite') return value
+  } catch { /* leitura continua com o tema padrão */ }
+  return fallback
 }
 
 const clampZoom = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 10) / 10))
@@ -133,6 +149,9 @@ export function PdfReader({
   backLabel = 'Voltar à biblioteca',
   sourceLabel = 'Biblioteca / Leitor de PDF',
   storageNotice = 'Arquivo e marcas ficam neste navegador. Exporte uma cópia para guardar ou compartilhar.',
+  startInFocus = false,
+  documentActions,
+  recovery,
   studySource,
 }: PdfReaderProps) {
   const qc = useQueryClient()
@@ -152,7 +171,7 @@ export function PdfReader({
 
   const [tool, setTool] = useState<PdfTool>('read')
   const [color, setColor] = useState(COLORS[0].value)
-  const [mode, setMode] = useState<PdfViewMode>(loadMode)
+  const [mode, setMode] = useState<PdfViewMode>(() => loadMode(startInFocus ? 'single' : 'continuous'))
   const [fit, setFit] = useState<Fit>('width')
   const [manualZoom, setManualZoom] = useState(1)
   const [areaSize, setAreaSize] = useState({ width: 700, height: 600 })
@@ -167,8 +186,15 @@ export function PdfReader({
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // no celular o painel começa fechado, para a página ocupar a tela
-  const [panel, setPanel] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(min-width: 1024px)').matches))
-  const [focus, setFocus] = useState(false)
+  const [panel, setPanel] = useState(() => !startInFocus && Boolean(window.matchMedia?.('(min-width: 1024px)').matches))
+  const [focus, setFocus] = useState(startInFocus)
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [controlsHidden, setControlsHidden] = useState(false)
+  const appearanceKey = startInFocus ? `${APPEARANCE_KEY}.cursos` : APPEARANCE_KEY
+  const [appearance, setAppearance] = useState(() => loadAppearance(appearanceKey, startInFocus ? 'sepia' : 'claro'))
+  const [textMode, setTextMode] = useState(false)
+  const [fontSize, setFontSize] = useState(20)
+  const touch = useRef<{ id: number; x: number; y: number; time: number } | null>(null)
   const [history, setHistory] = useState<PdfAnnotation[][]>([])
   const [note, setNote] = useState<{ page: number; point: PdfPoint } | null>(null)
   const [noteText, setNoteText] = useState('')
@@ -309,13 +335,11 @@ export function PdfReader({
     return () => {
       cancelled = true
       invalidateSearch()
+      const current = latest.current
       if (persistTimer.current) {
         clearTimeout(persistTimer.current)
         persistTimer.current = null
-        const current = latest.current
-        // Posição ainda não gravada ao sair. Só na estante local: no Drive, gravar depois de cancelar
-        // a carga faria o PDF ser baixado de novo.
-        if (current && !library.cancel) {
+        if (current) {
           const target = Math.min(pageRef.current, current.pageCount)
           const leaving: PdfReadingPatch = { currentPage: target, lastReadAt: new Date().toISOString(), visitedPages: markVisited(current.visitedPages, target, current.pageCount) }
           queue.current = queue.current
@@ -325,11 +349,22 @@ export function PdfReader({
         }
       }
       destroy?.()
-      library.cancel?.()
+      if (current) void queue.current.finally(() => library.cancel?.())
+      else library.cancel?.()
       bytes.current = null
       latest.current = null
     }
   }, [id, library, qc, retry, showPage])
+
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState !== 'hidden' || !persistTimer.current) return
+      clearTimeout(persistTimer.current)
+      persistPage()
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    return () => document.removeEventListener('visibilitychange', onHidden)
+  }, [persistPage])
 
   useEffect(() => {
     if (saveStatus === 'saved') return
@@ -350,7 +385,7 @@ export function PdfReader({
       const style = getComputedStyle(host)
       const sides = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0) + 2
       const ends = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0) + 2
-      const next = { width: Math.min(1400, Math.max(220, Math.floor(host.clientWidth - sides))), height: Math.max(200, Math.floor(host.clientHeight - ends)) }
+      const next = { width: Math.min(focus ? 820 : 1400, Math.max(220, Math.floor(host.clientWidth - sides))), height: Math.max(200, Math.floor(host.clientHeight - ends)) }
       setAreaSize((current) => (current.width === next.width && current.height === next.height ? current : next))
     }
     resize()
@@ -391,11 +426,13 @@ export function PdfReader({
 
   const exitFocus = useCallback(() => {
     setFocus(false)
+    setControlsHidden(false)
     if (typeof document !== 'undefined' && document.fullscreenElement) void document.exitFullscreen().catch(() => {})
   }, [])
 
   const enterFocus = () => {
     setFocus(true)
+    setToolsOpen(false)
     // Tela cheia de verdade onde o navegador oferece; no iPhone fica o modo que ocupa a janela toda.
     const root = document.documentElement
     if (document.fullscreenEnabled && typeof root.requestFullscreen === 'function') root.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
@@ -404,7 +441,7 @@ export function PdfReader({
   useEffect(() => {
     // Saiu da tela cheia pelo navegador (Esc, gesto): o leitor volta ao tamanho normal junto.
     const onChange = () => {
-      if (!document.fullscreenElement) setFocus(false)
+      if (!document.fullscreenElement) { setFocus(false); setControlsHidden(false) }
     }
     document.addEventListener('fullscreenchange', onChange)
     return () => {
@@ -415,6 +452,10 @@ export function PdfReader({
       }, 0)
     }
   }, [])
+
+  useEffect(() => {
+    if (textMode) area.current?.scrollTo({ top: 0, left: 0 })
+  }, [page, textMode])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -548,6 +589,7 @@ export function PdfReader({
           {backLabel}
         </Link>
         <ErrorState error={error} onRetry={() => setRetry((v) => v + 1)} />
+        {recovery}
       </div>
     )
   }
@@ -560,6 +602,7 @@ export function PdfReader({
     return (
       <>
         <Spinner label="Abrindo seu PDF…" />
+        <Link to={backTo} className="block text-center text-sm text-ink underline underline-offset-4">{backLabel}</Link>
         <Modal
           open={Boolean(passwordRequest)}
           onClose={() => cancelPassword.current()}
@@ -598,12 +641,44 @@ export function PdfReader({
   const visitedCount = book.visitedPages?.length ?? 0
   const progress = navigationProgress(book.visitedPages, book.pageCount)
   const activeMatch = hits[activeHit] ?? null
+  const colors = READER_COLORS[appearance]
+  const changeAppearance = (next: Appearance) => {
+    setAppearance(next)
+    try { localStorage.setItem(appearanceKey, next) } catch { /* vale para a sessão atual */ }
+  }
+  const changeTextMode = (active: boolean) => {
+    setTextMode(active)
+    setTool('read')
+    if (active) setSearchOpen(false)
+  }
+  const startTap = (event: PointerEvent<HTMLDivElement>) => {
+    touch.current = event.pointerType === 'touch' && event.isPrimary
+      ? { id: event.pointerId, x: event.clientX, y: event.clientY, time: Date.now() }
+      : null
+  }
+  const finishTap = (event: PointerEvent<HTMLDivElement>) => {
+    const start = touch.current
+    touch.current = null
+    if (!start || start.id !== event.pointerId || !focus || tool !== 'read' || panel || searchOpen) return
+    if (Date.now() - start.time > 350 || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12) return
+    if ((event.target as HTMLElement).closest('button, a') || window.getSelection()?.toString()) return
+    const host = event.currentTarget
+    if (host.scrollWidth > host.clientWidth + 1) return
+    const zone = textMode || mode === 'single' ? tapZone(event.clientX - host.getBoundingClientRect().left, host.clientWidth) : 'meio'
+    if (zone === 'anterior') go(page - 1)
+    else if (zone === 'proxima') go(page + 1)
+    else {
+      setToolsOpen(false)
+      setControlsHidden((hidden) => !hidden)
+    }
+  }
 
   return (
-    <div className="pdf-reader flex flex-col gap-3" data-focus={focus}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+    <div className="pdf-reader flex flex-col gap-3" data-focus={focus} data-appearance={appearance} style={{ '--pdf-paper': colors.bg, '--pdf-ink': colors.fg, '--pdf-muted': colors.muted } as CSSProperties}>
+      {controlsHidden && <IconButton label="Mostrar controles de leitura" className="pdf-reader-reveal" onClick={() => setControlsHidden(false)}><Settings2 className="size-5" aria-hidden /></IconButton>}
+      <div hidden={controlsHidden} className="pdf-reader-header flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Link to={backTo} aria-label={backLabel} title={backLabel} className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-bg text-ink transition-colors hover:bg-surface-2">
+          <Link to={backTo} aria-label={backLabel} title={backLabel} className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-line bg-bg text-ink transition-colors hover:bg-surface-2">
             <ChevronLeft className="size-4" aria-hidden />
           </Link>
           <div className="min-w-0">
@@ -631,16 +706,34 @@ export function PdfReader({
               Tentar salvar
             </Button>
           )}
-          <Button size="sm" icon={<Download className="size-3.5" aria-hidden />} loading={exporting} onClick={() => void exportPdf()} aria-label="Exportar PDF com marcações" title="Exportar uma cópia do PDF com as marcações">
-            <span className="max-sm:hidden">Exportar</span>
-          </Button>
           {studySource && <StudyShortcut source={studySource(book)} resumed={resumed} />}
+          {focus && <IconButton label={tool === 'highlight' ? 'Desativar marca-texto' : 'Ativar marca-texto'} className="size-11" aria-pressed={tool === 'highlight'} variant={tool === 'highlight' ? 'dark' : 'ghost'} onClick={() => {
+            if (textMode) setTextMode(false)
+            setTool(tool === 'highlight' ? 'read' : 'highlight')
+          }}><Highlighter className="size-5" aria-hidden /></IconButton>}
+          {focus && <IconButton label="Ferramentas de leitura" className="size-11" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><Settings2 className="size-5" aria-hidden /></IconButton>}
+          {focus && <IconButton label="Sair da tela cheia" className="size-11" onClick={exitFocus}><Minimize className="size-5" aria-hidden /></IconButton>}
         </div>
       </div>
 
-      <div className="pdf-reader-toolbar sticky top-[var(--app-top,0px)] z-20 rounded-xl border border-line bg-surface p-1.5" style={focus ? { top: 0 } : undefined}>
+      {focus && !toolsOpen && tool === 'highlight' && <p role="status" className="pdf-reading-hint px-3 text-xs">{GUIDANCE.highlight}</p>}
+      <div hidden={controlsHidden || (focus && !toolsOpen)} className="pdf-reader-toolbar sticky top-[var(--app-top,0px)] z-20 rounded-xl border border-line bg-surface p-1.5" style={focus ? { top: 0 } : undefined}>
+        <div className="mb-1 flex flex-wrap items-center gap-1 border-b border-line pb-1">
+          <Button size="sm" variant={textMode ? 'secondary' : 'ghost'} aria-pressed={textMode} onClick={() => changeTextMode(!textMode)}>{textMode ? 'Ver página original' : 'Texto ajustável'}</Button>
+          <select aria-label="Tema de leitura" className="h-8 rounded-lg border border-line bg-bg px-2 text-sm text-ink" value={appearance} onChange={(event) => changeAppearance(event.target.value as Appearance)}>
+            {Object.entries(APPEARANCES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          {textMode && <>
+            <IconButton size="sm" label="Diminuir fonte" disabled={fontSize <= 14} onClick={() => setFontSize((size) => size - 2)}>A−</IconButton>
+            <IconButton size="sm" label="Aumentar fonte" disabled={fontSize >= 36} onClick={() => setFontSize((size) => size + 2)}>A+</IconButton>
+          </>}
+          {documentActions}
+          <Button size="sm" icon={<Download className="size-4" aria-hidden />} loading={exporting} onClick={() => void exportPdf()}>Exportar marcações</Button>
+          {focus && <Button size="sm" variant="ghost" onClick={() => { setToolsOpen(false); setControlsHidden(true) }}>Ocultar controles</Button>}
+        </div>
+        {textMode && <p className="px-1.5 py-1 text-xs text-muted">Use a página original para ver figuras, tabelas e marcações.</p>}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <div className="flex items-center gap-0.5" role="group" aria-label="Ferramentas de marcação">
+          <div className={cn('flex items-center gap-0.5', textMode && 'hidden')} role="group" aria-label="Ferramentas de marcação">
             {TOOLS.map((item) => (
               <IconButton key={item.id} label={item.label} size="sm" aria-pressed={tool === item.id} onClick={() => setTool(item.id)} variant={tool === item.id ? 'dark' : 'ghost'}>
                 <item.icon className="size-4" aria-hidden />
@@ -658,7 +751,8 @@ export function PdfReader({
             >
               <Undo2 className="size-4" aria-hidden />
             </IconButton>
-            <IconButton
+          </div>
+          <IconButton
               label={bookmarked ? 'Remover marcador desta página' : 'Marcar esta página'}
               size="sm"
               aria-pressed={bookmarked}
@@ -666,7 +760,6 @@ export function PdfReader({
             >
               <Bookmark className={cn('size-4', bookmarked && 'fill-accent text-accent')} aria-hidden />
             </IconButton>
-          </div>
 
           {tool !== 'read' && (
             <div className="flex items-center gap-1.5 border-l border-line pl-2" role="group" aria-label="Cor da marcação">
@@ -693,6 +786,7 @@ export function PdfReader({
           )}
 
           <div className="ml-auto flex flex-wrap items-center gap-0.5">
+            {!textMode && <>
             <IconButton label="Diminuir zoom" size="sm" disabled={zoom <= ZOOM_MIN} onClick={() => stepZoom(-0.2)}>
               <ZoomOut className="size-4" aria-hidden />
             </IconButton>
@@ -716,15 +810,14 @@ export function PdfReader({
             >
               {mode === 'continuous' ? <ScrollText className="size-4" aria-hidden /> : <FileIcon className="size-4" aria-hidden />}
             </IconButton>
-            <IconButton label="Buscar no documento" size="sm" aria-pressed={searchOpen} variant={searchOpen ? 'secondary' : 'ghost'} onClick={() => setSearchOpen((v) => !v)}>
+            </>}
+            <IconButton label="Buscar no documento" size="sm" aria-pressed={searchOpen} variant={searchOpen ? 'secondary' : 'ghost'} onClick={() => { setTextMode(false); setSearchOpen((v) => !v) }}>
               <Search className="size-4" aria-hidden />
             </IconButton>
             <IconButton label={panel ? 'Ocultar anotações' : 'Mostrar anotações'} size="sm" aria-pressed={panel} variant={panel ? 'secondary' : 'ghost'} onClick={() => setPanel((v) => !v)}>
               <NotebookPen className="size-4" aria-hidden />
             </IconButton>
-            <IconButton label={focus ? 'Sair da tela cheia' : 'Tela cheia'} size="sm" aria-pressed={focus} onClick={() => (focus ? exitFocus() : enterFocus())}>
-              {focus ? <Minimize className="size-4" aria-hidden /> : <Maximize className="size-4" aria-hidden />}
-            </IconButton>
+            {!focus && <IconButton label="Tela cheia" size="sm" onClick={enterFocus}><Maximize className="size-4" aria-hidden /></IconButton>}
           </div>
         </div>
 
@@ -784,9 +877,10 @@ export function PdfReader({
       </div>
 
       <div className={cn('pdf-reader-body relative grid min-h-0 gap-3', panel && 'lg:grid-cols-[minmax(0,1fr)_300px]')}>
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-surface-2">
-          <div ref={area} className="pdf-reader-area h-[72dvh] min-h-[360px] overflow-auto p-2 [scrollbar-gutter:stable] sm:p-6" tabIndex={0} aria-label="Páginas do documento">
-            <PdfDocumentView
+        <div className="pdf-reader-stage flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-surface-2">
+          <div ref={area} className="pdf-reader-area h-[72dvh] min-h-[360px] overflow-auto p-2 sm:p-6" tabIndex={0} aria-label="Páginas do documento"
+            onPointerDown={startTap} onPointerUp={finishTap} onPointerCancel={() => { touch.current = null }}>
+            {textMode ? <PdfReadingText key={page} document={pdf} page={page} fontSize={fontSize} onOriginal={() => changeTextMode(false)} /> : <PdfDocumentView
               ref={view}
               document={pdf}
               pageCount={book.pageCount}
@@ -807,11 +901,11 @@ export function PdfReader({
               onAnnotate={annotate}
               onNote={openNote}
               onError={reportError}
-            />
+            />}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line bg-surface px-3 py-2">
+          <div hidden={controlsHidden} className="pdf-reader-footer flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line bg-surface px-2 py-1">
             <div className="flex items-center gap-1">
-              <IconButton label="Página anterior" size="sm" disabled={page <= 1} onClick={() => go(page - 1)}>
+              <IconButton label="Página anterior" className="size-11" disabled={page <= 1} onClick={() => go(page - 1)}>
                 <ChevronLeft className="size-4" aria-hidden />
               </IconButton>
               <form
@@ -819,28 +913,29 @@ export function PdfReader({
                 onSubmit={(e) => {
                   e.preventDefault()
                   go(Number(pageInput))
+                  e.currentTarget.querySelector('input')?.blur()
                 }}
               >
                 <label htmlFor="pdf-page-input">Página</label>
                 <Input id="pdf-page-input" type="number" inputMode="numeric" min={1} max={book.pageCount} className="!h-8 !w-16 text-center" value={pageInput} onChange={(e) => setPageInput(e.target.value)} onBlur={() => (Number(pageInput) === page ? setPageInput(String(page)) : go(Number(pageInput)))} />
                 <span className="whitespace-nowrap">de {book.pageCount}</span>
               </form>
-              <IconButton label="Próxima página" size="sm" disabled={page >= book.pageCount} onClick={() => go(page + 1)}>
+              <IconButton label="Próxima página" className="size-11" disabled={page >= book.pageCount} onClick={() => go(page + 1)}>
                 <ChevronRight className="size-4" aria-hidden />
               </IconButton>
             </div>
             <div
-              className="flex min-w-40 flex-1 items-center justify-end gap-2 text-[11px] text-muted"
+              className="flex flex-1 items-center justify-end gap-2 text-[11px] text-muted"
               title="Estimativa automática pelas páginas que você já abriu neste leitor. Não é uma confirmação de leitura completa."
             >
               <span className="whitespace-nowrap">
-                Progresso de navegação: <span className="font-semibold text-ink tabular-nums">{progress}%</span>
+                <span className="max-sm:sr-only">Progresso de navegação: </span><span className="font-semibold text-ink tabular-nums">{progress}%</span>
                 <span className="max-sm:hidden">
                   {' '}
                   · {visitedCount} de {book.pageCount} {book.pageCount === 1 ? 'página aberta' : 'páginas abertas'}
                 </span>
               </span>
-              <div role="progressbar" aria-label="Progresso de navegação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1 w-24 overflow-hidden rounded-full bg-track max-sm:hidden">
+              <div role="progressbar" aria-label="Progresso de navegação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1 w-24 max-w-full overflow-hidden rounded-full bg-track max-sm:w-16">
                 <div className="h-full rounded-full bg-ink transition-[width] duration-300" style={{ width: `${progress}%` }} />
               </div>
             </div>

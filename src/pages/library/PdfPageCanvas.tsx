@@ -49,6 +49,7 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
   const [draft, setDraft] = useState<PdfPoint[]>([])
   const points = useRef<PdfPoint[]>([])
   const drawing = useRef<number | null>(null)
+  const marking = useRef<{ id: number; x: number; y: number; start: Range | null } | null>(null)
   const errorRef = useRef(onError)
   errorRef.current = onError
   const ratioRef = useRef(onRatio)
@@ -127,17 +128,12 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
     }
   }, [ready, search, activeMatch, revealMatch])
 
-  const highlight = () => {
-    const selection = window.getSelection()
+  const saveHighlight = (clientRects: Iterable<Pick<DOMRect, 'left' | 'top' | 'right' | 'bottom'>>, quote?: string) => {
     const host = surface.current
-    if (!ready || !viewport || !host || !selection?.rangeCount || selection.isCollapsed) return
-    const range = selection.getRangeAt(0)
-    if (!text.current?.contains(range.startContainer) || !text.current.contains(range.endContainer)) return
-    const quote = selection.toString().trim()
-    if (!quote) return
+    if (!ready || !viewport || !host) return
     const origin = host.getBoundingClientRect()
     const rects: PdfRect[] = []
-    for (const rect of Array.from(range.getClientRects())) {
+    for (const rect of clientRects) {
       const left = Math.max(0, rect.left - origin.left)
       const top = Math.max(0, rect.top - origin.top)
       const right = Math.min(viewport.width, rect.right - origin.left)
@@ -150,9 +146,42 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
     }
     if (!rects.length) return
     onAnnotate({ id: crypto.randomUUID(), page, type: 'highlight', color, rects, quote, createdAt: new Date().toISOString() })
+  }
+
+  const highlight = () => {
+    const selection = window.getSelection()
+    if (!selection?.rangeCount || selection.isCollapsed) return
+    const range = selection.getRangeAt(0)
+    if (!text.current?.contains(range.startContainer) || !text.current.contains(range.endContainer)) return
+    const quote = selection.toString().trim()
+    if (!quote) return
+    saveHighlight(Array.from(range.getClientRects()), quote)
     selection.removeAllRanges()
   }
   useImperativeHandle(ref, () => ({ highlightSelection: highlight }))
+
+  const caretAt = (x: number, y: number) => {
+    const position = document.caretPositionFromPoint?.(x, y)
+    const caret = document.caretRangeFromPoint?.(x, y) ?? document.createRange()
+    if (position) {
+      caret.setStart(position.offsetNode, position.offset)
+      caret.collapse(true)
+    }
+    return caret.startContainer.nodeType === Node.TEXT_NODE && text.current?.contains(caret.startContainer) ? caret : null
+  }
+
+  const updateHighlight = (event: PointerEvent<HTMLDivElement>) => {
+    const gesture = marking.current
+    if (gesture?.id !== event.pointerId || !gesture.start) return
+    const end = caretAt(event.clientX, event.clientY)
+    if (!end) return
+    const [first, last] = gesture.start.compareBoundaryPoints(Range.START_TO_START, end) <= 0 ? [gesture.start, end] : [end, gesture.start]
+    const range = first.cloneRange()
+    range.setEnd(last.startContainer, last.startOffset)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+  }
 
   const pointAt = (event: PointerEvent<SVGSVGElement>): PdfPoint | null => {
     if (!viewport || !ready) return null
@@ -177,7 +206,33 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
     <div ref={surface} className="pdf-page relative shrink-0 border border-line bg-white" style={{ width: viewport?.width ?? estimate?.width ?? 400, height: viewport?.height ?? estimate?.height ?? 560, display: renderError ? 'none' : undefined }} data-page-number={page} aria-busy={!ready && !renderError}>
       {!ready && !renderError && <p role="status" className="absolute inset-x-0 top-6 text-center text-xs text-[#6b6b6b]">Preparando página {page}…</p>}
       <canvas ref={canvas} aria-label={`Página ${page} do PDF`} className="block" />
-      <div ref={text} className="pdf-text-layer" style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'none' : undefined }} onPointerUp={() => { if (tool === 'highlight') highlight() }} />
+      <div ref={text} className="pdf-text-layer" style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'none' : undefined, touchAction: tool === 'highlight' ? 'none' : undefined }}
+        onPointerDown={(event) => {
+          if (tool !== 'highlight' || event.pointerType === 'mouse' || !event.isPrimary || !ready) return
+          event.preventDefault()
+          window.getSelection()?.removeAllRanges()
+          marking.current = { id: event.pointerId, x: event.clientX, y: event.clientY, start: caretAt(event.clientX, event.clientY) }
+          event.currentTarget.setPointerCapture(event.pointerId)
+        }}
+        onPointerMove={updateHighlight}
+        onPointerUp={(event) => {
+          if (tool !== 'highlight') return
+          if (event.pointerType === 'mouse') { highlight(); return }
+          const gesture = marking.current
+          if (gesture?.id !== event.pointerId) return
+          updateHighlight(event)
+          marking.current = null
+          if (window.getSelection()?.toString().trim()) {
+            highlight()
+          } else if (Math.abs(event.clientX - gesture.x) >= 10 && Math.abs(event.clientY - gesture.y) < 20) {
+            const center = (gesture.y + event.clientY) / 2
+            saveHighlight([{ left: Math.min(gesture.x, event.clientX), right: Math.max(gesture.x, event.clientX), top: center - 6, bottom: center + 6 }])
+          }
+        }}
+        onPointerCancel={() => {
+          marking.current = null
+          window.getSelection()?.removeAllRanges()
+        }} />
       {viewport && <svg viewBox={`0 0 ${viewport.width} ${viewport.height}`} className="absolute inset-0 size-full" aria-label={tool === 'ink' ? 'Área de desenho livre' : tool === 'note' ? 'Clique para adicionar uma nota' : undefined}
         style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'auto' : 'none', touchAction: tool === 'ink' || tool === 'note' ? 'none' : undefined, cursor: tool === 'ink' ? 'crosshair' : tool === 'note' ? 'copy' : undefined }}
         onPointerDown={(event) => {
@@ -202,7 +257,7 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
           {a.type === 'highlight' && a.rects?.map((r, i) => {
             const [x1, y1] = viewport.convertToViewportPoint(r.x, r.y)
             const [x2, y2] = viewport.convertToViewportPoint(r.x + r.width, r.y + r.height)
-            return <rect key={i} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} fill={a.color} opacity={0.35} style={{ mixBlendMode: 'multiply' }} />
+            return <rect key={i} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} fill={a.color} opacity={0.35} />
           })}
           {a.type === 'ink' && a.points && <path d={path(a.points)} fill="none" stroke={a.color} strokeWidth={(a.strokeWidth ?? 2) * viewport.scale * viewport.userUnit} strokeLinecap="round" strokeLinejoin="round" />}
           {a.type === 'note' && a.points?.[0] && <g transform={`translate(${toScreen(a.points[0]).join(' ')})`}><rect x="-8" y="-8" width="20" height="20" rx="3" fill={a.color} stroke="#775c12" /><path d="M-3 -2h10M-3 2h10M-3 6h6" stroke="#293227" strokeWidth="1.5" /><title>{a.text}</title></g>}
@@ -210,6 +265,6 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
         {draft.length > 0 && <path d={path(draft)} fill="none" stroke={color} strokeWidth={2 * viewport.scale * viewport.userUnit} strokeLinecap="round" strokeLinejoin="round" />}
       </svg>}
     </div>
-    {ready && !hasText && <p role="status" className="max-w-lg text-center text-xs text-muted">Esta página parece digitalizada. Use desenho livre e notas; a seleção de texto depende de uma camada de texto no PDF.</p>}
+    {ready && !hasText && tool !== 'read' && <p role="status" className="max-w-lg text-center text-xs text-muted">Página digitalizada. Arraste na horizontal para destacar uma faixa.</p>}
   </div>
 })

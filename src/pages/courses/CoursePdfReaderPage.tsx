@@ -1,36 +1,62 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
-import { ArrowLeft, FileText, KeyRound, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Download, FileText, KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
 import { DriveOpenLink } from '@/components/DriveViewer'
 import { Button } from '@/components/ui/Button'
 import { Field, Input } from '@/components/ui/Field'
 import { Card, PageHeader } from '@/components/ui/layout'
-import { EmptyState, ErrorState, Spinner, errorMessage } from '@/components/ui/feedback'
+import { EmptyState, ErrorState, Spinner, errorMessage, useToast } from '@/components/ui/feedback'
 import { useCourses } from '@/hooks/useCourses'
 import { useLibrary } from '@/hooks/useLibrary'
 import { displayTitle } from '@/lib/courseCatalog'
 import { isDriveId, isResourceKey } from '@/lib/drive'
 import { DRIVE_READ_SCOPE, currentDriveReadToken, getClientId, isClientId, requestDriveReadToken, saveClientId, startDriveRedirect } from '@/lib/googleAuth'
 import { PdfReader } from '@/pages/library/PdfReaderPage'
-import { DrivePdfStore } from '@/services/drivePdf'
+import { DrivePdfStore, readOfflineCoursePdf, type OfflineCoursePdf } from '@/services/drivePdf'
 import type { CourseNode } from '@/types/db'
 
-function Ready({ node, token, backTo, onReconnect }: { node: CourseNode; token: string; backTo: string; onReconnect: () => void }) {
+function Ready({ node, token, copy, route, backTo, onReconnect }: { node: CourseNode; token: string | null; copy?: OfflineCoursePdf; route: string; backTo: string; onReconnect: () => void }) {
   const { dbName: scope } = useLibrary()
-  const store = useMemo(() => new DrivePdfStore(scope, node, token), [scope, node, token])
+  const store = useMemo(() => copy ? new DrivePdfStore(scope, node, token, undefined, copy) : new DrivePdfStore(scope, node, token), [scope, node, token, copy])
+  const toast = useToast()
+  const [saved, setSaved] = useState(Boolean(copy))
+  const [pending, setPending] = useState(false)
+  const toggleOffline = async () => {
+    setPending(true)
+    try {
+      if (saved) await store.removeOffline(route)
+      else await store.saveOffline(route)
+      setSaved(!saved)
+      toast.success(saved ? 'Cópia offline removida.' : 'PDF salvo neste aparelho para ler sem internet.')
+    } catch (error) {
+      toast.error(error)
+    } finally {
+      setPending(false)
+    }
+  }
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-        <span>Leitura do Google Drive autorizada nesta aba.</span>
-        <Button size="sm" variant="ghost" onClick={onReconnect}>Autorizar novamente</Button>
-      </div>
-      <PdfReader store={store} documentId={node.drive_id} backTo={backTo} sourceLabel="Cursos / Leitor PDF" storageNotice="Original no Drive. Marcações salvas neste navegador." backLabel="Voltar ao curso" />
-    </div>
+    <PdfReader
+      store={store}
+      documentId={node.drive_id}
+      backTo={backTo}
+      backLabel="Voltar ao curso"
+      sourceLabel={saved ? 'Cursos · Salvo offline' : 'Cursos · Google Drive'}
+      storageNotice="Sua posição e suas marcações ficam neste navegador."
+      startInFocus
+      documentActions={<Button size="sm" loading={pending} icon={saved ? <Trash2 className="size-4" aria-hidden /> : <Download className="size-4" aria-hidden />} onClick={() => void toggleOffline()}>{saved ? 'Remover cópia offline' : 'Salvar para ler offline'}</Button>}
+      recovery={<div className="flex flex-wrap items-center gap-3">
+        {copy
+          ? <Button size="sm" onClick={() => void store.removeOffline(route).then(onReconnect).catch(toast.error)}>Remover cópia e conectar ao Drive</Button>
+          : <Button size="sm" onClick={onReconnect}>Autorizar novamente</Button>}
+        <DriveOpenLink node={node} />
+      </div>}
+    />
   )
 }
 
-function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseTitle: string; backTo: string }) {
+function AuthorizePdf({ node, courseTitle, backTo, route, savedCopy }: { node: CourseNode; courseTitle: string; backTo: string; route: string; savedCopy?: OfflineCoursePdf }) {
   const [token, setToken] = useState<string | null>(() => currentDriveReadToken())
+  const [ignoreCopy, setIgnoreCopy] = useState(false)
   const [savedClientId] = useState(() => getClientId())
   const [clientId, setClientId] = useState(savedClientId ?? '')
   const [pending, setPending] = useState(false)
@@ -71,7 +97,8 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
     }
   }
 
-  if (token) return <Ready node={node} token={token} backTo={backTo} onReconnect={() => setToken(null)} />
+  const copy = ignoreCopy ? undefined : savedCopy
+  if (copy || token) return <Ready node={node} token={token} copy={copy} route={route} backTo={backTo} onReconnect={() => { setIgnoreCopy(true); setToken(null) }} />
 
   return (
     <div className="space-y-6">
@@ -79,8 +106,8 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
       <Card className="mx-auto max-w-2xl overflow-hidden">
         <div className="border-b border-line bg-accent/5 p-6 sm:p-8">
           <span className="flex size-14 items-center justify-center rounded-2xl border border-accent/20 bg-bg text-accent-strong"><FileText className="size-6" aria-hidden /></span>
-          <h2 className="mt-5 text-xl font-semibold tracking-tight text-ink">Seu material, com suas marcações</h2>
-          <p className="mt-3 text-sm leading-relaxed text-muted">Para destacar o PDF, autorize a leitura dos arquivos no Google Drive. O original permanece no Drive; o conteúdo é carregado só na memória e as marcas ficam neste navegador.</p>
+          <h2 className="mt-5 text-xl font-semibold tracking-tight text-ink">Modo leitura do curso</h2>
+          <p className="mt-3 text-sm leading-relaxed text-muted">Autorize a leitura no Drive para abrir o PDF com tela cheia, texto ajustável e marcações. Você poderá salvar uma cópia neste aparelho para ler sem internet.</p>
         </div>
         <div className="space-y-5 p-6 sm:p-8">
           <p className="flex items-start gap-3 text-sm leading-relaxed text-muted"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-accent-strong" aria-hidden /><span>O Google solicita acesso de leitura aos arquivos da sua conta, sem editar ou excluir. A plataforma usa esse acesso para abrir o PDF selecionado. A autorização é temporária e fica apenas na memória desta aba.</span></p>
@@ -90,7 +117,7 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
             <Button variant="primary" disabled={pending || !isClientId(clientId.trim())} icon={<KeyRound className="size-4" aria-hidden />} onClick={authorizeHere}>Autorizar leitura do PDF</Button>
             <Button variant="ghost" size="sm" loading={pending} disabled={!isClientId(clientId.trim())} onClick={() => void authorize()}>Autorizar em janela separada</Button>
           </div>
-          <p className="text-xs text-muted">O Google abre nesta aba e volta para este PDF. Se aparecer “O Google não verificou este app”, toque em Continuar (o app está em modo de teste, só para o seu e-mail).</p>
+          <p className="text-xs text-muted">O Google abre nesta aba e volta para este PDF.</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line pt-4 text-xs">
             <Link to={backTo} className="text-ink underline underline-offset-4">Usar visualizador padrão</Link>
             <DriveOpenLink node={node} />
@@ -101,21 +128,36 @@ function AuthorizePdf({ node, courseTitle, backTo }: { node: CourseNode; courseT
   )
 }
 
-/** Leitor de um PDF já presente no catálogo; os bytes nunca entram na estante local. */
 export default function CoursePdfReaderPage() {
   const { id = '', itemId = '' } = useParams()
   const data = useCourses()
   const { dbName: scope } = useLibrary()
   const backTo = `/cursos/${encodeURIComponent(id)}?item=${encodeURIComponent(itemId)}`
+  const route = `/cursos/${encodeURIComponent(id)}/pdf/${encodeURIComponent(itemId)}`
+  const lookup = `${scope}:${route}`
+  const [local, setLocal] = useState<{ lookup: string; copy?: OfflineCoursePdf } | null>(null)
+  useEffect(() => {
+    let active = true
+    void readOfflineCoursePdf(scope, route).then(
+      (copy) => { if (active) setLocal({ lookup, copy }) },
+      () => { if (active) setLocal({ lookup }) },
+    )
+    return () => { active = false }
+  }, [lookup, route, scope])
+  if (local?.lookup !== lookup) return <Spinner label="Procurando o PDF neste aparelho…" />
+  if (local.copy && navigator.onLine === false) {
+    return <AuthorizePdf key={lookup} node={local.copy.node} savedCopy={local.copy} route={route} courseTitle="Material do curso" backTo={backTo} />
+  }
   if (data.isPending) return <Spinner />
   if (data.isError) return <ErrorState error={data.error} onRetry={() => void data.refetch()} />
   const view = data.views.find((course) => course.course.id === id)
   const node = view?.items.find((item) => item.id === itemId)
   if (!view || !node || node.kind !== 'item' || node.mime_type !== 'application/pdf' || !isDriveId(node.drive_id) || (node.resource_key != null && !isResourceKey(node.resource_key))) {
-    return <EmptyState title="PDF não encontrado neste curso" description="Escolha um material em PDF no conteúdo do curso para abrir o leitor de marcações." action={<Link to={view ? `/cursos/${encodeURIComponent(id)}` : '/cursos'} className="text-sm font-semibold text-accent-strong underline">Voltar aos cursos</Link>} />
+    return <EmptyState title="PDF não encontrado neste curso" description="Escolha um PDF no conteúdo do curso para abrir o modo leitura." action={<Link to={view ? `/cursos/${encodeURIComponent(id)}` : '/cursos'} className="text-sm font-semibold text-accent-strong underline">Voltar aos cursos</Link>} />
   }
   if (node.status !== 'available') {
     return <EmptyState title="PDF indisponível no Drive" description="O arquivo não foi encontrado na última atualização ou foi excluído do catálogo. Confira o acesso no Drive e atualize a pasta do curso." action={<Link to={backTo} className="text-sm font-semibold text-accent-strong underline">Voltar ao curso</Link>} />
   }
-  return <AuthorizePdf key={`${scope}:${node.id}`} node={node} courseTitle={view.title} backTo={backTo} />
+  const copy = local.copy?.node.drive_id === node.drive_id ? local.copy : undefined
+  return <AuthorizePdf key={lookup} node={node} courseTitle={view.title} backTo={backTo} route={route} savedCopy={copy} />
 }

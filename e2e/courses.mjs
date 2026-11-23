@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync } from 'node:fs'
 import { chromium } from 'playwright-core'
+import { PDFDocument } from 'pdf-lib'
 
 const base = process.argv[2] ?? 'http://127.0.0.1:5173'
 const out = process.argv[3] ?? 'e2e/screens/courses'
@@ -15,6 +16,12 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1000
 const page = await context.newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
+const pdf = await PDFDocument.create()
+const firstPage = pdf.addPage([420, 590])
+firstPage.drawText('Primeira página da apostila', { x: 40, y: 525, size: 22 })
+firstPage.drawText('Consultas SQL\n\nUma consulta SELECT apresenta dados de uma tabela.\nEscolha as colunas que deseja mostrar e use WHERE\npara decidir quais linhas entram no resultado.\n\nExemplo de leitura\n\nAntes de executar a consulta, imagine o resultado.\nQue colunas vão aparecer? Quais linhas atendem\nao filtro? Depois, confira sua previsão.', { x: 40, y: 480, size: 13, lineHeight: 20 })
+pdf.addPage([420, 590]).drawText('Segunda pagina da apostila', { x: 40, y: 525, size: 22 })
+const pdfBytes = Buffer.from(await pdf.save())
 
 // Drive sintético (IDs e nomes fictícios)
 const F = 'application/vnd.google-apps.folder'
@@ -29,6 +36,15 @@ const tree = {
   [id('vazia')]: [],
 }
 const driveCalls = []
+await context.route('https://accounts.google.com/o/oauth2/v2/auth**', (r) => {
+  const request = new URL(r.request().url())
+  const callback = new URL(request.searchParams.get('redirect_uri'))
+  callback.hash = new URLSearchParams({
+    access_token: 'token-simulado', expires_in: '3600',
+    state: request.searchParams.get('state'), scope: request.searchParams.get('scope'),
+  }).toString()
+  return r.fulfill({ status: 302, headers: { location: callback.toString() } })
+})
 await context.route('https://accounts.google.com/gsi/client', (r) => r.fulfill({
   contentType: 'text/javascript',
   body: `window.google = { accounts: { oauth2: {
@@ -40,6 +56,10 @@ await context.route('https://www.googleapis.com/drive/v3/files**', (r) => {
   driveCalls.push({ url, auth: r.request().headers().authorization })
   const json = (b, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(b) })
   const m = /\/files\/([^/?]+)$/.exec(url.pathname)
+  if (m?.[1] === id('p1')) {
+    if (url.searchParams.get('alt') === 'media') return r.fulfill({ contentType: 'application/pdf', body: pdfBytes })
+    return json({ id: id('p1'), name: 'Apostila.pdf', mimeType: 'application/pdf', size: String(pdfBytes.length), capabilities: { canDownload: true } })
+  }
   if (m) return m[1] === ROOT ? json({ id: ROOT, name: 'Cursos (simulado)', mimeType: F }) : json({ error: { code: 404 } }, 404)
   const parent = /'([^']+)' in parents/.exec(url.searchParams.get('q') ?? '')?.[1]
   const all = tree[parent] ?? []
@@ -152,6 +172,63 @@ try {
   await noOverflow()
   await page.screenshot({ path: `${out}/celular-aula.png`, fullPage: true })
   console.log('OK | catálogo e aula no celular sem rolagem horizontal')
+
+  await lessonArea.getByRole('heading', { name: 'Módulo 10' }).waitFor()
+  await page.keyboard.press('p')
+  await page.getByRole('tab', { name: 'Apostila.pdf' }).click()
+  await page.getByRole('link', { name: 'Modo leitura: Apostila.pdf' }).first().click()
+  await page.getByRole('button', { name: 'Autorizar em janela separada' }).click()
+  const reader = page.locator('.pdf-reader[data-focus="true"]')
+  await reader.waitFor()
+  assert.equal(await reader.getAttribute('data-appearance'), 'sepia')
+  await reader.getByRole('button', { name: 'Ativar marca-texto' }).click()
+  const textLine = reader.locator('.pdf-text-layer span').filter({ hasText: 'Primeira página da apostila' })
+  const line = await textLine.boundingBox()
+  assert.ok(line, 'O trecho do PDF precisa estar renderizado')
+  const mobile = await context.newCDPSession(page)
+  await mobile.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+  const y = Math.round(line.y + line.height * 0.55)
+  const x = Math.round(line.x + 3)
+  await mobile.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] })
+  await mobile.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(line.x + line.width * 0.75), y }] })
+  await mobile.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await reader.locator('.pdf-page svg rect').first().waitFor()
+  await reader.getByRole('button', { name: 'Desativar marca-texto' }).click()
+  await reader.getByRole('button', { name: 'Ferramentas de leitura' }).click()
+  await reader.getByRole('button', { name: 'Mostrar anotações' }).click()
+  await reader.getByText(/“Primeira página/).waitFor()
+  await reader.getByRole('button', { name: 'Ocultar anotações' }).click()
+  await reader.getByLabel('Tema de leitura').selectOption('noite')
+  assert.equal(await reader.getAttribute('data-appearance'), 'noite')
+  await reader.getByLabel('Tema de leitura').selectOption('sepia')
+  await reader.getByRole('button', { name: 'Texto ajustável' }).click()
+  await reader.getByRole('article').getByText('Primeira página da apostila', { exact: true }).waitFor()
+  await reader.getByRole('button', { name: 'Aumentar fonte' }).click()
+  assert.equal(await reader.getByRole('article').evaluate((el) => getComputedStyle(el).fontSize), '22px')
+  await reader.getByRole('button', { name: 'Ferramentas de leitura' }).click()
+  await page.screenshot({ path: `${out}/celular-leitor-pdf.png` })
+  await reader.getByRole('button', { name: 'Ferramentas de leitura' }).click()
+  await reader.getByRole('button', { name: 'Salvar para ler offline' }).click()
+  await reader.getByText('Cursos · Salvo offline').waitFor()
+  await reader.getByRole('button', { name: 'Ferramentas de leitura' }).click()
+  await reader.getByRole('button', { name: 'Próxima página' }).click()
+  await reader.getByRole('article').getByText('Segunda pagina da apostila').waitFor()
+  await reader.locator('[role="progressbar"][aria-valuenow="100"]').waitFor({ state: 'attached' })
+  await reader.getByRole('status').filter({ hasText: 'Posição e marcas salvas' }).waitFor({ state: 'attached' })
+  const serviceWorker = await page.evaluate(() => Boolean(navigator.serviceWorker.controller))
+  if (process.env.REQUIRE_PDF_OFFLINE_TEST) assert.ok(serviceWorker, 'O build de produção precisa ter um service worker ativo')
+  if (serviceWorker) {
+    await context.setOffline(true)
+    await page.reload()
+    await reader.locator('.pdf-page[data-page-number="2"][aria-busy="false"]').waitFor()
+    assert.equal(await reader.getByLabel('Página', { exact: true }).inputValue(), '2')
+    await reader.getByRole('button', { name: 'Página anterior' }).click()
+    await reader.locator('.pdf-page svg rect').first().waitFor()
+    await context.setOffline(false)
+    console.log('OK | sem rede, o PDF reabre na página 2 e mantém o destaque da página 1')
+  }
+  await noOverflow()
+  console.log('OK | PDF do Drive abre em sépia, aceita destaque por toque e retoma a leitura da cópia local')
 
   for (const path of ['/videos', '/biblioteca', '/sala']) {
     await page.goto(`${base}${path}`)
