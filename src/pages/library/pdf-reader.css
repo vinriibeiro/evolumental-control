@@ -21,10 +21,11 @@
 /* Tela cheia: o leitor cobre a janela e a área das páginas ocupa toda a altura que sobra. */
 .pdf-reader [hidden] { display: none; }
 .pdf-reader-stage { background: var(--pdf-paper); }
+.pdf-reader[data-text-mode='false'] .pdf-reader-stage { background: #fff; }
+.pdf-reader[data-text-mode='false'][data-appearance='noite'] .pdf-reader-stage { background: #0d0d0d; }
 .pdf-reading-text { max-width: 64ch; margin: 0 auto; padding: 0.875rem 1rem 2rem; color: var(--pdf-ink); font-family: Georgia, serif; line-height: 1.65; overflow-wrap: anywhere; }
 .pdf-reading-text p + p { margin-top: 0.8em; }
 .pdf-reading-hint { color: var(--pdf-ink); }
-.pdf-reader[data-appearance='sepia'] .pdf-page canvas { filter: sepia(0.32) brightness(0.94); }
 .pdf-reader[data-appearance='noite'] .pdf-page canvas { filter: invert(0.94) hue-rotate(180deg) brightness(0.85); }
 .pdf-reader[data-focus='true'] {
   position: fixed; inset: 0; z-index: 45; overflow: hidden; background: var(--pdf-paper);

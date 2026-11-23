@@ -186,10 +186,19 @@ try {
   const fullWidth = async () => {
     await page.waitForFunction(() => {
       const host = document.querySelector('.pdf-reader-area')
-      const pdf = host?.querySelector('canvas')
-      return host && pdf && pdf.getBoundingClientRect().width >= host.clientWidth - 3 && host.scrollWidth <= host.clientWidth + 1
+      const frame = host?.querySelector('[data-pdf-frame]:has([aria-busy="false"])')
+      return host && frame && Math.abs(frame.getBoundingClientRect().width - host.clientWidth) <= 2 && host.scrollWidth <= host.clientWidth + 1
     })
   }
+  await fullWidth()
+  assert.ok((await canvas.boundingBox()).width > (await area.boundingBox()).width * 1.07, 'O PDF aumenta ao remover as margens vazias')
+  assert.equal(await reader.locator('.pdf-reader-stage').evaluate((el) => getComputedStyle(el).backgroundColor), 'rgb(255, 255, 255)')
+  await reader.getByRole('button', { name: 'Ferramentas de leitura' }).click()
+  await reader.getByRole('button', { name: 'Recortar margens vazias' }).click()
+  await fullWidth()
+  assert.ok(Math.abs((await canvas.boundingBox()).width - (await area.boundingBox()).width) <= 2, 'O controle recupera a página com as margens originais')
+  await reader.getByRole('button', { name: 'Recortar margens vazias' }).click()
+  await reader.getByRole('button', { name: 'Ferramentas de leitura' }).click()
   await fullWidth()
   await reader.getByRole('button', { name: 'Aumentar zoom' }).click()
   await page.waitForFunction(() => {

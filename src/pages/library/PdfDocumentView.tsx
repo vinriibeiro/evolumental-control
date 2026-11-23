@@ -21,6 +21,7 @@ interface Props {
   area: RefObject<HTMLDivElement | null>
   zoom: number
   availableWidth: number
+  cropMargins: boolean
   /** Proporção (altura / largura) usada para reservar o espaço das páginas ainda não desenhadas. */
   ratio: number
   tool: PdfTool
@@ -46,7 +47,7 @@ interface Props {
  *    tamanho do documento.
  */
 export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function PdfDocumentView(
-  { document: pdf, pageCount, page, mode, area, zoom, availableWidth, ratio, tool, color, annotations, search, match, revealMatch, onMatchRevealed, onVisiblePage, onAnnotate, onNote, onError },
+  { document: pdf, pageCount, page, mode, area, zoom, availableWidth, cropMargins, ratio, tool, color, annotations, search, match, revealMatch, onMatchRevealed, onVisiblePage, onAnnotate, onNote, onError },
   ref,
 ) {
   const slots = useRef(new Map<number, HTMLDivElement>())
@@ -145,7 +146,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     if (mode === 'continuous') scrollToPage(pageRef.current)
   }, [mode, zoom, availableWidth, ratio, scrollToPage])
 
-  const shared = { document: pdf, zoom, availableWidth, tool, color, annotations, search, onAnnotate, onError }
+  const shared = { document: pdf, zoom, availableWidth, cropMargins, tool, color, annotations, search, onAnnotate, onError }
   const matchProps = (number: number) => (match?.page === number ? { activeMatch: match.index, revealMatch, onMatchRevealed } : {})
 
   if (mode === 'single') {

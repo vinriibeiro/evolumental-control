@@ -2,9 +2,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Poin
 import { TextLayer, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist'
 import { Button } from '@/components/ui/Button'
 import type { PdfAnnotation, PdfPoint, PdfRect } from '@/services/pdfLibrary'
+import { blankMargins, NO_MARGINS, type PdfMargins } from './pdfMargins'
 
 export type PdfTool = 'read' | 'highlight' | 'ink' | 'note'
 export interface PdfCanvasHandle { highlightSelection(): void }
+const measuredMargins = new WeakMap<PDFDocumentProxy, Map<number, PdfMargins>>()
 
 /** Texto comparável na busca: sem acentos nem caixa ("estatistica" encontra "Estatística"). */
 export function searchKey(text: string): string {
@@ -16,6 +18,7 @@ interface Props {
   page: number
   zoom: number
   availableWidth: number
+  cropMargins: boolean
   tool: PdfTool
   color: string
   annotations: PdfAnnotation[]
@@ -36,12 +39,14 @@ interface Props {
 
 /** The canvas and selectable text share one PDF.js viewport, including native page rotation. */
 export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPageCanvas(
-  { document: pdf, page, zoom, availableWidth, tool, color, annotations, search, activeMatch, revealMatch, onMatchRevealed, estimate, onRatio, onAnnotate, onNote, onError }, ref,
+  { document: pdf, page, zoom, availableWidth, cropMargins, tool, color, annotations, search, activeMatch, revealMatch, onMatchRevealed, estimate, onRatio, onAnnotate, onNote, onError }, ref,
 ) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const text = useRef<HTMLDivElement>(null)
   const surface = useRef<HTMLDivElement>(null)
-  const [viewport, setViewport] = useState<PageViewport | null>(null)
+  const [geometry, setGeometry] = useState<{ viewport: PageViewport; margins: PdfMargins } | null>(null)
+  const viewport = geometry?.viewport ?? null
+  const margins = geometry?.margins ?? NO_MARGINS
   const [ready, setReady] = useState(false)
   const [renderError, setRenderError] = useState<string | null>(null)
   const [renderAttempt, setRenderAttempt] = useState(0)
@@ -56,6 +61,8 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
   ratioRef.current = onRatio
   const revealedRef = useRef(onMatchRevealed)
   revealedRef.current = onMatchRevealed
+  const annotationRef = useRef(annotations)
+  annotationRef.current = annotations
   const textDivs = useRef<HTMLElement[]>([])
 
   useEffect(() => {
@@ -72,8 +79,53 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
       const pdfPage = await pdf.getPage(page)
       if (cancelled || !canvas.current || !text.current) return
       const base = pdfPage.getViewport({ scale: 1 })
-      ratioRef.current?.(page, base.height / base.width)
-      const scale = Math.min((availableWidth / base.width) * zoom, 4)
+      let margins = NO_MARGINS
+      if (cropMargins) {
+        const cached = measuredMargins.get(pdf) ?? new Map<number, PdfMargins>()
+        measuredMargins.set(pdf, cached)
+        const previous = cached.get(page)
+        if (previous) margins = previous
+        else {
+          const preview = document.createElement('canvas')
+          const view = pdfPage.getViewport({ scale: 520 / Math.max(base.width, base.height) })
+          preview.width = Math.ceil(view.width)
+          preview.height = Math.ceil(view.height)
+          const ctx = preview.getContext('2d', { willReadFrequently: true })
+          if (ctx) {
+            try {
+              rendering = pdfPage.render({ canvas: preview, canvasContext: ctx, viewport: view })
+              await rendering.promise
+              if (cancelled) return
+              margins = blankMargins(ctx.getImageData(0, 0, preview.width, preview.height))
+            } catch {
+              if (cancelled) return
+              // O PDF continua disponível mesmo quando não dá para analisar as margens.
+            } finally {
+              preview.width = 0
+              preview.height = 0
+            }
+          }
+          cached.set(page, margins)
+        }
+        margins = { ...margins }
+        const keep = (x: number, y: number) => {
+          const [position] = base.convertToViewportPoint(x, y)
+          const padding = 0.025
+          margins.left = Math.min(margins.left, Math.max(0, position / base.width - padding))
+          margins.right = Math.min(margins.right, Math.max(0, 1 - position / base.width - padding))
+        }
+        for (const mark of annotationRef.current) {
+          if (mark.page !== page) continue
+          mark.points?.forEach(({ x, y }) => keep(x, y))
+          mark.rects?.forEach(({ x, y, width, height }) => {
+            keep(x, y)
+            keep(x + width, y + height)
+          })
+        }
+      }
+      const contentWidth = base.width * (1 - margins.left - margins.right)
+      ratioRef.current?.(page, base.height / contentWidth)
+      const scale = Math.min((availableWidth / contentWidth) * zoom, 4)
       const view = pdfPage.getViewport({ scale })
       const outputScale = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(16_000_000 / (view.width * view.height)))
       const target = canvas.current
@@ -87,7 +139,7 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
       text.current.style.setProperty('--total-scale-factor', String(view.scale * view.userUnit))
       text.current.style.setProperty('--scale-round-x', '1px')
       text.current.style.setProperty('--scale-round-y', '1px')
-      setViewport(view)
+      setGeometry({ viewport: view, margins })
       rendering = pdfPage.render({ canvas: target, canvasContext: ctx, viewport: view, transform: [outputScale, 0, 0, outputScale, 0, 0] })
       await rendering.promise
       if (cancelled) return
@@ -108,7 +160,7 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
       }
     })
     return () => { cancelled = true; rendering?.cancel(); layer?.cancel() }
-  }, [pdf, page, zoom, availableWidth, renderAttempt])
+  }, [pdf, page, zoom, availableWidth, cropMargins, renderAttempt])
 
   // A busca só pinta o texto já desenhado: trocar o termo ou o trecho ativo não redesenha a página.
   useEffect(() => {
@@ -203,67 +255,73 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
 
   return <div className="flex flex-col items-center gap-3">
     {renderError && <div role="alert" className="max-w-lg space-y-3 rounded-xl border border-danger/30 bg-bg p-5 text-center"><p className="text-sm font-semibold text-ink">Não foi possível exibir a página {page}</p><p className="break-words text-xs leading-relaxed text-muted">{renderError}</p><Button size="sm" onClick={() => setRenderAttempt((attempt) => attempt + 1)}>Tentar exibir novamente</Button></div>}
-    <div ref={surface} className="pdf-page relative shrink-0 border border-line bg-white" style={{ width: viewport?.width ?? estimate?.width ?? 400, height: viewport?.height ?? estimate?.height ?? 560, display: renderError ? 'none' : undefined }} data-page-number={page} aria-busy={!ready && !renderError}>
-      {!ready && !renderError && <p role="status" className="absolute inset-x-0 top-6 text-center text-xs text-[#6b6b6b]">Preparando página {page}…</p>}
-      <canvas ref={canvas} aria-label={`Página ${page} do PDF`} className="block" />
-      <div ref={text} className="pdf-text-layer" style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'none' : undefined, touchAction: tool === 'highlight' ? 'none' : undefined }}
-        onPointerDown={(event) => {
-          if (tool !== 'highlight' || event.pointerType === 'mouse' || !event.isPrimary || !ready) return
-          event.preventDefault()
-          window.getSelection()?.removeAllRanges()
-          marking.current = { id: event.pointerId, x: event.clientX, y: event.clientY, start: caretAt(event.clientX, event.clientY) }
-          event.currentTarget.setPointerCapture(event.pointerId)
-        }}
-        onPointerMove={updateHighlight}
-        onPointerUp={(event) => {
-          if (tool !== 'highlight') return
-          if (event.pointerType === 'mouse') { highlight(); return }
-          const gesture = marking.current
-          if (gesture?.id !== event.pointerId) return
-          updateHighlight(event)
-          marking.current = null
-          if (window.getSelection()?.toString().trim()) {
-            highlight()
-          } else if (Math.abs(event.clientX - gesture.x) >= 10 && Math.abs(event.clientY - gesture.y) < 20) {
-            const center = (gesture.y + event.clientY) / 2
-            saveHighlight([{ left: Math.min(gesture.x, event.clientX), right: Math.max(gesture.x, event.clientX), top: center - 6, bottom: center + 6 }])
-          }
-        }}
-        onPointerCancel={() => {
-          marking.current = null
-          window.getSelection()?.removeAllRanges()
-        }} />
-      {viewport && <svg viewBox={`0 0 ${viewport.width} ${viewport.height}`} className="absolute inset-0 size-full" aria-label={tool === 'ink' ? 'Área de desenho livre' : tool === 'note' ? 'Clique para adicionar uma nota' : undefined}
-        style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'auto' : 'none', touchAction: tool === 'ink' || tool === 'note' ? 'none' : undefined, cursor: tool === 'ink' ? 'crosshair' : tool === 'note' ? 'copy' : undefined }}
-        onPointerDown={(event) => {
-          if (event.button !== 0) return
-          const point = pointAt(event)
-          if (!point) return
-          event.preventDefault()
-          if (tool === 'note') { onNote(point); return }
-          if (tool !== 'ink') return
-          event.currentTarget.setPointerCapture(event.pointerId)
-          drawing.current = event.pointerId
-          points.current = [point]
-          setDraft([point])
-        }}
-        onPointerMove={(event) => {
-          if (drawing.current !== event.pointerId || points.current.length >= 5000) return
-          const point = pointAt(event)
-          if (point) { points.current = [...points.current, point]; setDraft(points.current) }
-        }}
-        onPointerUp={finish} onPointerCancel={() => { drawing.current = null; points.current = []; setDraft([]) }}>
-        {annotations.filter((a) => a.page === page).map((a) => <g key={a.id}>
-          {a.type === 'highlight' && a.rects?.map((r, i) => {
-            const [x1, y1] = viewport.convertToViewportPoint(r.x, r.y)
-            const [x2, y2] = viewport.convertToViewportPoint(r.x + r.width, r.y + r.height)
-            return <rect key={i} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} fill={a.color} opacity={0.35} />
-          })}
-          {a.type === 'ink' && a.points && <path d={path(a.points)} fill="none" stroke={a.color} strokeWidth={(a.strokeWidth ?? 2) * viewport.scale * viewport.userUnit} strokeLinecap="round" strokeLinejoin="round" />}
-          {a.type === 'note' && a.points?.[0] && <g transform={`translate(${toScreen(a.points[0]).join(' ')})`}><rect x="-8" y="-8" width="20" height="20" rx="3" fill={a.color} stroke="#775c12" /><path d="M-3 -2h10M-3 2h10M-3 6h6" stroke="#293227" strokeWidth="1.5" /><title>{a.text}</title></g>}
-        </g>)}
-        {draft.length > 0 && <path d={path(draft)} fill="none" stroke={color} strokeWidth={2 * viewport.scale * viewport.userUnit} strokeLinecap="round" strokeLinejoin="round" />}
-      </svg>}
+    <div className="relative shrink-0 overflow-clip" style={{
+      width: viewport ? viewport.width * (1 - margins.left - margins.right) : estimate?.width ?? availableWidth * zoom,
+      height: viewport?.height ?? estimate?.height ?? availableWidth * zoom * Math.SQRT2,
+      display: renderError ? 'none' : undefined,
+    }} data-pdf-frame="">
+      <div ref={surface} className="pdf-page relative bg-white" style={{ width: viewport?.width, height: viewport?.height, left: viewport ? -viewport.width * margins.left : 0 }} data-page-number={page} aria-busy={!ready && !renderError}>
+        {!ready && !renderError && <p role="status" className="absolute inset-x-0 top-6 text-center text-xs text-[#6b6b6b]">Preparando página {page}…</p>}
+        <canvas ref={canvas} aria-label={`Página ${page} do PDF`} className="block" />
+        <div ref={text} className="pdf-text-layer" style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'none' : undefined, touchAction: tool === 'highlight' ? 'none' : undefined }}
+          onPointerDown={(event) => {
+            if (tool !== 'highlight' || event.pointerType === 'mouse' || !event.isPrimary || !ready) return
+            event.preventDefault()
+            window.getSelection()?.removeAllRanges()
+            marking.current = { id: event.pointerId, x: event.clientX, y: event.clientY, start: caretAt(event.clientX, event.clientY) }
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={updateHighlight}
+          onPointerUp={(event) => {
+            if (tool !== 'highlight') return
+            if (event.pointerType === 'mouse') { highlight(); return }
+            const gesture = marking.current
+            if (gesture?.id !== event.pointerId) return
+            updateHighlight(event)
+            marking.current = null
+            if (window.getSelection()?.toString().trim()) {
+              highlight()
+            } else if (Math.abs(event.clientX - gesture.x) >= 10 && Math.abs(event.clientY - gesture.y) < 20) {
+              const center = (gesture.y + event.clientY) / 2
+              saveHighlight([{ left: Math.min(gesture.x, event.clientX), right: Math.max(gesture.x, event.clientX), top: center - 6, bottom: center + 6 }])
+            }
+          }}
+          onPointerCancel={() => {
+            marking.current = null
+            window.getSelection()?.removeAllRanges()
+          }} />
+        {viewport && <svg viewBox={`0 0 ${viewport.width} ${viewport.height}`} className="absolute inset-0 size-full" aria-label={tool === 'ink' ? 'Área de desenho livre' : tool === 'note' ? 'Clique para adicionar uma nota' : undefined}
+          style={{ pointerEvents: tool === 'ink' || tool === 'note' ? 'auto' : 'none', touchAction: tool === 'ink' || tool === 'note' ? 'none' : undefined, cursor: tool === 'ink' ? 'crosshair' : tool === 'note' ? 'copy' : undefined }}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return
+            const point = pointAt(event)
+            if (!point) return
+            event.preventDefault()
+            if (tool === 'note') { onNote(point); return }
+            if (tool !== 'ink') return
+            event.currentTarget.setPointerCapture(event.pointerId)
+            drawing.current = event.pointerId
+            points.current = [point]
+            setDraft([point])
+          }}
+          onPointerMove={(event) => {
+            if (drawing.current !== event.pointerId || points.current.length >= 5000) return
+            const point = pointAt(event)
+            if (point) { points.current = [...points.current, point]; setDraft(points.current) }
+          }}
+          onPointerUp={finish} onPointerCancel={() => { drawing.current = null; points.current = []; setDraft([]) }}>
+          {annotations.filter((a) => a.page === page).map((a) => <g key={a.id}>
+            {a.type === 'highlight' && a.rects?.map((r, i) => {
+              const [x1, y1] = viewport.convertToViewportPoint(r.x, r.y)
+              const [x2, y2] = viewport.convertToViewportPoint(r.x + r.width, r.y + r.height)
+              return <rect key={i} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={Math.abs(x2 - x1)} height={Math.abs(y2 - y1)} fill={a.color} opacity={0.35} />
+            })}
+            {a.type === 'ink' && a.points && <path d={path(a.points)} fill="none" stroke={a.color} strokeWidth={(a.strokeWidth ?? 2) * viewport.scale * viewport.userUnit} strokeLinecap="round" strokeLinejoin="round" />}
+            {a.type === 'note' && a.points?.[0] && <g transform={`translate(${toScreen(a.points[0]).join(' ')})`}><rect x="-8" y="-8" width="20" height="20" rx="3" fill={a.color} stroke="#775c12" /><path d="M-3 -2h10M-3 2h10M-3 6h6" stroke="#293227" strokeWidth="1.5" /><title>{a.text}</title></g>}
+          </g>)}
+          {draft.length > 0 && <path d={path(draft)} fill="none" stroke={color} strokeWidth={2 * viewport.scale * viewport.userUnit} strokeLinecap="round" strokeLinejoin="round" />}
+        </svg>}
+      </div>
     </div>
     {ready && !hasText && tool !== 'read' && <p role="status" className="max-w-lg text-center text-xs text-muted">Página digitalizada. Arraste na horizontal para destacar uma faixa.</p>}
   </div>

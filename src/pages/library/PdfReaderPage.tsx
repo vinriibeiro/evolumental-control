@@ -186,6 +186,7 @@ export function PdfReader({
   const [color, setColor] = useState(COLORS[0].value)
   const [mode, setMode] = useState<PdfViewMode>(() => loadMode(startInFocus ? 'single' : 'continuous'))
   const [fit, setFit] = useState<Fit>('width')
+  const [cropMargins, setCropMargins] = useState(true)
   const [manualZoom, setManualZoom] = useState(1)
   const [areaSize, setAreaSize] = useState({ width: 700, height: 600 })
   const [baseRatio, setBaseRatio] = useState(Math.SQRT2)
@@ -394,10 +395,10 @@ export function PdfReader({
     const host = area.current
     if (!host) return
     const resize = () => {
-      // desconta o respiro da área e a borda da página, para "ajustar à largura" não criar rolagem lateral
+      // Desconta só o espaço fora da página para aproveitar a largura sem criar rolagem lateral.
       const style = getComputedStyle(host)
-      const sides = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0) + 2
-      const ends = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0) + 2
+      const sides = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
+      const ends = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)
       const width = Math.max(1, Math.floor(host.clientWidth - sides))
       const next = { width: focus ? width : Math.min(1400, width), height: Math.max(1, Math.floor(host.clientHeight - ends)) }
       setAreaSize((current) => (current.width === next.width && current.height === next.height ? current : next))
@@ -662,6 +663,7 @@ export function PdfReader({
   const fitRatio = mode === 'single' ? pageRatio : baseRatio
   const pageZoom = Math.min(1, areaSize.height / (areaSize.width * fitRatio))
   const zoom = fit === 'width' ? 1 : fit === 'page' ? pageZoom : manualZoom
+  const crop = cropMargins && fit !== 'page'
   const stepZoom = (delta: number) => {
     setFit(null)
     setManualZoom(clampZoom(zoom + delta))
@@ -712,7 +714,7 @@ export function PdfReader({
   }
 
   return (
-    <div className="pdf-reader flex flex-col gap-3" data-focus={focus} data-appearance={appearance} style={{ '--pdf-paper': colors.bg, '--pdf-ink': colors.fg, '--pdf-muted': colors.muted } as CSSProperties}>
+    <div className="pdf-reader flex flex-col gap-3" data-focus={focus} data-text-mode={textMode} data-appearance={appearance} style={{ '--pdf-paper': colors.bg, '--pdf-ink': colors.fg, '--pdf-muted': colors.muted } as CSSProperties}>
       {controlsHidden && <IconButton label="Mostrar controles de leitura" className="pdf-reader-reveal" onClick={() => setControlsHidden(false)}><Settings2 className="size-5" aria-hidden /></IconButton>}
       <div hidden={controlsHidden} className="pdf-reader-header flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -759,6 +761,7 @@ export function PdfReader({
       <div hidden={controlsHidden || (focus && !toolsOpen)} className="pdf-reader-toolbar sticky top-[var(--app-top,0px)] z-20 rounded-xl border border-line bg-surface p-1.5" style={focus ? { top: 0 } : undefined}>
         <div className="mb-1 flex flex-wrap items-center gap-1 border-b border-line pb-1">
           <Button size="sm" variant={textMode ? 'secondary' : 'ghost'} aria-pressed={textMode} onClick={() => changeTextMode(!textMode)}>{textMode ? 'Ver página original' : 'Texto ajustável'}</Button>
+          {!textMode && fit !== 'page' && <Button size="sm" variant={crop ? 'secondary' : 'ghost'} aria-pressed={crop} onClick={() => setCropMargins((active) => !active)}>Recortar margens vazias</Button>}
           <select aria-label="Tema de leitura" className="h-8 rounded-lg border border-line bg-bg px-2 text-sm text-ink" value={appearance} onChange={(event) => changeAppearance(event.target.value as Appearance)}>
             {Object.entries(APPEARANCES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
@@ -919,6 +922,7 @@ export function PdfReader({
           <div ref={area} className="pdf-reader-area h-[72dvh] min-h-[360px] overflow-auto p-2 sm:p-6" tabIndex={0} aria-label="Páginas do documento"
             onPointerDown={startTap} onPointerUp={finishTap} onPointerCancel={() => { touch.current = null }}>
             {textMode ? <PdfReadingText key={page} document={pdf} page={page} fontSize={fontSize} onOriginal={() => changeTextMode(false)} /> : <PdfDocumentView
+              key={crop ? 'cropped' : 'original'}
               ref={view}
               document={pdf}
               pageCount={book.pageCount}
@@ -927,6 +931,7 @@ export function PdfReader({
               area={area}
               zoom={zoom}
               availableWidth={areaSize.width}
+              cropMargins={crop}
               ratio={baseRatio}
               tool={tool}
               color={color}
