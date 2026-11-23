@@ -165,7 +165,7 @@ export const PdfDocumentView = forwardRef<PdfDocumentHandle, Props>(function Pdf
     )
   }
 
-  const width = Math.max(220, availableWidth) * zoom
+  const width = availableWidth * zoom
   return (
     <div className="flex min-w-fit flex-col items-center gap-3">
       {pages.map((number) => {

@@ -73,7 +73,7 @@ export const PdfPageCanvas = forwardRef<PdfCanvasHandle, Props>(function PdfPage
       if (cancelled || !canvas.current || !text.current) return
       const base = pdfPage.getViewport({ scale: 1 })
       ratioRef.current?.(page, base.height / base.width)
-      const scale = Math.min((Math.max(220, availableWidth) / base.width) * zoom, 4)
+      const scale = Math.min((availableWidth / base.width) * zoom, 4)
       const view = pdfPage.getViewport({ scale })
       const outputScale = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(16_000_000 / (view.width * view.height)))
       const target = canvas.current

@@ -21,8 +21,10 @@ import {
   RectangleVertical,
   ScrollText,
   Search,
+  Scan,
   Settings2,
   Undo2,
+  Type,
   X,
   ZoomIn,
   ZoomOut,
@@ -71,6 +73,7 @@ const GUIDANCE: Record<PdfTool, string> = {
 
 const MODE_KEY = 'vlm.leitor-pdf.modo'
 const APPEARANCE_KEY = 'vlm.leitor-pdf.aparencia'
+const FONT_SIZE_KEY = 'vlm.leitor-pdf.fonte'
 const APPEARANCES = { claro: 'Claro', sepia: 'Sépia', noite: 'Noite' } as const
 type Appearance = keyof typeof APPEARANCES
 const MAX_HITS = 500
@@ -78,6 +81,8 @@ const MAX_HITS = 500
 const DWELL_MS = 700
 const ZOOM_MIN = 0.4
 const ZOOM_MAX = 3
+const FONT_MIN = 16
+const FONT_MAX = 38
 
 type SaveStatus = 'saved' | 'saving' | 'error'
 type Fit = 'width' | 'page' | null
@@ -125,6 +130,14 @@ function loadAppearance(key: string, fallback: Appearance): Appearance {
     if (value === 'claro' || value === 'sepia' || value === 'noite') return value
   } catch { /* leitura continua com o tema padrão */ }
   return fallback
+}
+
+function loadFontSize(): number {
+  try {
+    const value = Number(localStorage.getItem(FONT_SIZE_KEY))
+    if (Number.isInteger(value) && value >= FONT_MIN && value <= FONT_MAX) return value
+  } catch { /* usa o tamanho padrão */ }
+  return 22
 }
 
 const clampZoom = (value: number) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 10) / 10))
@@ -187,13 +200,13 @@ export function PdfReader({
 
   // no celular o painel começa fechado, para a página ocupar a tela
   const [panel, setPanel] = useState(() => !startInFocus && Boolean(window.matchMedia?.('(min-width: 1024px)').matches))
-  const [focus, setFocus] = useState(startInFocus)
+  const [focus, setFocus] = useState(() => startInFocus || Boolean(window.matchMedia?.('(max-width: 767px)').matches))
   const [toolsOpen, setToolsOpen] = useState(false)
   const [controlsHidden, setControlsHidden] = useState(false)
   const appearanceKey = startInFocus ? `${APPEARANCE_KEY}.cursos` : APPEARANCE_KEY
   const [appearance, setAppearance] = useState(() => loadAppearance(appearanceKey, startInFocus ? 'sepia' : 'claro'))
   const [textMode, setTextMode] = useState(false)
-  const [fontSize, setFontSize] = useState(20)
+  const [fontSize, setFontSize] = useState(loadFontSize)
   const touch = useRef<{ id: number; x: number; y: number; time: number } | null>(null)
   const [history, setHistory] = useState<PdfAnnotation[][]>([])
   const [note, setNote] = useState<{ page: number; point: PdfPoint } | null>(null)
@@ -385,7 +398,8 @@ export function PdfReader({
       const style = getComputedStyle(host)
       const sides = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0) + 2
       const ends = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0) + 2
-      const next = { width: Math.min(focus ? 820 : 1400, Math.max(220, Math.floor(host.clientWidth - sides))), height: Math.max(200, Math.floor(host.clientHeight - ends)) }
+      const width = Math.max(1, Math.floor(host.clientWidth - sides))
+      const next = { width: focus ? width : Math.min(1400, width), height: Math.max(1, Math.floor(host.clientHeight - ends)) }
       setAreaSize((current) => (current.width === next.width && current.height === next.height ? current : next))
     }
     resize()
@@ -430,12 +444,27 @@ export function PdfReader({
     if (typeof document !== 'undefined' && document.fullscreenElement) void document.exitFullscreen().catch(() => {})
   }, [])
 
+  const requestScreen = () => {
+    // Tela cheia de verdade onde o navegador oferece; no iPhone fica o modo que ocupa a janela toda.
+    const root = document.documentElement
+    if (!document.fullscreenElement && document.fullscreenEnabled && typeof root.requestFullscreen === 'function') {
+      void root.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+    }
+  }
+
   const enterFocus = () => {
     setFocus(true)
     setToolsOpen(false)
-    // Tela cheia de verdade onde o navegador oferece; no iPhone fica o modo que ocupa a janela toda.
-    const root = document.documentElement
-    if (document.fullscreenEnabled && typeof root.requestFullscreen === 'function') root.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+    requestScreen()
+  }
+
+  const hideControls = () => {
+    setToolsOpen(false)
+    setPanel(false)
+    setSearchOpen(false)
+    setTool('read')
+    setControlsHidden(true)
+    requestScreen()
   }
 
   useEffect(() => {
@@ -631,11 +660,20 @@ export function PdfReader({
 
   // Zoom 1 = página na largura da área. "Ajustar à página" reduz até a página inteira caber na altura.
   const fitRatio = mode === 'single' ? pageRatio : baseRatio
-  const pageZoom = Math.min(1, Math.max(0.2, areaSize.height / (areaSize.width * fitRatio)))
+  const pageZoom = Math.min(1, areaSize.height / (areaSize.width * fitRatio))
   const zoom = fit === 'width' ? 1 : fit === 'page' ? pageZoom : manualZoom
   const stepZoom = (delta: number) => {
     setFit(null)
     setManualZoom(clampZoom(zoom + delta))
+  }
+  const changeFontSize = (delta: number) => {
+    const next = Math.max(FONT_MIN, Math.min(FONT_MAX, fontSize + delta))
+    setFontSize(next)
+    try { localStorage.setItem(FONT_SIZE_KEY, String(next)) } catch { /* vale para a sessão atual */ }
+  }
+  const fitWholePage = () => {
+    if (mode !== 'single') changeMode('single')
+    setFit('page')
   }
   const bookmarked = book.bookmarks.includes(page)
   const visitedCount = book.visitedPages?.length ?? 0
@@ -663,8 +701,8 @@ export function PdfReader({
     if (Date.now() - start.time > 350 || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12) return
     if ((event.target as HTMLElement).closest('button, a') || window.getSelection()?.toString()) return
     const host = event.currentTarget
-    if (host.scrollWidth > host.clientWidth + 1) return
     const zone = textMode || mode === 'single' ? tapZone(event.clientX - host.getBoundingClientRect().left, host.clientWidth) : 'meio'
+    if (zone !== 'meio' && host.scrollWidth > host.clientWidth + 1) return
     if (zone === 'anterior') go(page - 1)
     else if (zone === 'proxima') go(page + 1)
     else {
@@ -688,7 +726,7 @@ export function PdfReader({
             </h1>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="pdf-reader-header-actions flex flex-wrap items-center gap-1 sm:gap-2">
           <span role="status" className={cn('text-[11px]', saveStatus === 'error' ? 'text-danger' : 'text-muted max-sm:sr-only')}>
             {saveStatus === 'saved' ? (
               <>
@@ -712,6 +750,7 @@ export function PdfReader({
             setTool(tool === 'highlight' ? 'read' : 'highlight')
           }}><Highlighter className="size-5" aria-hidden /></IconButton>}
           {focus && <IconButton label="Ferramentas de leitura" className="size-11" aria-expanded={toolsOpen} onClick={() => setToolsOpen((open) => !open)}><Settings2 className="size-5" aria-hidden /></IconButton>}
+          {focus && <IconButton label="Tela inteira sem barras" className="size-11" onClick={hideControls}><Scan className="size-5" aria-hidden /></IconButton>}
           {focus && <IconButton label="Sair da tela cheia" className="size-11" onClick={exitFocus}><Minimize className="size-5" aria-hidden /></IconButton>}
         </div>
       </div>
@@ -724,12 +763,11 @@ export function PdfReader({
             {Object.entries(APPEARANCES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
           {textMode && <>
-            <IconButton size="sm" label="Diminuir fonte" disabled={fontSize <= 14} onClick={() => setFontSize((size) => size - 2)}>A−</IconButton>
-            <IconButton size="sm" label="Aumentar fonte" disabled={fontSize >= 36} onClick={() => setFontSize((size) => size + 2)}>A+</IconButton>
+            <IconButton size="sm" label="Diminuir fonte" disabled={fontSize <= FONT_MIN} onClick={() => changeFontSize(-2)}>A−</IconButton>
+            <IconButton size="sm" label="Aumentar fonte" disabled={fontSize >= FONT_MAX} onClick={() => changeFontSize(2)}>A+</IconButton>
           </>}
           {documentActions}
           <Button size="sm" icon={<Download className="size-4" aria-hidden />} loading={exporting} onClick={() => void exportPdf()}>Exportar marcações</Button>
-          {focus && <Button size="sm" variant="ghost" onClick={() => { setToolsOpen(false); setControlsHidden(true) }}>Ocultar controles</Button>}
         </div>
         {textMode && <p className="px-1.5 py-1 text-xs text-muted">Use a página original para ver figuras, tabelas e marcações.</p>}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -799,7 +837,7 @@ export function PdfReader({
             <IconButton label="Ajustar à largura" size="sm" aria-pressed={fit === 'width'} variant={fit === 'width' ? 'secondary' : 'ghost'} onClick={() => setFit('width')}>
               <MoveHorizontal className="size-4" aria-hidden />
             </IconButton>
-            <IconButton label="Ajustar à página" size="sm" aria-pressed={fit === 'page'} variant={fit === 'page' ? 'secondary' : 'ghost'} onClick={() => setFit('page')}>
+            <IconButton label="Ajustar à página" size="sm" aria-pressed={fit === 'page' && mode === 'single'} variant={fit === 'page' && mode === 'single' ? 'secondary' : 'ghost'} onClick={fitWholePage}>
               <RectangleVertical className="size-4" aria-hidden />
             </IconButton>
             <span className="mx-1 h-5 w-px bg-line" aria-hidden />
@@ -903,8 +941,8 @@ export function PdfReader({
               onError={reportError}
             />}
           </div>
-          <div hidden={controlsHidden} className="pdf-reader-footer flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line bg-surface px-2 py-1">
-            <div className="flex items-center gap-1">
+          <div hidden={controlsHidden} className="pdf-reader-footer flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line bg-surface px-1 sm:px-3">
+            <div className="flex items-center">
               <IconButton label="Página anterior" className="size-11" disabled={page <= 1} onClick={() => go(page - 1)}>
                 <ChevronLeft className="size-4" aria-hidden />
               </IconButton>
@@ -916,16 +954,29 @@ export function PdfReader({
                   e.currentTarget.querySelector('input')?.blur()
                 }}
               >
-                <label htmlFor="pdf-page-input">Página</label>
-                <Input id="pdf-page-input" type="number" inputMode="numeric" min={1} max={book.pageCount} className="!h-8 !w-16 text-center" value={pageInput} onChange={(e) => setPageInput(e.target.value)} onBlur={() => (Number(pageInput) === page ? setPageInput(String(page)) : go(Number(pageInput)))} />
-                <span className="whitespace-nowrap">de {book.pageCount}</span>
+                <label htmlFor="pdf-page-input" className="max-sm:sr-only">Página</label>
+                <Input id="pdf-page-input" type="number" inputMode="numeric" min={1} max={book.pageCount} className="!h-8 !w-11 px-1 text-center sm:!w-16" value={pageInput} onChange={(e) => setPageInput(e.target.value)} onBlur={() => (Number(pageInput) === page ? setPageInput(String(page)) : go(Number(pageInput)))} />
+                <span className="whitespace-nowrap"><span className="max-sm:hidden">de </span><span className="sm:hidden" aria-hidden>/ </span>{book.pageCount}</span>
               </form>
               <IconButton label="Próxima página" className="size-11" disabled={page >= book.pageCount} onClick={() => go(page + 1)}>
                 <ChevronRight className="size-4" aria-hidden />
               </IconButton>
             </div>
+            {focus && !toolsOpen && (
+              <div className="flex items-center" role="group" aria-label="Tamanho da leitura">
+                <IconButton label={textMode ? 'Diminuir fonte' : 'Diminuir zoom'} className="size-11" disabled={textMode ? fontSize <= FONT_MIN : zoom <= ZOOM_MIN} onClick={() => textMode ? changeFontSize(-2) : stepZoom(-0.2)}>
+                  <ZoomOut className="size-5" aria-hidden />
+                </IconButton>
+                <IconButton label={textMode ? 'Aumentar fonte' : 'Aumentar zoom'} className="size-11" disabled={textMode ? fontSize >= FONT_MAX : zoom >= ZOOM_MAX} onClick={() => textMode ? changeFontSize(2) : stepZoom(0.2)}>
+                  <ZoomIn className="size-5" aria-hidden />
+                </IconButton>
+                <IconButton label={textMode ? 'Voltar para a página original' : 'Ler com letras maiores'} className="size-11" aria-pressed={textMode} variant={textMode ? 'secondary' : 'ghost'} onClick={() => changeTextMode(!textMode)}>
+                  {textMode ? <FileIcon className="size-5" aria-hidden /> : <Type className="size-5" aria-hidden />}
+                </IconButton>
+              </div>
+            )}
             <div
-              className="flex flex-1 items-center justify-end gap-2 text-[11px] text-muted"
+              className="flex basis-full items-center justify-end gap-2 px-2 pb-1.5 text-[11px] text-muted sm:basis-auto sm:flex-1 sm:px-0 sm:pb-0"
               title="Estimativa automática pelas páginas que você já abriu neste leitor. Não é uma confirmação de leitura completa."
             >
               <span className="whitespace-nowrap">
@@ -935,7 +986,7 @@ export function PdfReader({
                   · {visitedCount} de {book.pageCount} {book.pageCount === 1 ? 'página aberta' : 'páginas abertas'}
                 </span>
               </span>
-              <div role="progressbar" aria-label="Progresso de navegação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1 w-24 max-w-full overflow-hidden rounded-full bg-track max-sm:w-16">
+              <div role="progressbar" aria-label="Progresso de navegação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} className="h-1 w-24 max-w-full overflow-hidden rounded-full bg-track max-sm:flex-1">
                 <div className="h-full rounded-full bg-ink transition-[width] duration-300" style={{ width: `${progress}%` }} />
               </div>
             </div>
