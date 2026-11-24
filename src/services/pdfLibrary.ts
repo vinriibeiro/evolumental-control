@@ -201,6 +201,22 @@ export class PdfLibrary {
       (local.updatedAt === state?.syncedAt || Date.parse(remote.book.updatedAt) >= Date.parse(local.updatedAt)))))
   }
 
+  async openSource(id: string): Promise<{ data: ArrayBuffer } | { url: string; cache: (bytes: Uint8Array) => Promise<void> } | undefined> {
+    const local = await this.db.files.get(id)
+    if (local) return { data: local.data }
+    const state = await this.db.syncState.get(id)
+    if (!state?.syncedAt || !this.cloud?.signedUrl) return undefined
+    const fileKey = state.fileKey
+    const url = await this.cloud.signedUrl(fileKey)
+    return {
+      url,
+      cache: async (bytes) => {
+        const data = new Uint8Array(bytes).buffer
+        await this.cacheFile(id, fileKey, data)
+      },
+    }
+  }
+
   async file(id: string): Promise<ArrayBuffer | undefined> {
     const local = await this.db.files.get(id)
     if (local || !this.cloud) return local?.data
@@ -212,6 +228,10 @@ export class PdfLibrary {
     if (!state?.syncedAt) return undefined
     const fileKey = state.fileKey
     const data = await this.cloud.download(fileKey)
+    return this.cacheFile(id, fileKey, data)
+  }
+
+  private cacheFile(id: string, fileKey: string, data: ArrayBuffer): Promise<ArrayBuffer | undefined> {
     return this.db.transaction('rw', this.db.files, this.db.syncState, async () => {
       const current = await this.db.syncState.get(id)
       if (!current?.syncedAt || current.fileKey !== fileKey) return undefined

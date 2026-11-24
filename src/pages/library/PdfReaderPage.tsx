@@ -39,7 +39,7 @@ import { usePdfLibrary } from '@/hooks/usePdfLibrary'
 import { downloadBlob } from '@/lib/download'
 import { markVisited, navigationProgress, READER_COLORS, seedVisitedPages, tapZone } from '@/lib/library'
 import { cn } from '@/lib/cn'
-import type { PdfAnnotation, PdfBook, PdfPoint, PdfReadingPatch, PdfShelfPatch } from '@/services/pdfLibrary'
+import type { PdfAnnotation, PdfBook, PdfLibrary, PdfPoint, PdfReadingPatch, PdfShelfPatch } from '@/services/pdfLibrary'
 import type { SessionSource } from '@/types/db'
 import { PdfDocumentView, type PdfDocumentHandle, type PdfViewMode } from './PdfDocumentView'
 import { searchKey, type PdfTool } from './PdfPageCanvas'
@@ -96,6 +96,7 @@ interface SearchHit {
 export interface PdfReaderStore {
   get(id: string): Promise<PdfBook | undefined>
   file(id: string): Promise<ArrayBuffer | undefined>
+  openSource?(id: string): ReturnType<PdfLibrary['openSource']>
   update(id: string, patch: PdfReadingPatch): Promise<void>
   cancel?(): void
   /** Só a estante local guarda capa: o leitor aproveita o PDF aberto para gerá-la quando falta. */
@@ -217,6 +218,7 @@ export function PdfReader({
   const [password, setPassword] = useState('')
   const cancelPassword = useRef<() => void>(() => {})
   const [exporting, setExporting] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -299,17 +301,20 @@ export function PdfReader({
     setTool('read')
     setPasswordRequest(null)
     setPassword('')
-    const load = async () => {
-      const stored = await library.get(id)
-      const data = stored ? await library.file(id) : undefined
-      if (cancelled) return
-      if (!stored || !data) throw new Error('Este PDF não está na biblioteca deste navegador. Volte à biblioteca e adicione o arquivo.')
-      bytes.current = data
-      const task = getDocument({ data: new Uint8Array(data.slice(0)), cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, standardFontDataUrl: '/pdfjs/standard_fonts/', wasmUrl: '/pdfjs/wasm/' })
-      destroy = () => {
-        void task.destroy()
-      }
+    setDownloadProgress(null)
+    const open = (source: { data: ArrayBuffer } | { url: string }) => {
+      if ('data' in source) bytes.current = source.data
+      const input = 'data' in source ? { data: new Uint8Array(source.data.slice(0)) } : { url: source.url }
+      const task = getDocument({
+        ...input,
+        cMapUrl: '/pdfjs/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: '/pdfjs/standard_fonts/',
+        wasmUrl: '/pdfjs/wasm/',
+      })
+      destroy = () => { void task.destroy() }
       cancelPassword.current = () => {
+        cancelled = true
         destroy?.()
         setPasswordRequest(null)
         setError('A abertura do PDF foi cancelada. Tente novamente para informar a senha.')
@@ -317,27 +322,57 @@ export function PdfReader({
       task.onPassword = (submit: (password: string) => void, reason: number) => {
         if (!cancelled) setPasswordRequest({ submit, incorrect: reason === 2 })
       }
-      const document = await task.promise
-      if (cancelled) {
-        void task.destroy()
-        return
+      task.onProgress = ({ loaded, total }: { loaded: number; total: number }) => {
+        if (!cancelled && total > 0) setDownloadProgress(Math.min(100, Math.floor(loaded * 100 / total)))
       }
-      const currentPage = Math.min(stored.currentPage, document.numPages)
+      return task
+    }
+    const load = async () => {
+      const stored = await library.get(id)
+      if (cancelled) return
+      if (!stored) throw new Error('Este PDF não está disponível na sua biblioteca. Confira se terminou de sincronizar no aparelho de origem.')
+      let source = await library.openSource?.(id).catch(() => undefined)
+      if (cancelled) return
+      const prepare = async (task: ReturnType<typeof getDocument>) => {
+        const document = await task.promise
+        const currentPage = Math.min(stored.currentPage, document.numPages)
+        const viewport = (await document.getPage(currentPage)).getViewport({ scale: 1 })
+        return { document, currentPage, viewport }
+      }
+      let opened: Awaited<ReturnType<typeof prepare>> | undefined
+      if (source && 'url' in source) {
+        const task = open(source)
+        try {
+          opened = await prepare(task)
+        } catch {
+          await task.destroy().catch(() => undefined)
+          source = undefined
+        }
+      }
+      if (cancelled) return
+      if (!opened) {
+        const data = source && 'data' in source ? source.data : await library.file(id)
+        if (cancelled) return
+        if (!data) throw new Error('Arquivo indisponível. Abra a Biblioteca no aparelho em que o PDF foi importado e confira se o envio terminou.')
+        opened = await prepare(open({ data }))
+      }
+      if (cancelled) return
+      const { document, currentPage, viewport } = opened
       // PDFs lidos antes do registro de páginas visitadas: parte do trecho já percorrido até a página salva.
       const visitedPages = stored.visitedPages ?? (stored.lastReadAt ? seedVisitedPages(currentPage, document.numPages) : [])
       const record: PdfBook = { ...stored, pageCount: document.numPages, currentPage, lastReadAt: new Date().toISOString(), visitedPages }
-      await library.update(id, { pageCount: record.pageCount, currentPage, lastReadAt: record.lastReadAt, visitedPages })
-      if (cancelled) return
-      const first = (await document.getPage(1)).getViewport({ scale: 1 })
-      if (cancelled) return
       latest.current = record
       setBook(record)
       setResumed(Boolean(stored.lastReadAt))
-      setBaseRatio(first.height / first.width)
-      setPageRatio(first.height / first.width)
+      setBaseRatio(viewport.height / viewport.width)
+      setPageRatio(viewport.height / viewport.width)
       setPdf(document)
       showPage(currentPage)
-      void qc.invalidateQueries({ queryKey: ['library', 'last-read'] })
+      save({ pageCount: record.pageCount, currentPage, lastReadAt: record.lastReadAt, visitedPages })
+      if (source && 'cache' in source) {
+        const { cache } = source
+        void document.getData().then((data) => !cancelled ? cache(data) : undefined).catch(() => undefined)
+      }
       if (!stored.cover && library.setShelfData) {
         // a estante mostra a primeira página como capa: gera uma vez, aproveitando o PDF já aberto
         void renderPdfCover(document)
@@ -370,7 +405,7 @@ export function PdfReader({
       bytes.current = null
       latest.current = null
     }
-  }, [id, library, qc, retry, showPage])
+  }, [id, library, retry, save, showPage])
 
   useEffect(() => {
     const onHidden = () => {
@@ -539,11 +574,12 @@ export function PdfReader({
   }
 
   const exportPdf = async () => {
-    if (!bytes.current || !book) return
+    if (!pdf || !book) return
     setExporting(true)
     try {
       const { exportAnnotatedPdf } = await import('@/lib/pdfExport')
-      const result = await exportAnnotatedPdf(bytes.current.slice(0), book.annotations)
+      const original = bytes.current?.slice(0) ?? new Uint8Array(await pdf.getData()).buffer
+      const result = await exportAnnotatedPdf(original, book.annotations)
       downloadBlob(new Blob([new Uint8Array(result)], { type: 'application/pdf' }), `${book.title}-com-marcacoes.pdf`)
       toastRef.current.success('PDF com marcações exportado. O arquivo original foi preservado.')
     } catch (e) {
@@ -633,7 +669,7 @@ export function PdfReader({
     }
     return (
       <>
-        <Spinner label="Abrindo seu PDF…" />
+        <Spinner label={downloadProgress !== null && downloadProgress < 100 ? `Baixando PDF… ${downloadProgress}%` : 'Abrindo seu PDF…'} />
         <Link to={backTo} className="block text-center text-sm text-ink underline underline-offset-4">{backLabel}</Link>
         <Modal
           open={Boolean(passwordRequest)}
