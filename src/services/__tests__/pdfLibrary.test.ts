@@ -273,22 +273,24 @@ describe('sincronização privada de PDFs', () => {
     const { id: remoteId } = await phone.add(pdfFile('Na nuvem.pdf'))
     await phone.sync()
     const { id: localId } = await desktop.add(pdfFile('Local.pdf', '%PDF-1.7 outro livro'))
-    const uploadStarted = Promise.withResolvers<void>()
-    const releaseUpload = Promise.withResolvers<void>()
+    let notifyUploadStarted!: () => void
+    let releaseUpload!: () => void
+    const uploadStarted = new Promise<void>((resolve) => { notifyUploadStarted = resolve })
+    const uploadReleased = new Promise<void>((resolve) => { releaseUpload = resolve })
     const originalUpload = cloud.upload
     vi.spyOn(cloud, 'upload').mockImplementationOnce(async (key, data) => {
-      uploadStarted.resolve()
-      await releaseUpload.promise
+      notifyUploadStarted()
+      await uploadReleased
       await originalUpload(key, data)
     })
     const sync = desktop.sync()
     try {
-      await uploadStarted.promise
+      await uploadStarted
       expect(await desktop.get(localId)).toMatchObject({ id: localId })
       expect(await desktop.get(remoteId)).toMatchObject({ id: remoteId })
       expect(await desktop.file(remoteId)).toBeDefined()
     } finally {
-      releaseUpload.resolve()
+      releaseUpload()
       await sync
     }
   })
