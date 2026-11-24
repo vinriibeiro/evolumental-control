@@ -24,9 +24,9 @@ interface ItemProps extends ShelfItemActions {
 
 const focusRing = 'rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong'
 
-/** Situação do EPUB na nuvem da conta (o PDF fica só no aparelho e é explicado no rodapé da estante). */
+/** Situação do livro na nuvem da conta. */
 function CloudNote({ entry, cloudOn }: { entry: ShelfEntry; cloudOn: boolean }) {
-  if (!cloudOn || entry.kind !== 'book') return null
+  if (!cloudOn || !entry.cloud || entry.cloud === 'off') return null
   if (entry.cloud === 'too-large') {
     return (
       <span className="inline-flex items-center gap-1" title="Maior que 50 MB: não cabe na nuvem do plano gratuito e fica só neste aparelho">

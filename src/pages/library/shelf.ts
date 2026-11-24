@@ -27,7 +27,7 @@ export interface ShelfEntry extends DedupeCandidate {
   coverType?: string
   pageCount?: number
   currentPage?: number
-  /** Só EPUB: situação na nuvem da conta. */
+  /** Situação na nuvem da conta. */
   cloud?: CloudState
   fileLocal?: boolean
 }
@@ -93,6 +93,8 @@ export function pdfEntry(p: PdfBook): ShelfEntry {
     href: bookHref('pdf', p.id),
     cover: p.cover,
     coverType: p.coverType,
+    cloud: p.cloud,
+    fileLocal: p.fileLocal,
     // antes da primeira abertura a contagem de páginas pode ainda ser o valor inicial (1)
     pageCount: p.lastReadAt || p.pageCount > 1 ? p.pageCount : undefined,
     currentPage: p.currentPage,

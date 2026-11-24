@@ -2,13 +2,14 @@ import 'fake-indexeddb/auto'
 import Dexie, { type Table } from 'dexie'
 import { webcrypto } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CloudPdf, PdfCloud } from '../pdfLibrarySupabase'
 import { PDF_MAX_FILE_BYTES, PdfLibrary, type PdfAnnotation, type PdfBook } from '../pdfLibrary'
 
 const libraries: PdfLibrary[] = []
 let nextScope = 0
 const pdfFile = (name = 'Meu_Material.pdf', content = '%PDF-1.7\nmaterial de teste') => new File([content], name, { type: 'application/pdf' })
-function shelf(scope = `pdf-test-${++nextScope}`) {
-  const library = new PdfLibrary(scope)
+function shelf(scope = `pdf-test-${++nextScope}`, cloud?: PdfCloud) {
+  const library = new PdfLibrary(scope, cloud)
   libraries.push(library)
   return library
 }
@@ -215,5 +216,85 @@ describe('biblioteca local de PDFs', () => {
     await second.get(book.id)
     await second.update(book.id, { bookmarks: [2] })
     expect((await first.get(book.id))?.annotations).toEqual([mark])
+  })
+})
+
+function cloudFixture(): PdfCloud {
+  const records = new Map<string, CloudPdf>()
+  const files = new Map<string, ArrayBuffer>()
+  return {
+    list: async () => structuredClone([...records.values()]),
+    write: async (entry, expectedRevision) => {
+      if ((records.get(entry.id)?.revision ?? null) !== expectedRevision) return false
+      records.set(entry.id, structuredClone(entry))
+      return true
+    },
+    upload: async (key, data) => { files.set(key, data.slice(0)) },
+    download: async (key) => {
+      const file = files.get(key)
+      if (!file) throw new Error('Arquivo ausente')
+      return file.slice(0)
+    },
+    removeFile: async (key) => { files.delete(key) },
+  }
+}
+
+describe('sincronização privada de PDFs', () => {
+  it('envia um PDF já importado e baixa o original uma vez ao abrir no outro aparelho', async () => {
+    const cloud = cloudFixture()
+    const download = vi.spyOn(cloud, 'download')
+    const local = shelf()
+    const file = pdfFile()
+    const { id } = await local.add(file)
+    await local.update(id, { pageCount: 4, currentPage: 2, annotations: [mark], bookmarks: [2] })
+    local.close()
+
+    const desktop = shelf(local.dbName.slice(0, -4), cloud)
+    const phone = shelf(undefined, cloud)
+    await desktop.sync()
+    await phone.sync()
+    expect(await phone.list()).toMatchObject([{ id, currentPage: 2, annotations: [mark], bookmarks: [2], cloud: 'synced', fileLocal: false }])
+    expect(download).not.toHaveBeenCalled()
+    expect(await phone.file(id)).toEqual(await file.arrayBuffer())
+    expect(await phone.file(id)).toEqual(await file.arrayBuffer())
+    expect(download).toHaveBeenCalledTimes(1)
+
+    await phone.get(id)
+    await phone.update(id, { currentPage: 3 })
+    await phone.sync()
+    await desktop.sync()
+    expect(await desktop.get(id)).toMatchObject({ currentPage: 3, annotations: [mark] })
+  })
+
+  it('mantém o PDF local quando o envio falha e tenta de novo na próxima sincronização', async () => {
+    const cloud = cloudFixture()
+    vi.spyOn(cloud, 'upload').mockRejectedValueOnce(new Error('Sem conexão'))
+    const library = shelf(undefined, cloud)
+    const { id } = await library.add(pdfFile())
+    await expect(library.sync()).rejects.toThrow('Sem conexão')
+    expect(await cloud.list()).toEqual([])
+    expect(await library.list()).toMatchObject([{ id, cloud: 'pending', fileLocal: true }])
+    await library.sync()
+    expect(await library.list()).toMatchObject([{ id, cloud: 'synced' }])
+  })
+
+  it('propaga uma exclusão sem reenviar a cópia antiga e permite uma nova importação explícita', async () => {
+    const cloud = cloudFixture()
+    const desktop = shelf(undefined, cloud)
+    const phone = shelf(undefined, cloud)
+    const file = pdfFile()
+    const { id } = await desktop.add(file)
+    await desktop.sync()
+    await phone.get(id)
+    await phone.file(id)
+    await desktop.remove(id)
+    await phone.update(id, { pageCount: 2, currentPage: 2 })
+    await phone.sync()
+    expect(await phone.list()).toEqual([])
+    expect(await phone.file(id)).toBeUndefined()
+    expect(await cloud.list()).toMatchObject([{ id, book: null }])
+    await phone.add(file)
+    await phone.sync()
+    expect(await desktop.get(id)).toMatchObject({ id, currentPage: 1 })
   })
 })

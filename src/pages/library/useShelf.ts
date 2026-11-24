@@ -6,12 +6,13 @@ import { usePdfLibrary } from '@/hooks/usePdfLibrary'
 import { findDuplicate, isEpubFile, sortShelf, type DedupeCandidate, type DuplicateMatch, type ShelfState } from '@/lib/library'
 import { cloudErrorMessage, type BookDetails, type Library } from '@/services/library'
 import type { PdfLibrary } from '@/services/pdfLibrary'
+import { pdfCloudErrorMessage } from '@/services/pdfLibrarySupabase'
 import { describePdf } from './pdfCover'
 import { epubEntry, pdfEntry, type ShelfEntry } from './shelf'
 
 interface ShelfData {
   entries: ShelfEntry[]
-  /** A sincronização com a conta falhou: a estante mostra só o que está neste aparelho. */
+  /** A sincronização com a conta falhou. */
   syncError: string | null
   /** O Supabase da conta ainda não tem as colunas da estante v2. */
   schemaOutdated: boolean
@@ -98,6 +99,7 @@ async function importFiles(files: File[], library: Library, pdfLibrary: PdfLibra
         // o conteúdo decide primeiro: se é o mesmo arquivo, nem precisa abrir o PDF
         if (findDuplicate({ hash: probe.id, title: '' }, known)) {
           await check({ hash: probe.id, title: probe.title }, file.name, restore)
+          if (known.some((entry) => entry.kind === 'pdf' && entry.id === probe.id && !entry.fileLocal)) await pdfLibrary.add(file, probe)
           continue
         }
         const description = await describePdf(probe.data)
@@ -131,14 +133,11 @@ export function useShelf() {
     staleTime: 0,
     queryKey,
     queryFn: async (): Promise<ShelfData> => {
-      let syncError: string | null = null
-      if (library.cloud) {
-        try {
-          await library.sync()
-        } catch (e) {
-          syncError = cloudErrorMessage(e)
-        }
-      }
+      const [epubSync, pdfSync] = await Promise.allSettled([library.sync(), pdfLibrary.sync()])
+      const errors = []
+      if (epubSync.status === 'rejected') errors.push(cloudErrorMessage(epubSync.reason))
+      if (pdfSync.status === 'rejected') errors.push(pdfCloudErrorMessage(pdfSync.reason))
+      const syncError = errors.join(' ') || null
       return { entries: await readLocal(library, pdfLibrary), syncError, schemaOutdated: library.cloudSchemaOutdated }
     },
   })
@@ -156,7 +155,7 @@ export function useShelf() {
         confirm({ title: 'Livro possivelmente duplicado', message: duplicateQuestion(match, fileName), confirmLabel: 'Adicionar mesmo assim', cancelLabel: 'Não adicionar' }),
       ),
     onSuccess: ({ added, duplicated, restored, skipped, notes }) => {
-      void reload()
+      void reload().then(() => qc.invalidateQueries({ queryKey }))
       if (added) toast.success(added === 1 ? '1 livro adicionado à estante.' : `${added} livros adicionados à estante.`)
       if (duplicated) toast.info(duplicated === 1 ? '1 livro já estava na estante.' : `${duplicated} livros já estavam na estante.`)
       restored.forEach((title) => toast.info(`“${title}” já estava guardado e voltou para a estante, com a leitura de onde parou.`))
@@ -169,7 +168,7 @@ export function useShelf() {
   const action = useMutation({
     mutationFn: async ({ run }: { run: () => Promise<void>; done?: string }) => run(),
     onSuccess: (_result, { done }) => {
-      void reload()
+      void reload().then(() => qc.invalidateQueries({ queryKey }))
       if (done) toast.success(done)
     },
     onError: (e) => toast.error(cloudErrorMessage(e)),
@@ -194,10 +193,10 @@ export function useShelf() {
 
   /** Exclusão permanente: a única ação que apaga o arquivo e os dados de leitura; sempre com confirmação. */
   const deleteForever = async (entry: ShelfEntry) => {
-    const everywhere = entry.kind === 'book' && entry.cloud === 'synced'
+    const cloudDelete = entry.cloud === 'synced' || (entry.kind === 'pdf' && entry.cloud === 'pending')
     const ok = await confirm({
       title: 'Excluir permanentemente',
-      message: `Excluir “${entry.title}” de vez? O arquivo guardado, a posição de leitura, os marcadores e as anotações deste livro serão apagados ${everywhere ? 'da sua conta e de todos os aparelhos' : 'deste navegador'}. Os outros livros não são afetados e o arquivo original no seu computador continua intacto. Esta ação não pode ser desfeita.`,
+      message: `Excluir “${entry.title}” de vez? O arquivo guardado, a posição de leitura, os marcadores e as anotações deste livro serão apagados ${cloudDelete ? 'deste aparelho e de qualquer aparelho em que o livro esteja sincronizado' : 'deste navegador'}. Os outros livros não são afetados e o arquivo original no seu computador continua intacto. Esta ação não pode ser desfeita.`,
       confirmLabel: 'Excluir permanentemente',
       danger: true,
     })

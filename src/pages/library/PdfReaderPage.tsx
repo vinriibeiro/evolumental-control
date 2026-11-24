@@ -150,6 +150,7 @@ export default function PdfReaderPage() {
       key={`${library.dbName}:${id}`}
       store={library}
       documentId={id}
+      storageNotice={library.cloud ? 'Alterações salvas neste aparelho são enviadas à sua conta quando há conexão e o PDF cabe na nuvem.' : undefined}
       studySource={(book) => ({ kind: 'pdf', id: book.id, label: book.title, href: `/livros/pdf/${book.id}` })}
     />
   )
@@ -299,7 +300,8 @@ export function PdfReader({
     setPasswordRequest(null)
     setPassword('')
     const load = async () => {
-      const [stored, data] = await Promise.all([library.get(id), library.file(id)])
+      const stored = await library.get(id)
+      const data = stored ? await library.file(id) : undefined
       if (cancelled) return
       if (!stored || !data) throw new Error('Este PDF não está na biblioteca deste navegador. Volte à biblioteca e adicione o arquivo.')
       bytes.current = data

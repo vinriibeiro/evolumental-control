@@ -85,6 +85,25 @@ describe('migração + RLS', () => {
     })
   })
 
+  it('restringe os PDFs e seus metadados à conta proprietária', async () => {
+    const id = 'a'.repeat(64)
+    await as(ALICE, async () => {
+      await db.query(
+        'insert into public.library_pdfs (id, revision, file_key, book) values ($1, gen_random_uuid(), gen_random_uuid(), $2)',
+        [id, JSON.stringify({ id, title: 'PDF privado' })],
+      )
+      expect((await db.query('select id from public.library_pdfs where id = $1', [id])).rows).toEqual([{ id }])
+    })
+    await as(BOB, async () => {
+      expect((await db.query('select id from public.library_pdfs where id = $1', [id])).rows).toEqual([])
+      expect((await db.query('update public.library_pdfs set book = null where id = $1', [id])).affectedRows).toBe(0)
+      await expect(db.query(
+        'insert into public.library_pdfs (user_id, id, revision, file_key) values ($1, $2, gen_random_uuid(), gen_random_uuid())',
+        [ALICE, id],
+      )).rejects.toThrow(/row-level security/)
+    })
+  })
+
   it('impede inserir linhas em nome de outro usuário', async () => {
     await as(BOB, async () => {
       await expect(db.query(`insert into public.subjects (user_id, name) values ($1, 'x')`, [ALICE])).rejects.toThrow()
