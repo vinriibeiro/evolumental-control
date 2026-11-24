@@ -14,6 +14,7 @@ export interface PdfCloud {
   write(entry: CloudPdf, expectedRevision: string | null): Promise<boolean>
   upload(key: string, data: ArrayBuffer): Promise<void>
   download(key: string): Promise<ArrayBuffer>
+  signedUrl?(key: string): Promise<string>
   removeFile(key: string): Promise<void>
 }
 
@@ -80,6 +81,11 @@ export function supabasePdfCloud(client: SupabaseClient, userId: string): PdfClo
       const { data, error } = await bucket().download(path(key))
       if (error) throw error
       return data.arrayBuffer()
+    },
+    async signedUrl(key) {
+      const { data, error } = await bucket().createSignedUrl(path(key), 3600)
+      if (error) throw error
+      return data.signedUrl
     },
     async removeFile(key) {
       const { error } = await bucket().remove([path(key)])
