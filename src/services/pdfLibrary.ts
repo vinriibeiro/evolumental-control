@@ -173,8 +173,7 @@ export class PdfLibrary {
   }
 
   async get(id: string): Promise<PdfBook | undefined> {
-    // Abrir pelo link direto também recupera a estante. A cópia offline continua utilizável.
-    await this.sync().catch(() => undefined)
+    if (this.cloud && !(await this.db.books.get(id))) await this.refresh(id)
     return this.db.transaction('r', this.db.books, this.db.revisions, async () => {
       const book = await this.db.books.get(id)
       if (book) this.knownRevisions.set(id, (await this.db.revisions.get(id))?.revision ?? null)
@@ -182,12 +181,32 @@ export class PdfLibrary {
     })
   }
 
+  /** Traz os metadados disponíveis sem esperar pelo envio de arquivos deste aparelho. */
+  async refresh(id?: string): Promise<void> {
+    if (!this.cloud) return
+    const remote = id && this.cloud.find
+      ? [await this.cloud.find(id)]
+      : await this.cloud.list()
+    for (const entry of remote) {
+      if (!entry?.book || (id && entry.id !== id)) continue
+      const [local, state] = await this.db.transaction('r', this.db.books, this.db.syncState, () =>
+        Promise.all([this.db.books.get(entry.id), this.db.syncState.get(entry.id)]),
+      )
+      if (this.shouldPull(entry, local, state)) await this.applyRemote(entry, local)
+    }
+  }
+
+  private shouldPull(remote: CloudPdf, local?: PdfBook, state?: PdfSyncState): boolean {
+    return Boolean(remote.book && (!local || (remote.revision !== state?.revision &&
+      (local.updatedAt === state?.syncedAt || Date.parse(remote.book.updatedAt) >= Date.parse(local.updatedAt)))))
+  }
+
   async file(id: string): Promise<ArrayBuffer | undefined> {
     const local = await this.db.files.get(id)
     if (local || !this.cloud) return local?.data
     let state = await this.db.syncState.get(id)
     if (!state?.syncedAt) {
-      await this.sync()
+      await this.refresh(id)
       state = await this.db.syncState.get(id)
     }
     if (!state?.syncedAt) return undefined
@@ -214,7 +233,7 @@ export class PdfLibrary {
       const local = new Map(books.map((book) => [book.id, book]))
       const stateById = new Map(states.map((state) => [state.id, state]))
       const errors: unknown[] = []
-      for (const id of new Set([...local.keys(), ...entries.keys()])) {
+      for (const id of new Set([...entries.keys(), ...local.keys()])) {
         try {
           await this.syncBook(cloud, id, local.get(id), entries.get(id), stateById.get(id))
         } catch (error) {
@@ -250,8 +269,7 @@ export class PdfLibrary {
     if (remote?.book) {
       const localIsClean = local?.updatedAt === state?.syncedAt
       if (remote.revision === state?.revision && localIsClean) return
-      if (!local || (remote.revision !== state?.revision &&
-        (localIsClean || Date.parse(remote.book.updatedAt) >= Date.parse(local.updatedAt)))) {
+      if (this.shouldPull(remote, local, state)) {
         await this.applyRemote(remote, local)
         return
       }

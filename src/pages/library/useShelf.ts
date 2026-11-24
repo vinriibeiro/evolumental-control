@@ -132,22 +132,41 @@ export function useShelf() {
   const shelf = useQuery({
     staleTime: 0,
     queryKey,
-    queryFn: async (): Promise<ShelfData> => {
-      const [epubSync, pdfSync] = await Promise.allSettled([library.sync(), pdfLibrary.sync()])
-      const errors = []
-      if (epubSync.status === 'rejected') errors.push(cloudErrorMessage(epubSync.reason))
-      if (pdfSync.status === 'rejected') errors.push(pdfCloudErrorMessage(pdfSync.reason))
-      const syncError = errors.join(' ') || null
-      return { entries: await readLocal(library, pdfLibrary), syncError, schemaOutdated: library.cloudSchemaOutdated }
-    },
+    queryFn: async (): Promise<ShelfData> => ({
+      entries: await readLocal(library, pdfLibrary),
+      syncError: null,
+      schemaOutdated: library.cloudSchemaOutdated,
+    }),
   })
 
-  /** Depois de uma ação local basta reler o aparelho: a nuvem já recebe a mudança em segundo plano. */
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (syncError?: string | null) => {
     const entries = await readLocal(library, pdfLibrary)
-    qc.setQueryData<ShelfData>(queryKey, (prev) => ({ entries, syncError: prev?.syncError ?? null, schemaOutdated: library.cloudSchemaOutdated }))
-    void qc.invalidateQueries({ queryKey: ['library', 'last-read'] })
+    qc.setQueryData<ShelfData>(queryKey, (prev) => ({
+      entries,
+      syncError: syncError === undefined ? prev?.syncError ?? null : syncError,
+      schemaOutdated: library.cloudSchemaOutdated,
+    }))
+    void qc.invalidateQueries({ queryKey: ['library', 'last-read', library.dbName] })
   }, [library, pdfLibrary, qc, queryKey])
+
+  const syncKey = useMemo(() => ['library', 'shelf-sync', library.dbName], [library.dbName])
+  useQuery({
+    queryKey: syncKey,
+    enabled: Boolean(library.cloud) && shelf.isSuccess,
+    queryFn: async () => {
+      const pdfSync = async () => {
+        await pdfLibrary.refresh()
+        await reload()
+        await pdfLibrary.sync(true)
+      }
+      const [epub, pdf] = await Promise.allSettled([library.sync().then(() => reload()), pdfSync()])
+      const errors = []
+      if (epub.status === 'rejected') errors.push(cloudErrorMessage(epub.reason))
+      if (pdf.status === 'rejected') errors.push(pdfCloudErrorMessage(pdf.reason))
+      await reload(errors.join(' ') || null)
+      return true
+    },
+  })
 
   const importing = useMutation({
     mutationFn: (files: File[]) =>
@@ -155,7 +174,7 @@ export function useShelf() {
         confirm({ title: 'Livro possivelmente duplicado', message: duplicateQuestion(match, fileName), confirmLabel: 'Adicionar mesmo assim', cancelLabel: 'Não adicionar' }),
       ),
     onSuccess: ({ added, duplicated, restored, skipped, notes }) => {
-      void reload().then(() => qc.invalidateQueries({ queryKey }))
+      void reload().then(() => qc.invalidateQueries({ queryKey: syncKey }, { cancelRefetch: false }))
       if (added) toast.success(added === 1 ? '1 livro adicionado à estante.' : `${added} livros adicionados à estante.`)
       if (duplicated) toast.info(duplicated === 1 ? '1 livro já estava na estante.' : `${duplicated} livros já estavam na estante.`)
       restored.forEach((title) => toast.info(`“${title}” já estava guardado e voltou para a estante, com a leitura de onde parou.`))
@@ -168,7 +187,7 @@ export function useShelf() {
   const action = useMutation({
     mutationFn: async ({ run }: { run: () => Promise<void>; done?: string }) => run(),
     onSuccess: (_result, { done }) => {
-      void reload().then(() => qc.invalidateQueries({ queryKey }))
+      void reload().then(() => qc.invalidateQueries({ queryKey: syncKey }, { cancelRefetch: false }))
       if (done) toast.success(done)
     },
     onError: (e) => toast.error(cloudErrorMessage(e)),
