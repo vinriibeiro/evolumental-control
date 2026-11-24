@@ -266,6 +266,33 @@ describe('sincronização privada de PDFs', () => {
     expect(await desktop.get(id)).toMatchObject({ currentPage: 3, annotations: [mark] })
   })
 
+  it('abre PDFs locais e encontra PDFs na nuvem durante um envio pendente', async () => {
+    const cloud = cloudFixture()
+    const desktop = shelf(undefined, cloud)
+    const phone = shelf(undefined, cloud)
+    const { id: remoteId } = await phone.add(pdfFile('Na nuvem.pdf'))
+    await phone.sync()
+    const { id: localId } = await desktop.add(pdfFile('Local.pdf', '%PDF-1.7 outro livro'))
+    const uploadStarted = Promise.withResolvers<void>()
+    const releaseUpload = Promise.withResolvers<void>()
+    const originalUpload = cloud.upload
+    vi.spyOn(cloud, 'upload').mockImplementationOnce(async (key, data) => {
+      uploadStarted.resolve()
+      await releaseUpload.promise
+      await originalUpload(key, data)
+    })
+    const sync = desktop.sync()
+    try {
+      await uploadStarted.promise
+      expect(await desktop.get(localId)).toMatchObject({ id: localId })
+      expect(await desktop.get(remoteId)).toMatchObject({ id: remoteId })
+      expect(await desktop.file(remoteId)).toBeDefined()
+    } finally {
+      releaseUpload.resolve()
+      await sync
+    }
+  })
+
   it('mantém o PDF local quando o envio falha e tenta de novo na próxima sincronização', async () => {
     const cloud = cloudFixture()
     vi.spyOn(cloud, 'upload').mockRejectedValueOnce(new Error('Sem conexão'))
@@ -295,6 +322,7 @@ describe('sincronização privada de PDFs', () => {
     expect(await cloud.list()).toMatchObject([{ id, book: null }])
     await phone.add(file)
     await phone.sync()
+    await desktop.refresh()
     expect(await desktop.get(id)).toMatchObject({ id, currentPage: 1 })
   })
 })

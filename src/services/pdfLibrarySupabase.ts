@@ -10,6 +10,7 @@ export interface CloudPdf {
 
 export interface PdfCloud {
   list(): Promise<CloudPdf[]>
+  find?(id: string): Promise<CloudPdf | undefined>
   write(entry: CloudPdf, expectedRevision: string | null): Promise<boolean>
   upload(key: string, data: ArrayBuffer): Promise<void>
   download(key: string): Promise<ArrayBuffer>
@@ -51,6 +52,13 @@ export function supabasePdfCloud(client: SupabaseClient, userId: string): PdfClo
         rows.push(...data)
         if (data.length < pageSize) return rows.map(decode)
       }
+    },
+    async find(id) {
+      if (!/^[0-9a-f]{64}$/.test(id)) return undefined
+      const { data, error } = await table().select('id,revision,file_key,book')
+        .eq('user_id', userId).eq('id', id).maybeSingle<Row>()
+      if (error) throw error
+      return data ? decode(data) : undefined
     },
     async write(entry, expectedRevision) {
       const row = { user_id: userId, id: entry.id, revision: entry.revision, file_key: entry.fileKey, book: encode(entry.book) }
