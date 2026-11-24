@@ -26,7 +26,7 @@ No modo Supabase vale o mesmo: a estante local é sincronizada antes da compara�
 | --- | --- | --- |
 | **Remover da estante** | Some da estante e vai para *Removidos*. Arquivo, posição, marcadores e anotações ficam guardados. | Sim (*Voltar para a estante*) |
 | **Arquivar** | Some da estante e vai para *Arquivados*, com tudo guardado. | Sim |
-| **Excluir permanentemente** | Apaga o arquivo guardado e os dados de leitura daquele livro (no EPUB sincronizado, da conta e de todos os aparelhos). Pede confirmação com o nome do livro. Os outros livros e o arquivo original no computador não são tocados. | Não |
+| **Excluir permanentemente** | Apaga o arquivo guardado e os dados de leitura daquele livro (se sincronizado, da conta e de todos os aparelhos). Pede confirmação com o nome do livro. Os outros livros e o arquivo original no computador não são tocados. | Não |
 
 ## Leitor de EPUB (tela inteira)
 
@@ -41,7 +41,7 @@ No modo Supabase vale o mesmo: a estante local é sincronizada antes da compara�
 
 - Os livros sempre ficam guardados no navegador do aparelho (IndexedDB `evolumental-library…`), para ler sem internet.
 - **Modo Supabase**: cada EPUB também vai para um espaço **privado** da conta (bucket `livros` + tabela `library_books`, com RLS). Posição, marcadores, assunto, favorito, situação na estante e anotações sincronizam entre aparelhos; vale a alteração mais recente. Limite do plano gratuito: 50 MiB por arquivo (acima disso o livro fica só no aparelho).
-- **PDFs** e suas marcações ficam só no navegador, nos dois modos (ver `docs/LEITOR-PDF.md`).
+- **PDFs importados na Biblioteca** de até 50 MiB sincronizam no mesmo bucket privado após a migração de PDFs. O arquivo baixa ao abrir. Detalhes, posição, páginas visitadas, marcadores e anotações acompanham a conta. Entre alterações simultâneas no mesmo PDF, vale a mais recente. PDFs maiores e as marcações dos PDFs de cursos do Drive ficam no navegador.
 - **Modo local**: nada sai do navegador.
 
 ## Ativar no Supabase (uma vez por migração)
@@ -49,11 +49,12 @@ No modo Supabase vale o mesmo: a estante local é sincronizada antes da compara�
 1. Projeto no Supabase → **SQL Editor** → **New query**.
 2. Execute `supabase/migrations/20261031000000_library.sql` (cria `library_books` e o bucket privado `livros`).
 3. Execute `supabase/migrations/20261121010000_v2_library.sql` (aditiva: colunas `subject`, `favorite`, `shelf_state`, `notes`, `isbn`, `identifier`; não altera nenhuma linha existente e traz o bloco de reversão comentado no fim).
+4. Execute `supabase/migrations/20261124000000_library_pdfs.sql` para ativar a sincronização privada dos PDFs. Após publicar a versão do app com suporte, abra a Biblioteca no navegador em que os PDFs foram importados, com a mesma conta usada no celular. Os PDFs existentes são enviados automaticamente.
 
 Sem a segunda migração o app continua funcionando: livros e posição de leitura sincronizam como antes, a estante mostra um aviso, e assunto, favoritos, arquivamento e anotações dos EPUBs ficam só no aparelho. Quando a migração é aplicada, esses dados sobem na sincronização seguinte.
 
 ## Observações
 
-- Excluir a conta apaga as linhas de `library_books`, mas os arquivos já enviados ao bucket `livros` precisam ser removidos pelo painel do Supabase (Storage).
+- Excluir a conta apaga as linhas de `library_books` e `library_pdfs`, mas os arquivos já enviados ao bucket `livros` precisam ser removidos pelo painel do Supabase (Storage).
 - "Zerar meus dados" não mexe nos livros.
 - Material protegido por direitos autorais: use só cópias suas, para uso pessoal.

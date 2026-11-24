@@ -142,7 +142,7 @@ export default function LibraryPage() {
         <p role="alert" className="mb-4 flex items-start gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink">
           <TriangleAlert className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
           <span>
-            Não consegui sincronizar com a sua conta: {shelf.data.syncError} Mostrando só o que está neste aparelho.
+            Não consegui sincronizar com a sua conta: {shelf.data.syncError} Os livros já salvos continuam disponíveis.
           </span>
         </p>
       )}
@@ -245,8 +245,7 @@ export default function LibraryPage() {
         <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
         {cloudOn ? (
           <span>
-            Seus livros em EPUB ficam num espaço privado da sua conta (só você acessa, depois do login) e aparecem em qualquer aparelho em que você entrar; EPUBs com mais de 50 MB ficam só no aparelho em
-            que foram adicionados. Os PDFs e suas marcações ficam guardados só neste navegador. Remover um livro da estante nunca apaga o arquivo: só “Excluir permanentemente” faz isso.
+            EPUBs e PDFs de até 50 MiB sincronizam no espaço privado da sua conta. Abra a Biblioteca no aparelho em que você importou os arquivos para enviá-los. Arquivos maiores ficam nesse aparelho. Remover um livro da estante nunca apaga o arquivo: só “Excluir permanentemente” faz isso.
           </span>
         ) : (
           <span>

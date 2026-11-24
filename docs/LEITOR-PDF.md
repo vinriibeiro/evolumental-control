@@ -28,7 +28,7 @@ As referências e marcas são armazenadas no navegador, isoladas por conta da pl
 
 ## PDFs importados do computador
 
-O arquivo original é copiado para o IndexedDB deste navegador, em um espaço separado por conta. O id do PDF é o SHA-256 do conteúdo: adicionar o mesmo arquivo, mesmo com outro nome, não duplica e preserva as marcas. Na importação o app lê a contagem de páginas e o autor e guarda uma miniatura da primeira página como capa (PDFs antigos ganham a capa na primeira vez que forem abertos). PDFs e marcas não sincronizam com Supabase ou outros aparelhos.
+O arquivo original é copiado para o IndexedDB deste navegador, em um espaço separado por conta. O id do PDF é o SHA-256 do conteúdo: adicionar o mesmo arquivo, mesmo com outro nome, não duplica e preserva as marcas. Na importação o app lê a contagem de páginas e o autor e guarda uma miniatura da primeira página como capa (PDFs antigos ganham a capa na primeira vez que forem abertos). Com o Supabase e a migração `20261124000000_library_pdfs.sql`, os PDFs da Biblioteca de até 50 MiB, a leitura e as marcações sincronizam na conta. Abra a Biblioteca no navegador original para enviar PDFs já importados. No outro aparelho, o arquivo é baixado ao abrir e fica em cache para leitura offline. PDFs maiores continuam disponíveis localmente até o limite de importação de 100 MiB.
 
 ## Salvar e exportar
 
