@@ -31,7 +31,6 @@ describe('navegação: seis áreas focadas em Dados, Cursos do Drive e Organiza�
       '/cursos/abc': 'Cursos do Drive',
       '/biblioteca': 'Cursos do Drive',
       '/livros/abc': 'Cursos do Drive',
-      '/livros/pdf/abc': 'Cursos do Drive',
       '/audios': 'Cursos do Drive',
       '/videos': 'Cursos do Drive',
       '/trilhas': 'Estudos em Dados',

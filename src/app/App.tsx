@@ -28,7 +28,6 @@ const CguLessonPage = lazy(() => import('@/pages/cgu/CguLessonPage'))
 // 3. Biblioteca
 const LibraryPage = lazy(() => import('@/pages/library/LibraryPage'))
 const ReaderPage = lazy(() => import('@/pages/library/ReaderPage'))
-const PdfReaderPage = lazy(() => import('@/pages/library/PdfReaderPage'))
 const CoursesPage = lazy(() => import('@/pages/courses/CoursesPage'))
 const CoursePage = lazy(() => import('@/pages/courses/CoursePage'))
 const CoursePdfReaderPage = lazy(() => import('@/pages/courses/CoursePdfReaderPage'))
@@ -110,10 +109,8 @@ export function App() {
                     {/* 3. Biblioteca */}
                     <Route path="biblioteca" element={<LibraryPage />} />
                     <Route path="livros" element={<Navigate to="/biblioteca" replace />} />
-                    <Route path="livros/pdf/:id" element={<PdfReaderPage />} />
                     <Route path="livros/:id" element={<ReaderPage />} />
-                    {/* endereços antigos da estante (links salvos) continuam abrindo os leitores */}
-                    <Route path="biblioteca/pdf/:id" element={<PdfReaderPage />} />
+                    {/* endereços antigos da estante (links salvos) continuam abrindo o leitor */}
                     <Route path="biblioteca/:id" element={<ReaderPage />} />
                     <Route path="cursos" element={<CoursesPage />} />
                     <Route path="cursos/:id" element={<CoursePage />} />

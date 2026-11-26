@@ -1,12 +1,10 @@
-/** Estante unificada: EPUBs e PDFs vistos como um só tipo de item. Sem acesso a banco nem a tela. */
-import { navigationProgress, normalizeShelfState, seedVisitedPages, type DedupeCandidate, type ShelfState } from '@/lib/library'
+/** Estante de livros EPUB. Sem acesso a banco nem a tela. */
+import { normalizeShelfState, type DedupeCandidate, type ShelfState } from '@/lib/library'
 import type { BookRecord, CloudState } from '@/services/library'
-import type { PdfBook } from '@/services/pdfLibrary'
 
-export type ShelfKind = 'book' | 'pdf'
+export type ShelfKind = 'book'
 
 export interface ShelfEntry extends DedupeCandidate {
-  /** Único na estante inteira (EPUB e PDF têm espaços de id separados). */
   key: string
   id: string
   kind: ShelfKind
@@ -16,7 +14,7 @@ export interface ShelfEntry extends DedupeCandidate {
   subject: string
   favorite: boolean
   shelf: ShelfState
-  /** 0 a 100. No EPUB é a posição no livro; no PDF é o progresso de navegação (páginas já abertas). */
+  /** 0 a 100: posição de leitura no EPUB. */
   progress: number
   addedAt: string
   lastReadAt?: string
@@ -25,28 +23,14 @@ export interface ShelfEntry extends DedupeCandidate {
   href: string
   cover?: ArrayBuffer
   coverType?: string
-  pageCount?: number
-  currentPage?: number
-  /** Situação na nuvem da conta. */
   cloud?: CloudState
   fileLocal?: boolean
 }
 
-export const KIND_LABEL: Record<ShelfKind, string> = { book: 'EPUB', pdf: 'PDF' }
+export const KIND_LABEL: Record<ShelfKind, string> = { book: 'EPUB' }
 
-export function bookHref(kind: ShelfKind, id: string): string {
-  return kind === 'pdf' ? `/livros/pdf/${id}` : `/livros/${id}`
-}
-
-/** Páginas visitadas de um PDF, inclusive os abertos antes de esse registro existir. */
-export function pdfVisitedPages(book: Pick<PdfBook, 'visitedPages' | 'currentPage' | 'pageCount' | 'lastReadAt'>): number[] {
-  if (book.visitedPages) return book.visitedPages
-  return book.lastReadAt ? seedVisitedPages(book.currentPage, book.pageCount) : []
-}
-
-/** Progresso de navegação do PDF (0 a 100): estimativa pelas páginas abertas, não prova de leitura. */
-export function pdfProgress(book: Pick<PdfBook, 'visitedPages' | 'currentPage' | 'pageCount' | 'lastReadAt'>): number {
-  return navigationProgress(pdfVisitedPages(book), book.pageCount)
+export function bookHref(id: string): string {
+  return `/livros/${id}`
 }
 
 export function epubEntry(b: BookRecord): ShelfEntry {
@@ -64,7 +48,7 @@ export function epubEntry(b: BookRecord): ShelfEntry {
     lastReadAt: b.lastReadAt,
     size: b.size,
     fileName: b.fileName,
-    href: bookHref('book', b.id),
+    href: bookHref(b.id),
     cover: b.cover,
     coverType: b.coverType,
     cloud: b.cloud,
@@ -75,36 +59,8 @@ export function epubEntry(b: BookRecord): ShelfEntry {
   }
 }
 
-export function pdfEntry(p: PdfBook): ShelfEntry {
-  return {
-    key: `pdf:${p.id}`,
-    id: p.id,
-    kind: 'pdf',
-    title: p.title,
-    author: p.author ?? '',
-    subject: p.subject ?? '',
-    favorite: Boolean(p.favorite),
-    shelf: normalizeShelfState(p.shelf),
-    progress: pdfProgress(p),
-    addedAt: p.addedAt,
-    lastReadAt: p.lastReadAt,
-    size: p.size,
-    fileName: p.fileName,
-    href: bookHref('pdf', p.id),
-    cover: p.cover,
-    coverType: p.coverType,
-    cloud: p.cloud,
-    fileLocal: p.fileLocal,
-    // antes da primeira abertura a contagem de páginas pode ainda ser o valor inicial (1)
-    pageCount: p.lastReadAt || p.pageCount > 1 ? p.pageCount : undefined,
-    currentPage: p.currentPage,
-    hash: p.id,
-  }
-}
-
-/** Texto do progresso, sempre dizendo o que ele mede: leitura (EPUB) ou navegação (PDF). */
-export function progressLabel(entry: Pick<ShelfEntry, 'kind' | 'progress'>): string {
-  return entry.kind === 'pdf' ? `Progresso de navegação: ${entry.progress}%` : `${entry.progress}% lido`
+export function progressLabel(entry: Pick<ShelfEntry, 'progress'>): string {
+  return `${entry.progress}% lido`
 }
 
 export type ShelfFilter = 'all' | 'reading' | 'favorites' | 'archived' | 'hidden'
