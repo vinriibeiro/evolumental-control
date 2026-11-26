@@ -117,4 +117,4 @@ export const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta
 export const WEEKDAY_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 /** Pilares das trilhas (campo `track` de projetos e diagnósticos). */
-export const TRACK_LABELS: Record<string, string> = { sql: 'SQL', python: 'Python', ml: 'Machine Learning', ingles: 'Inglês', powerbi: 'Power BI' }
+export const TRACK_LABELS: Record<string, string> = { sql: 'SQL', python: 'Python', ml: 'Machine Learning', powerbi: 'Power BI' }

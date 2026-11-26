@@ -56,7 +56,7 @@ describe('trilha do Téo Me Why', () => {
     expect((await backend.list('study_materials', {})).rows).toHaveLength(144)
   })
 
-  it('cria o ciclo recomendado: Inglês + Aula + Prática, 60 minutos cada', async () => {
+  it('cria o ciclo recomendado: Aula + Prática, 60 minutos cada', async () => {
     const backend = fresh()
     const r = await installTrail(backend, items(), { cyclePlan: trail().cyclePlan })
     expect(r.cycleId).toBeTruthy()
@@ -64,23 +64,12 @@ describe('trilha do Téo Me Why', () => {
     expect(cycle).toMatchObject({ name: 'Do zero a cientista de dados', status: 'active', auto_advance: true })
     const blocks = (await backend.list('study_cycle_items', { order: [{ column: 'sort_order' }] })).rows
     expect(blocks.map((b) => [b.duration_minutes, b.activity_type, b.break_minutes])).toEqual([
-      [60, 'other', 10],
       [60, 'video', 10],
       [60, 'questions', 10],
     ])
     const subjects = new Map((await backend.list('subjects', {})).rows.map((s) => [s.id, s.name]))
-    expect(subjects.get(blocks[0].subject_id)).toBe('Inglês') // criada, pois ainda não existia
+    expect(subjects.get(blocks[0].subject_id)).toBe('Téo 1 · Git e GitHub')
     expect(subjects.get(blocks[1].subject_id)).toBe('Téo 1 · Git e GitHub')
-    expect(subjects.get(blocks[2].subject_id)).toBe('Téo 1 · Git e GitHub')
-  })
-
-  it('reaproveita a matéria de inglês que já existe (Times Book 1) em vez de criar outra', async () => {
-    const backend = fresh()
-    const [ingles] = await backend.insert('subjects', [{ name: 'Inglês · Times Book 1', color: '#2A78D6', difficulty: 3, priority: 5, status: 'active', sort_order: 0 }])
-    const r = await installTrail(backend, items(), { cyclePlan: trail().cyclePlan })
-    expect(r.subjectsCreated).toBe(9) // nenhuma matéria de inglês nova
-    const blocks = (await backend.list('study_cycle_items', { order: [{ column: 'sort_order' }] })).rows
-    expect(blocks[0].subject_id).toBe(ingles.id)
   })
 
   it('não desativa o ciclo que o usuário já tem ativo: o novo entra pausado', async () => {

@@ -1,4 +1,4 @@
-// Trilhas de Estudo — Ciência de Dados em cinco pilares (SQL 30%, Python 30%, ML 25%, Inglês 10%, Power BI 5%).
+// Trilhas de Estudo — Ciência de Dados em quatro pilares (SQL 30%, Python 30%, ML 25%, Power BI 15%).
 // Cada pilar é uma matéria e cada tópico é um tópico dela, então sessões, revisões, metas e relatórios já os
 // enxergam. A ordem segue as dependências; o diagnóstico (opcional) sugere por onde começar.
 import { useState } from 'react'
@@ -18,7 +18,7 @@ import { TaskDialog, type TaskDraft } from '@/pages/planning/TaskDialog'
 import { TopicSheet } from './TopicSheet'
 import { useDsTrail, type TrackView } from './useDsTrail'
 
-const isTrack = (v: string | null): v is TrackKey => v === 'sql' || v === 'python' || v === 'ml' || v === 'ingles' || v === 'powerbi'
+const isTrack = (v: string | null): v is TrackKey => v === 'sql' || v === 'python' || v === 'ml' || v === 'powerbi'
 
 export default function DsTrailsPage() {
   const trail = useDsTrail()
@@ -44,8 +44,8 @@ export default function DsTrailsPage() {
     return (
       <div className="space-y-4" aria-busy>
         <Skeleton className="h-9 w-72" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {Array.from({ length: 5 }, (_, i) => (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
@@ -56,13 +56,13 @@ export default function DsTrailsPage() {
   if (!trail.installed)
     return (
       <div>
-        <PageHeader title="Trilhas de Estudo" description="Sua formação em Ciência de Dados, organizada em cinco pilares com progressão lógica." />
+        <PageHeader title="Trilhas de Dados" description="Sua formação na área de dados, organizada em quatro pilares com progressão lógica." />
         <EmptyState
           icon={<Route className="size-8 text-ink" />}
           title="Ativar a trilha de Ciência de Dados"
           description={
             <>
-              SQL (30%), Python (30%), Machine Learning (25%), Inglês (10%) e Power BI (5%). São {trail.tracks.reduce((n, t) => n + t.def.topics.length, 0)} tópicos em ordem de dependência, cada um com objetivo, material, exercício prático e estimativa de
+              SQL (30%), Python (30%), Machine Learning (25%) e Power BI (15%). São {trail.tracks.reduce((n, t) => n + t.def.topics.length, 0)} tópicos em ordem de dependência, cada um com objetivo, material, exercício prático e estimativa de
               duração. Matérias que você já tem com o mesmo nome são aproveitadas: nada é duplicado.
             </>
           }
@@ -118,8 +118,8 @@ export default function DsTrailsPage() {
         }
       />
 
-      {/* Os cinco pilares */}
-      <div role="tablist" aria-label="Pilares da trilha" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {/* Os quatro pilares */}
+      <div role="tablist" aria-label="Pilares da trilha" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {trail.tracks.map((t) => {
           const active = t === selected
           const pct = t.progress.total ? (t.progress.done / t.progress.total) * 100 : 0

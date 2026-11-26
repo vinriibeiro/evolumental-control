@@ -25,13 +25,13 @@ describe('catálogo de modelos de rotina', () => {
     expect(routineTemplateById('em_branco')!.pillars).toEqual([])
   })
 
-  it('o modelo de transição tem exatamente os seis pilares do PRD', () => {
+  it('o modelo de transição tem os cinco pilares focados em dados e carreira (sem inglês)', () => {
     expect(transition.pillars.map((p) => p.id)).toEqual([
-      'ciencia_dados', 'analise_dados', 'problemas_ds', 'linkedin', 'certificacoes', 'ingles',
+      'ciencia_dados', 'analise_dados', 'problemas_ds', 'linkedin', 'certificacoes',
     ])
   })
 
-  it('Ciência de Dados tem o maior peso; Análise tem peso médio semanal; Inglês é diário e curto', () => {
+  it('Ciência de Dados tem o maior peso; Análise tem peso médio semanal', () => {
     const ds = pillar('ciencia_dados')
     for (const p of transition.pillars) if (p.id !== ds.id) expect(ds.weight).toBeGreaterThan(p.weight)
     const an = pillar('analise_dados')
@@ -39,9 +39,6 @@ describe('catálogo de modelos de rotina', () => {
     expect(an.weight).toBeLessThan(ds.weight)
     expect(an.frequency).toBe('weekly')
     expect(pillar('problemas_ds').frequency).toBe('weekly')
-    const en = pillar('ingles')
-    expect(en.frequency).toBe('daily')
-    expect(en.blockMinutes).toBeLessThanOrEqual(30)
   })
 
   it('pilares de estudo apontam para trilhas e matérias existentes', () => {
@@ -66,13 +63,11 @@ describe('catálogo de modelos de rotina', () => {
     expect(li.tasks!.length).toBeGreaterThanOrEqual(3)
   })
 
-  it('todo modelo passa por generateRoutine; a transição gera inglês diário e LinkedIn semanal', () => {
+  it('todo modelo passa por generateRoutine; a transição gera Ciência de Dados no ciclo e LinkedIn semanal', () => {
     for (const t of ROUTINE_TEMPLATES) {
       expect(() => generateRoutine({ pillars: t.pillars, availability, startDate: '2026-11-02', weeks: 2 })).not.toThrow()
     }
     const out = generateRoutine({ pillars: transition.pillars, availability, startDate: '2026-11-02', weeks: 2 })
-    const en = out.dailyBlocks.filter((b) => b.pillarId === 'ingles')
-    expect(en.map((b) => b.weekday).sort()).toEqual([0, 1, 2, 3, 4, 5, 6])
     expect(out.recurringTasks.map((r) => r.pillarId)).toEqual(expect.arrayContaining(['analise_dados', 'problemas_ds', 'linkedin']))
     expect(out.cycleItems.map((c) => c.pillarId)).toContain('ciencia_dados')
   })

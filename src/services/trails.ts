@@ -148,18 +148,10 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
     }
   }
 
-  // 4a) Ciclo recomendado da trilha (ex.: Inglês + Aula + Prática).
+  // 4a) Ciclo recomendado da trilha (ex.: Aula + Prática).
   if (opts.cyclePlan && subjectIds.length) {
     progress('Criando o ciclo recomendado…')
     const plan = opts.cyclePlan
-    const score = (name: string) => (norm(name).startsWith('ingles · times') ? 3 : norm(name) === 'ingles' ? 2 : norm(name).startsWith('ingles') ? 1 : 0)
-    const candidates = existing.filter((x) => x.status !== 'archived' && score(x.name) > 0).sort((a, b) => score(b.name) - score(a.name))
-    let inglesId = candidates[0]?.id
-    if (plan.blocks.some((b) => b.slot === 'ingles') && !inglesId) {
-      const [created] = await backend.insert('subjects', [{ name: 'Inglês', description: 'Estudo de inglês.', color: '#2A78D6', icon: '🇬🇧', difficulty: 3, priority: 4, status: 'active', sort_order: nextOrder }])
-      inglesId = created.id
-      result.subjectsCreated++
-    }
     const { count } = await backend.list('study_cycles', { filters: [eq('status', 'active')], count: true, limit: 1 })
     const [cycle] = await backend.insert('study_cycles', [{ name: plan.name.slice(0, 160), description: plan.description, status: count ? 'paused' : 'active', auto_advance: true }])
     await insertBatched(
@@ -167,7 +159,7 @@ export async function installTrail(backend: DataBackend, items: InstallItem[], o
       'study_cycle_items',
       plan.blocks.map((b, pos) => ({
         cycle_id: cycle.id,
-        subject_id: (b.slot === 'ingles' ? inglesId : subjectIds[0]) as string,
+        subject_id: subjectIds[0],
         duration_minutes: b.minutes,
         weight: 1,
         break_minutes: b.breakMinutes ?? 0,

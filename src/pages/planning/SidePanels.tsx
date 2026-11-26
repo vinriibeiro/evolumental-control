@@ -1,15 +1,19 @@
 // Painéis laterais do Meu Planejamento: caixa de entrada rápida, resumo da semana e "continuar de onde parei".
 import { useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, BookOpen, CalendarPlus, Inbox, Play, Trash2 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowRight, BookOpen, CalendarPlus, GraduationCap, Inbox, Play, RefreshCcw, Trash2 } from 'lucide-react'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Field'
-import { Card, Progress } from '@/components/ui/layout'
+import { Card, ColorDot, Progress } from '@/components/ui/layout'
 import { useToast } from '@/components/ui/feedback'
 import { useAll, useInsert, useRemove, useSessions } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
+import { useCourses } from '@/hooks/useCourses'
 import { useStartStudy } from '@/features/timer/useStartStudy'
 import { eq, isNull } from '@/lib/data/types'
+import { displayTitle, lastStudied, lessonOf, resumeItem } from '@/lib/courseCatalog'
+import { sortItems, summarize } from '@/lib/cycle'
+import { findCourseForSubject } from '@/services/courseIntegration'
 import type { PlanActivity } from '@/lib/replan'
 import { netSeconds } from '@/lib/timer/engine'
 import { formatDayKey, formatDuration, dayKey } from '@/lib/time'
@@ -243,6 +247,138 @@ export function ContinueCard({ tz, extra }: { tz: string; extra?: ReactNode }) {
         </div>
       )}
       {extra && <div className={s ? 'mt-3 border-t border-line pt-3' : ''}>{extra}</div>}
+    </Panel>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Ciclo de estudos ativo: bloco atual + link direto para o curso do Drive
+// ---------------------------------------------------------------------
+export function ActiveCycleCard() {
+  const cycles = useAll('study_cycles', { filters: [eq('status', 'active')] })
+  const active = cycles.data?.[0] ?? null
+  const items = useAll(
+    'study_cycle_items',
+    { filters: [eq('cycle_id', active?.id ?? '')], order: [{ column: 'sort_order' }] },
+    { enabled: Boolean(active) },
+  )
+  const courses = useCourses()
+  const lookups = useLookups()
+  const navigate = useNavigate()
+
+  const sorted = useMemo(() => sortItems(items.data ?? []), [items.data])
+  const summary = useMemo(() => (active ? summarize(active, sorted) : null), [active, sorted])
+  const currentSubjectId = summary?.current?.subject_id
+  const linkedCourse = useMemo(
+    () => findCourseForSubject(courses.views, currentSubjectId),
+    [courses.views, currentSubjectId],
+  )
+
+  if (cycles.isPending) return null
+  if (!active || !summary?.current) {
+    return (
+      <Panel
+        title="Ciclo de estudos"
+        icon={<RefreshCcw className="size-4 text-muted" aria-hidden />}
+        action={
+          <Link to="/ciclos" className="text-xs font-medium text-ink underline underline-offset-2">
+            Montar ciclo
+          </Link>
+        }
+      >
+        <p className="text-xs text-muted">
+          Crie seu ciclo de estudos com as matérias e cursos do Google Drive que quer rodar na semana.
+        </p>
+      </Panel>
+    )
+  }
+
+  const cur = summary.current
+  const remainingMin = Math.max(1, Math.ceil((cur.duration_minutes * 60 - active.current_progress_seconds) / 60))
+  const nextLesson = linkedCourse ? resumeItem(linkedCourse, courses.index) : null
+
+  return (
+    <Panel
+      title="Ciclo de estudos ativo"
+      icon={<RefreshCcw className="size-4 text-muted" aria-hidden />}
+      action={
+        <Link to="/ciclos" className="text-xs text-muted underline underline-offset-2 hover:text-ink">
+          Bloco {summary.position}/{summary.length}
+        </Link>
+      }
+    >
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <ColorDot color={lookups.subjectColor(cur.subject_id)} className="size-2.5" />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{lookups.subjectName(cur.subject_id)}</p>
+          <span className="tabular text-xs text-muted">{Math.round(summary.blockPercent)}%</span>
+        </div>
+        <Progress value={summary.blockPercent} className="h-1.5" label={`Progresso do bloco atual de ${active.name}`} />
+        <p className="text-xs text-muted">
+          {formatDuration(active.current_progress_seconds)} de {cur.duration_minutes} min
+          {linkedCourse ? ` · ${linkedCourse.done}/${linkedCourse.total} aulas no Drive` : ''}
+        </p>
+        <div className="flex flex-wrap gap-2 pt-0.5">
+          {linkedCourse ? (
+            <Button
+              size="sm"
+              variant="dark"
+              icon={<GraduationCap className="size-3.5" />}
+              onClick={() => navigate(`/cursos/${linkedCourse.course.id}${nextLesson ? `?item=${nextLesson.id}` : ''}`)}
+            >
+              Abrir curso
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant={linkedCourse ? 'secondary' : 'dark'}
+            icon={<Play className="size-3.5" />}
+            onClick={() => navigate(`/sala?item=${cur.id}&minutos=${remainingMin}`)}
+          >
+            Estudar bloco
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+// ---------------------------------------------------------------------
+// Continuar curso do Google Drive
+// ---------------------------------------------------------------------
+export function ContinueCourseCard() {
+  const courses = useCourses()
+  const recent = lastStudied(courses.views) ?? courses.views[0] ?? null
+  if (!recent) return null
+  const next = resumeItem(recent, courses.index)
+  const pct = recent.total ? Math.round((recent.done / recent.total) * 100) : 0
+  const lessonTitle = next ? (lessonOf(recent, next.id)?.title ?? displayTitle(next)) : null
+
+  return (
+    <Panel
+      title="Cursos do Drive"
+      icon={<GraduationCap className="size-4 text-muted" aria-hidden />}
+      action={
+        <Link to="/cursos" className="text-xs text-muted underline underline-offset-2 hover:text-ink">
+          Ver todos ({courses.views.length})
+        </Link>
+      }
+    >
+      <div className="space-y-2">
+        <p className="truncate text-sm font-semibold text-ink">{recent.title}</p>
+        {lessonTitle && <p className="truncate text-xs text-muted">Próxima: {lessonTitle}</p>}
+        <div className="flex items-center justify-between text-[11px] text-muted">
+          <span>{recent.done}/{recent.total} aulas</span>
+          <span className="tabular">{pct}%</span>
+        </div>
+        <Progress value={pct} className="h-1" label={`Progresso de ${recent.title}`} />
+        <Link
+          to={`/cursos/${recent.course.id}${next ? `?item=${next.id}` : ''}`}
+          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-ink hover:underline"
+        >
+          Continuar curso <ArrowRight className="size-3.5" aria-hidden />
+        </Link>
+      </div>
     </Panel>
   )
 }

@@ -7,7 +7,7 @@ import routineSource from '@/lib/routine.ts?raw'
 import { createElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { render, screen } from '@testing-library/react'
-import { isEnglishPillar, routineDayBlocks } from '@/lib/routine'
+import { routineDayBlocks } from '@/lib/routine'
 import { addDays, eachDay } from '@/lib/time'
 import { ROUTINE_TEMPLATES, cloneRoutineTemplate } from '@/content/routines'
 import { TodayRoutineView } from '@/components/TodayRoutine'
@@ -231,7 +231,6 @@ describe('routineDayBlocks', () => {
     const day = routineDayBlocks(input(), monday)
     const en = day.find((p) => p.pillarId === 'en')!
     const fixed = generateRoutine(input()).dailyBlocks.find((b) => b.pillarId === 'en' && b.weekday === 1)!
-    expect(en.english).toBe(true)
     expect(en.blocks).toEqual([{ kind: 'daily', start_time: fixed.start_time, duration_minutes: 30, activity_type: 'other' }])
     for (const p of day) {
       expect(p.minutes).toBe(p.blocks.reduce((a, b) => a + b.duration_minutes, 0))
@@ -286,17 +285,7 @@ describe('routineDayBlocks', () => {
       milestones: t.milestones,
     }
     const week = eachDay(monday, addDays(monday, 6)).map((d) => routineDayBlocks(routine, d))
-    const ingles = week.slice(0, 6).map((day) => day.find((p) => p.pillarId === 'ingles'))
-    expect(ingles.every((p) => p?.english && p.blocks[0].kind === 'daily')).toBe(true)
     expect(week.flat().some((p) => p.pillarId === 'ciencia_dados' && p.blocks.some((b) => b.kind === 'cycle'))).toBe(true)
-    expect(week.flat().filter((p) => p.english).every((p) => p.pillarId === 'ingles')).toBe(true)
-  })
-
-  it('reconhece o pilar de inglês pelo id ou pelo nome', () => {
-    expect(isEnglishPillar({ id: 'ingles', name: 'Qualquer' })).toBe(true)
-    expect(isEnglishPillar({ id: 'x', name: 'Inglês diário' })).toBe(true)
-    expect(isEnglishPillar({ id: 'x', name: 'English practice' })).toBe(true)
-    expect(isEnglishPillar({ id: 'x', name: 'LinkedIn' })).toBe(false)
   })
 })
 
@@ -306,31 +295,20 @@ describe('cartão "Rotina de hoje"', () => {
       createElement(
         MemoryRouter,
         null,
-        createElement(TodayRoutineView, { routineName: 'Minha rotina', pillars: routineDayBlocks(input(), '2026-11-02'), englishMinutes: 0, englishGoal: 20, ...props }),
+        createElement(TodayRoutineView, { routineName: 'Minha rotina', pillars: routineDayBlocks(input(), '2026-11-02'), ...props }),
       ),
     )
 
-  it('mostra os blocos por pilar e o bloco de inglês leva à aba Inglês', () => {
+  it('mostra os blocos por pilar sem seção de inglês', () => {
     view()
     expect(screen.getByText('Rotina de hoje')).toBeInTheDocument()
-    expect(screen.getByText('Inglês diário')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Inglês diário: abrir a aba Inglês' })).toHaveAttribute('href', '/ingles')
-  })
-
-  it('mostra o inglês do dia como pendente ou feito conforme a meta', () => {
-    const { unmount } = view({ englishMinutes: 5 })
-    expect(screen.getByText(/Inglês de hoje: pendente \(5\/20 min\)/)).toBeInTheDocument()
-    unmount()
-    view({ englishMinutes: 20 })
-    expect(screen.getByText(/Inglês de hoje: feito/)).toBeInTheDocument()
-    expect(screen.getByText('Feito')).toBeInTheDocument()
+    expect(screen.queryByText(/Inglês de hoje/)).not.toBeInTheDocument()
   })
 
   it('sem rotina aplicada, convida a criar e leva à página Rotinas', () => {
     view({ routineName: null, pillars: [] })
     expect(screen.getByText(/ainda não tem uma rotina aplicada/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Criar minha rotina' })).toHaveAttribute('href', '/rotinas')
-    expect(screen.queryByText(/Inglês de hoje/)).not.toBeInTheDocument()
   })
 
   it('aparece na tela inicial (Meu Planejamento) quando há rotina aplicada', () => {

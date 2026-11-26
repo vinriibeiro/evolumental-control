@@ -4,11 +4,10 @@ import { useBackend } from '@/app/data'
 import type { UserSettings } from '@/types/db'
 import { browserTimeZone, isValidTimeZone } from '@/lib/time'
 import { DEFAULT_SRS } from '@/lib/srs'
-import { DEFAULT_ENGLISH_GOAL_MINUTES, normalizeEnglishGoal } from '@/lib/english'
 import { invalidateTables } from './data'
 
-/** Configurações do app: as do perfil mais a meta diária de inglês (gravada no mesmo JSON). */
-export type AppSettings = UserSettings & { englishGoalMinutes: number }
+/** Configurações do app (gravadas no perfil do usuário). */
+export type AppSettings = UserSettings
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'light',
@@ -24,7 +23,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   autoReviews: true,
   reviewIntervals: [1, 7, 30],
   srs: DEFAULT_SRS,
-  englishGoalMinutes: DEFAULT_ENGLISH_GOAL_MINUTES,
 }
 
 export function mergeSettings(raw: Partial<AppSettings> | undefined): AppSettings {
@@ -32,7 +30,6 @@ export function mergeSettings(raw: Partial<AppSettings> | undefined): AppSetting
   s.pomodoro = { ...DEFAULT_SETTINGS.pomodoro, ...(raw?.pomodoro ?? {}) }
   s.srs = { ...DEFAULT_SRS, ...(raw?.srs ?? {}) }
   if (!isValidTimeZone(s.timezone)) s.timezone = DEFAULT_SETTINGS.timezone
-  s.englishGoalMinutes = normalizeEnglishGoal(s.englishGoalMinutes)
   return s
 }
 

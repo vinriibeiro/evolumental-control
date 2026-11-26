@@ -3,7 +3,7 @@
 // respondido ou concluído. Mude textos à vontade; nunca renomeie uma chave já publicada.
 import type { ChallengeLevel, ChallengeTrack } from '@/pages/challenges/catalog'
 
-export type TrackKey = 'sql' | 'python' | 'ml' | 'ingles' | 'powerbi'
+export type TrackKey = 'sql' | 'python' | 'ml' | 'powerbi'
 
 export interface TrailTopicDef {
   /** Ex.: 'ds.sql.join'. */
@@ -35,7 +35,7 @@ export interface TrackDef {
   trailKey: string
   /** Nome da matéria criada para o pilar. */
   name: string
-  /** Participação no plano semanal, em % (SQL 30, Python 30, ML 25, Inglês 10, Power BI 5). */
+  /** Participação no plano semanal, em % (SQL 30, Python 30, ML 25, Power BI 15). */
   share: number
   summary: string
   /** Sessões curtas (10 a 20 min) fazem sentido neste pilar. */

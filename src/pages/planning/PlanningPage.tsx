@@ -51,7 +51,7 @@ import { CopyBlocksModal } from '@/pages/calendar/CopyBlocksModal'
 import { BlockDetails } from './BlockDetails'
 import { MonthView } from './MonthView'
 import { ReplanDialog } from './ReplanDialog'
-import { ContinueCard, InboxCard, WeekSummary } from './SidePanels'
+import { ActiveCycleCard, ContinueCard, ContinueCourseCard, InboxCard, WeekSummary } from './SidePanels'
 import { TaskDialog, type TaskDraft } from './TaskDialog'
 import { TimeGrid } from './TimeGrid'
 import { WeekTools } from './WeekTools'
@@ -607,6 +607,8 @@ export default function PlanningPage() {
           </div>
 
           <div className="space-y-5 xl:col-start-2 xl:row-start-2">
+            <ActiveCycleCard />
+            <ContinueCourseCard />
             <ContinueCard tz={tz} extra={<LastReadLine />} />
             <TodayRoutine hideWhenEmpty />
             <CguToday onlyWhenInUse />

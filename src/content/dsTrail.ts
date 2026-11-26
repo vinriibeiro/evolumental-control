@@ -1,4 +1,4 @@
-// Trilha de Ciência de Dados: cinco pilares, na ordem em que entram no plano semanal.
+// Trilha de Ciência de Dados: quatro pilares puros da área de dados, na ordem em que entram no plano semanal.
 // As chaves (`ds.<pilar>.<slug>`) são estáveis — mude textos à vontade, nunca uma chave publicada.
 import type { TrackDef, TrackKey, TrailTopicDef } from '@/content/dsTypes'
 
@@ -925,149 +925,6 @@ const ML_TOPICS: TrailTopicDef[] = [
   },
 ]
 
-const INGLES_TOPICS: TrailTopicDef[] = [
-  {
-    key: 'ds.ingles.leitura',
-    title: 'Leitura de documentação',
-    objective: 'Ao terminar, consigo ler uma página de documentação técnica em inglês e extrair o que a função faz, seus parâmetros e avisos.',
-    prerequisites: [],
-    content: [
-      'Estrutura típica de uma página de documentação',
-      'Leitura por varredura: títulos, exemplos e notas',
-      'Expressões recorrentes: by default, deprecated, returns, raises',
-      'Como inferir o significado pelo contexto antes de traduzir',
-    ],
-    materials: [
-      link('Python — Tutorial oficial (em inglês)', `${PY}/tutorial/index.html`),
-      link('British Council — Reading', 'https://learnenglish.britishcouncil.org/skills/reading'),
-    ],
-    exercise: {
-      prompt: 'Leia uma seção curta do tutorial oficial de Python em inglês e escreva, em português, três frases resumindo o que aprendeu.',
-    },
-    minutes: 15,
-  },
-  {
-    key: 'ds.ingles.vocabulario',
-    title: 'Vocabulário técnico',
-    objective: 'Ao terminar, consigo reconhecer e usar os termos mais frequentes de programação e dados, evitando falsos cognatos.',
-    prerequisites: ['ds.ingles.leitura'],
-    content: [
-      'Verbos de documentação: return, raise, pass, fetch, parse, deploy',
-      'Termos de dados: dataset, feature, label, outlier, pipeline',
-      'Falsos cognatos: actually, eventually, support, resume',
-      'Revisão espaçada com um glossário pessoal',
-    ],
-    materials: [
-      link('Google — Glossário de Machine Learning', 'https://developers.google.com/machine-learning/glossary'),
-      link('Cambridge Dictionary', 'https://dictionary.cambridge.org/'),
-    ],
-    exercise: {
-      prompt: 'Anote dez termos novos encontrados na documentação da semana e escreva uma frase em inglês com cada um.',
-    },
-    minutes: 10,
-  },
-  {
-    key: 'ds.ingles.listening',
-    title: 'Listening',
-    objective: 'Ao terminar, consigo acompanhar um vídeo técnico curto em inglês e anotar suas ideias principais.',
-    prerequisites: ['ds.ingles.vocabulario'],
-    content: [
-      'Escuta com legenda em inglês e, depois, sem legenda',
-      'Reconhecimento de termos técnicos pela pronúncia',
-      'Anotação de palavras-chave enquanto ouve',
-      'Sotaques e ritmos diferentes de fala',
-    ],
-    materials: [
-      link('British Council — Listening', 'https://learnenglish.britishcouncil.org/skills/listening'),
-      link('BBC Learning English', 'https://www.bbc.co.uk/learningenglish/'),
-    ],
-    exercise: {
-      prompt: 'Assista a cinco minutos de uma palestra técnica em inglês com legenda em inglês e anote cinco ideias principais.',
-    },
-    minutes: 15,
-  },
-  {
-    key: 'ds.ingles.speaking',
-    title: 'Speaking',
-    objective: 'Ao terminar, consigo explicar em voz alta, em inglês simples, o que um trecho de código ou uma análise faz.',
-    prerequisites: ['ds.ingles.listening'],
-    content: [
-      'Pronúncia de termos técnicos frequentes',
-      'Frases para explicar código: "this function takes…", "it returns…"',
-      'Técnica de repetição (shadowing) com trechos curtos',
-      'Gravar a própria fala e ouvir depois',
-    ],
-    materials: [
-      link('British Council — Speaking', 'https://learnenglish.britishcouncil.org/skills/speaking'),
-      link('BBC Learning English', 'https://www.bbc.co.uk/learningenglish/'),
-    ],
-    exercise: {
-      prompt: 'Grave um áudio de dois minutos explicando em inglês uma consulta SQL ou uma função em Python que você escreveu nesta semana.',
-    },
-    minutes: 15,
-  },
-  {
-    key: 'ds.ingles.escrita',
-    title: 'Escrita profissional',
-    objective: 'Ao terminar, consigo escrever mensagens de commit, descrições de pull request e e-mails curtos em inglês claro e educado.',
-    prerequisites: ['ds.ingles.vocabulario'],
-    content: [
-      'Mensagens de commit no imperativo: "Add", "Fix", "Remove"',
-      'Descrição de pull request: contexto, mudança e como testar',
-      'Pedidos educados: "Could you…", "Would you mind…"',
-      'Tempos verbais mais usados: presente, passado simples e voz passiva',
-    ],
-    materials: [
-      link('British Council — Writing', 'https://learnenglish.britishcouncil.org/skills/writing'),
-      link('Google — Guia de estilo para documentação', 'https://developers.google.com/style'),
-    ],
-    exercise: {
-      prompt: 'Escreva em inglês a mensagem de commit e a descrição de pull request de uma alteração que você fez em um projeto.',
-    },
-    minutes: 20,
-  },
-  {
-    key: 'ds.ingles.entrevistas',
-    title: 'Entrevistas técnicas em inglês',
-    objective: 'Ao terminar, consigo me apresentar e descrever um projeto e minha experiência em inglês em uma entrevista técnica.',
-    prerequisites: ['ds.ingles.speaking', 'ds.ingles.escrita'],
-    content: [
-      'Apresentação pessoal em um minuto',
-      'Perguntas comuns: "Tell me about yourself", "Walk me through…"',
-      'Descrição de um projeto: situação, tarefa, ação e resultado',
-      'Como pedir que repitam ou esclareçam uma pergunta',
-    ],
-    materials: [
-      link('BBC Learning English', 'https://www.bbc.co.uk/learningenglish/'),
-      link('British Council — Grammar', 'https://learnenglish.britishcouncil.org/grammar'),
-    ],
-    exercise: {
-      prompt: 'Escreva e grave em inglês a resposta para "Tell me about a data project you are proud of", com no máximo dois minutos.',
-    },
-    minutes: 20,
-  },
-  {
-    key: 'ds.ingles.ciencia_dados',
-    title: 'Inglês para Ciência de Dados',
-    objective: 'Ao terminar, consigo ler artigos, documentação e discussões de Ciência de Dados em inglês e apresentar resultados de uma análise.',
-    prerequisites: ['ds.ingles.vocabulario'],
-    content: [
-      'Vocabulário de estatística e Machine Learning',
-      'Leitura de documentação do scikit-learn e do pandas',
-      'Como descrever gráficos e tendências: "increases", "drops", "remains stable"',
-      'Como relatar métricas e limitações de um modelo',
-    ],
-    materials: [
-      link('Google — Glossário de Machine Learning', 'https://developers.google.com/machine-learning/glossary'),
-      link('scikit-learn — Glossário de termos', `${SK}/glossary.html`),
-    ],
-    exercise: {
-      prompt: 'Escreva em inglês um parágrafo de cinco frases descrevendo um gráfico e a principal conclusão de uma análise sua.',
-    },
-    minutes: 15,
-  },
-]
-
 const POWERBI_TOPICS: TrailTopicDef[] = [
   {
     key: 'ds.powerbi.dax',
@@ -1203,19 +1060,10 @@ export const DS_TRACKS: TrackDef[] = [
     topics: ML_TOPICS,
   },
   {
-    key: 'ingles',
-    trailKey: 'ds.ingles',
-    name: 'Inglês para tecnologia',
-    share: 10,
-    summary: 'Sessões curtas e frequentes de leitura, vocabulário, escuta, fala e escrita voltadas ao dia a dia de dados.',
-    shortSessions: true,
-    topics: INGLES_TOPICS,
-  },
-  {
     key: 'powerbi',
     trailKey: 'ds.powerbi',
     name: 'Power BI',
-    share: 5,
+    share: 15,
     summary: 'Aprofundamento em DAX, modelagem, Power Query, desempenho e apresentação profissional de relatórios.',
     topics: POWERBI_TOPICS,
   },

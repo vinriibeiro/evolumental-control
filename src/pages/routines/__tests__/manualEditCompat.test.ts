@@ -133,12 +133,12 @@ describe('mudança só de configuração', () => {
     const a = draft()
     expect(routineConfigChanges(a, draft())).toEqual([])
     const c = draft()
-    c.pillars = c.pillars.filter((p) => p.id !== 'linkedin').map((p) => (p.id === 'ingles' ? { ...p, weight: 9, frequency: 'weekly' as const } : p))
+    c.pillars = c.pillars.filter((p) => p.id !== 'linkedin').map((p) => (p.id === 'certificacoes' ? { ...p, weight: 9, frequency: 'weekly' as const } : p))
     c.availability.days[6] = []
     c.availability.dailyLimitMinutes = null
     const lines = routineConfigChanges(a, c)
     expect(lines.some((l) => l.startsWith('Pilar removido:'))).toBe(true)
-    expect(lines.some((l) => /peso \d+ → 9/.test(l) && l.includes('diário → semanal'))).toBe(true)
+    expect(lines.some((l) => /peso \d+ → 9/.test(l) && l.includes('semanal'))).toBe(true)
     expect(lines).toContain('Horário de Sábado: 09:00–12:00 → sem horário')
     expect(lines).toContain('Limite por dia: 150 min → sem limite')
   })

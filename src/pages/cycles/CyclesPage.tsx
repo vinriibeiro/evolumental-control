@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Copy, MonitorPlay, Pause, Pencil, Play, Plus, RefreshCcw, RotateCcw, Scale, SkipBack, SkipForward, Trash2 } from 'lucide-react'
+import { Copy, GraduationCap, MonitorPlay, Pause, Pencil, Play, Plus, RefreshCcw, RotateCcw, Scale, SkipBack, SkipForward, Trash2 } from 'lucide-react'
 import { useBackend } from '@/app/data'
 import { Button, IconButton } from '@/components/ui/Button'
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/Field'
@@ -14,9 +14,12 @@ import { SubjectTopicSelect } from '@/components/SubjectTopicSelect'
 import { useSafeDelete } from '@/components/useSafeDelete'
 import { invalidateTables, useAll, useSessions, useUpdate } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
+import { useCourses } from '@/hooks/useCourses'
 import { useLiveSession } from '@/features/timer/useLiveSession'
 import { eq, gte, isNull } from '@/lib/data/types'
+import { resumeItem, type CourseView } from '@/lib/courseCatalog'
 import { adoptUnlinkedStudy } from '@/services/sessions'
+import { addCourseToCycle, findCourseForSubject, INTEGRATION_TABLES } from '@/services/courseIntegration'
 import { netSeconds } from '@/lib/timer/engine'
 import { ACTIVITY_LABELS, ACTIVITY_TYPES } from '@/lib/labels'
 import { distributeByWeight, normalizeIndex, skip, sortItems, summarize } from '@/lib/cycle'
@@ -158,7 +161,9 @@ function CycleDetail(props: {
 }) {
   const { cycle } = props
   const items = useAll('study_cycle_items', { filters: [eq('cycle_id', cycle.id)], order: [{ column: 'sort_order' }] })
+  const courses = useCourses()
   const [itemForm, setItemForm] = useState<{ item: StudyCycleItem | null } | null>(null)
+  const [pickCourseOpen, setPickCourseOpen] = useState(false)
   const [distribute, setDistribute] = useState(false)
   const lookups = useLookups()
   const backend = useBackend()
@@ -235,9 +240,20 @@ function CycleDetail(props: {
     navigate(`/sala?item=${summary.current.id}&minutos=${remaining}`)
   }
 
-  // Aulas em vídeo da matéria do bloco: o cronômetro de lá já vem ligado ao bloco e com o tempo que falta.
+  const currentSubjectId = summary.current?.subject_id
+  const currentCourse = useMemo(
+    () => findCourseForSubject(courses.views, currentSubjectId),
+    [courses.views, currentSubjectId],
+  )
+
+  // Aulas do bloco: se houver curso do Google Drive vinculado à matéria, abre direto na próxima aula!
   const openLessons = () => {
     if (!summary.current) return
+    if (currentCourse) {
+      const nextItem = resumeItem(currentCourse, courses.index)
+      navigate(`/cursos/${currentCourse.course.id}${nextItem ? `?item=${nextItem.id}` : ''}`)
+      return
+    }
     navigate(summary.current.topic_id ? `/videos?topico=${summary.current.topic_id}` : `/videos?materia=${summary.current.subject_id}`)
   }
 
@@ -297,6 +313,7 @@ function CycleDetail(props: {
               <p className="text-sm text-muted">
                 {ACTIVITY_LABELS[summary.current.activity_type]}
                 {summary.current.topic_id ? ` · ${lookups.topicName(summary.current.topic_id)}` : ''}
+                {currentCourse ? ` · Drive: ${currentCourse.done}/${currentCourse.total} aulas` : ''}
               </p>
               <div className={cn('mt-3 grid grid-cols-2 gap-3 text-sm', !props.compact && 'sm:grid-cols-4')}>
                 <div>
@@ -337,8 +354,8 @@ function CycleDetail(props: {
               <Button variant="dark" icon={<Play className="size-4" />} onClick={startCurrent} disabled={Boolean(live.data)} title={live.data ? 'Há uma sessão em andamento' : undefined}>
                 Estudar bloco
               </Button>
-              <Button icon={<MonitorPlay className="size-4" />} onClick={openLessons}>
-                Aulas em vídeo
+              <Button icon={currentCourse ? <GraduationCap className="size-4" /> : <MonitorPlay className="size-4" />} onClick={openLessons}>
+                {currentCourse ? 'Abrir curso do Drive' : 'Aulas em vídeo'}
               </Button>
               <div className="flex gap-2">
                 <IconButton label="Voltar um bloco" variant="secondary" onClick={() => move(-1)}>
@@ -355,10 +372,15 @@ function CycleDetail(props: {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink">Blocos do ciclo</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button size="sm" icon={<Scale className="size-4" />} onClick={() => setDistribute(true)} disabled={sorted.length === 0}>
             Distribuir por peso
           </Button>
+          {courses.views.length > 0 && (
+            <Button size="sm" icon={<GraduationCap className="size-4" />} onClick={() => setPickCourseOpen(true)}>
+              + Curso do Drive
+            </Button>
+          )}
           <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setItemForm({ item: null })}>
             Bloco
           </Button>
@@ -405,8 +427,88 @@ function CycleDetail(props: {
         )}
       </QueryState>
       <CycleItemForm open={Boolean(itemForm)} onClose={() => setItemForm(null)} cycleId={cycle.id} item={itemForm?.item ?? null} nextOrder={sorted.length} />
+      <PickDriveCourseModal open={pickCourseOpen} onClose={() => setPickCourseOpen(false)} cycleId={cycle.id} courses={courses.views} />
       <DistributeModal open={distribute} onClose={() => setDistribute(false)} items={sorted} />
     </div>
+  )
+}
+
+function PickDriveCourseModal({ open, onClose, cycleId, courses }: { open: boolean; onClose: () => void; cycleId: string; courses: CourseView[] }) {
+  const [courseId, setCourseId] = useState('')
+  const [duration, setDuration] = useState('60')
+  const [weight, setWeight] = useState('1')
+  const [busy, setBusy] = useState(false)
+  const backend = useBackend()
+  const qc = useQueryClient()
+  const toast = useToast()
+
+  useEffect(() => {
+    if (!open) return
+    setCourseId(courses[0]?.course.id ?? '')
+    setDuration('60')
+    setWeight('1')
+  }, [open, courses])
+
+  const save = async () => {
+    const selected = courses.find((c) => c.course.id === courseId)
+    if (!selected) return
+    setBusy(true)
+    try {
+      await addCourseToCycle(backend, selected.course, {
+        cycleId,
+        durationMinutes: Number(duration) || 60,
+        weight: Number(weight.replace(',', '.')) || 1,
+        activityType: 'video',
+      })
+      await invalidateTables(qc, INTEGRATION_TABLES)
+      toast.success(`"${selected.title}" adicionado ao ciclo.`)
+      onClose()
+    } catch (e) {
+      toast.error(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Adicionar curso do Google Drive ao ciclo"
+      description="Escolha um curso importado do seu Drive. A matéria é criada ou vinculada automaticamente."
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button variant="primary" loading={busy} disabled={!courseId} onClick={() => void save()}>
+            Adicionar ao ciclo
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4">
+        <Field label="Curso do Drive">
+          {(id) => (
+            <Select id={id} value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+              {courses.map((c) => (
+                <option key={c.course.id} value={c.course.id}>
+                  {c.title} ({c.done}/{c.total} aulas)
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Duração do bloco (min)">
+            {(id) => <Input id={id} type="number" min={10} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />}
+          </Field>
+          <Field label="Peso">
+            {(id) => <Input id={id} inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />}
+          </Field>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
