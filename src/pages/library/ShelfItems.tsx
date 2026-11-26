@@ -52,8 +52,7 @@ function CloudNote({ entry, cloudOn }: { entry: ShelfEntry; cloudOn: boolean }) 
 }
 
 function metaLine(entry: ShelfEntry): string {
-  const pages = entry.pageCount ? `${entry.pageCount} ${entry.pageCount === 1 ? 'página' : 'páginas'}` : null
-  return [KIND_LABEL[entry.kind], pages, formatSize(entry.size)].filter(Boolean).join(' · ')
+  return [KIND_LABEL[entry.kind], formatSize(entry.size)].filter(Boolean).join(' · ')
 }
 
 function FavoriteButton({ entry, busy, onFavorite }: Pick<ItemProps, 'entry' | 'busy' | 'onFavorite'>) {
@@ -112,12 +111,12 @@ function ItemMenu({ entry, busy, onMove, onEdit, onDelete }: ItemProps) {
   )
 }
 
-function ProgressRow({ entry, className, full }: { entry: ShelfEntry; className?: string; /** Há espaço para o rótulo por extenso. */ full?: boolean }) {
+function ProgressRow({ entry, className }: { entry: ShelfEntry; className?: string }) {
   const label = progressLabel(entry)
   return (
-    <div className={cn('flex items-center gap-2', className)} title={entry.kind === 'pdf' ? 'Progresso de navegação: páginas já abertas no leitor. É uma estimativa, não uma confirmação de leitura.' : undefined}>
-      <Progress value={entry.progress} className="h-1 flex-1" label={entry.kind === 'pdf' ? `Progresso de navegação de ${entry.title}` : `Progresso de ${entry.title}`} />
-      <span className="shrink-0 text-right text-[11px] tabular-nums text-muted">{entry.kind === 'pdf' && !full ? `Navegação ${entry.progress}%` : label}</span>
+    <div className={cn('flex items-center gap-2', className)}>
+      <Progress value={entry.progress} className="h-1 flex-1" label={`Progresso de ${entry.title}`} />
+      <span className="shrink-0 text-right text-[11px] tabular-nums text-muted">{label}</span>
     </div>
   )
 }
@@ -162,7 +161,7 @@ export function ShelfRow(props: ItemProps) {
           <span className="truncate">{[entry.author || 'Autor não informado', metaLine(entry), entry.subject].filter(Boolean).join(' · ')}</span>
           <CloudNote entry={entry} cloudOn={cloudOn} />
         </p>
-        <ProgressRow entry={entry} full className="mt-1.5 max-w-sm" />
+        <ProgressRow entry={entry} className="mt-1.5 max-w-sm" />
       </div>
       <div className="flex shrink-0 items-center">
         <FavoriteButton {...props} />

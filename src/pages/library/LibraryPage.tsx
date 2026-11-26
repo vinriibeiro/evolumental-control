@@ -44,11 +44,9 @@ function ContinueCard({ entry }: { entry: ShelfEntry }) {
             Último livro acessado
           </h2>
           <p className="mt-1.5 line-clamp-2 text-base leading-snug font-semibold tracking-tight text-ink">{entry.title}</p>
-          <p className="mt-0.5 truncate text-xs text-muted">
-            {[entry.author, entry.kind === 'pdf' && entry.currentPage && entry.pageCount ? `Página ${entry.currentPage} de ${entry.pageCount}` : null].filter(Boolean).join(' · ') || KIND_LABEL[entry.kind]}
-          </p>
+          <p className="mt-0.5 truncate text-xs text-muted">{entry.author || KIND_LABEL[entry.kind]}</p>
           <div className="mt-3 flex max-w-md items-center gap-3">
-            <Progress value={entry.progress} className="h-1 flex-1" label={entry.kind === 'pdf' ? `Progresso de navegação de ${entry.title}` : `Progresso de ${entry.title}`} />
+            <Progress value={entry.progress} className="h-1 flex-1" label={`Progresso de ${entry.title}`} />
             <span className="shrink-0 text-xs tabular-nums text-muted">{progressLabel(entry)}</span>
           </div>
         </div>
@@ -127,14 +125,14 @@ export default function LibraryPage() {
 
   return (
     <div>
-      <PageHeader title="Biblioteca" description="Seus livros em EPUB e PDF em uma só estante. Leia aqui mesmo e retome de onde parou." actions={addButton} />
+      <PageHeader title="Estante" description="Seus livros em EPUB em uma só estante. Leia aqui mesmo e retome de onde parou." actions={addButton} />
       <input
         ref={fileInput}
         type="file"
         multiple
-        accept=".epub,.pdf,application/epub+zip,application/pdf"
+        accept=".epub,application/epub+zip"
         className="hidden"
-        aria-label="Arquivos EPUB ou PDF para adicionar"
+        aria-label="Arquivos EPUB para adicionar"
         onChange={(e) => onPick(e.target.files)}
       />
 
@@ -161,7 +159,7 @@ export default function LibraryPage() {
           <EmptyState
             icon={<Library className="size-8" aria-hidden />}
             title="Sua estante está vazia"
-            description="Clique em Adicionar livros e escolha arquivos .epub ou .pdf (dá para selecionar vários de uma vez). A capa e o nome são lidos do próprio arquivo."
+            description="Clique em Adicionar livros e escolha arquivos .epub (dá para selecionar vários de uma vez). A capa e o nome são lidos do próprio arquivo."
             action={addButton}
           />
         ) : (
@@ -246,7 +244,7 @@ export default function LibraryPage() {
         {cloudOn ? (
           <span>
             Seus livros em EPUB ficam num espaço privado da sua conta (só você acessa, depois do login) e aparecem em qualquer aparelho em que você entrar; EPUBs com mais de 50 MB ficam só no aparelho em
-            que foram adicionados. Os PDFs e suas marcações ficam guardados só neste navegador. Remover um livro da estante nunca apaga o arquivo: só “Excluir permanentemente” faz isso.
+            que foram adicionados. Remover um livro da estante nunca apaga o arquivo: só “Excluir permanentemente” faz isso.
           </span>
         ) : (
           <span>

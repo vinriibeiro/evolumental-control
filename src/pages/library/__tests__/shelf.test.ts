@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BookRecord } from '@/services/library'
-import type { PdfBook } from '@/services/pdfLibrary'
 import { pickLastRead } from '../lastRead'
-import { epubEntry, matchesFilter, pdfEntry, pdfProgress, progressLabel } from '../shelf'
+import { epubEntry, matchesFilter, progressLabel } from '../shelf'
 import { duplicateQuestion } from '../useShelf'
 
 const epub = (extra: Partial<BookRecord> = {}): BookRecord => ({
@@ -19,33 +18,18 @@ const epub = (extra: Partial<BookRecord> = {}): BookRecord => ({
   cloud: 'off',
   ...extra,
 })
-const pdf = (extra: Partial<PdfBook> = {}): PdfBook => ({
-  id: 'b'.repeat(64),
-  title: 'Apostila',
-  fileName: 'apostila.pdf',
-  size: 2000,
-  pageCount: 10,
-  currentPage: 1,
-  annotations: [],
-  bookmarks: [],
-  addedAt: '2026-11-02T10:00:00.000Z',
-  updatedAt: '2026-11-02T10:00:00.000Z',
-  ...extra,
-})
 
-describe('itens da estante unificada', () => {
-  it('EPUB e PDF viram o mesmo tipo de item, cada um com o endereço do seu leitor', () => {
-    expect(epubEntry(epub({ subject: 'Direito', favorite: true }))).toMatchObject({ kind: 'book', href: `/livros/${'a'.repeat(32)}`, subject: 'Direito', favorite: true, shelf: 'active', hash: 'a'.repeat(32) })
-    expect(pdfEntry(pdf({ shelf: 'archived' }))).toMatchObject({ kind: 'pdf', href: `/livros/pdf/${'b'.repeat(64)}`, shelf: 'archived', author: '', hash: 'b'.repeat(64) })
+describe('itens da estante de livros EPUB', () => {
+  it('converte BookRecord em ShelfEntry com link do leitor EPUB', () => {
+    expect(epubEntry(epub({ subject: 'Dados', favorite: true }))).toMatchObject({
+      kind: 'book',
+      href: `/livros/${'a'.repeat(32)}`,
+      subject: 'Dados',
+      favorite: true,
+      shelf: 'active',
+      hash: 'a'.repeat(32),
+    })
     expect(epubEntry(epub({ author: 'Autor desconhecido' })).author).toBe('')
-  })
-
-  it('o progresso do PDF vem das páginas abertas e é rotulado como progresso de navegação', () => {
-    expect(pdfProgress(pdf())).toBe(0)
-    expect(pdfProgress(pdf({ lastReadAt: '2026-11-03T10:00:00.000Z', currentPage: 9, visitedPages: [1, 9] }))).toBe(20)
-    // PDF aberto antes de existir o registro de visitas: mantém a estimativa antiga (até a página salva)
-    expect(pdfProgress(pdf({ lastReadAt: '2026-11-03T10:00:00.000Z', currentPage: 4 }))).toBe(40)
-    expect(progressLabel(pdfEntry(pdf({ lastReadAt: '2026-11-03T10:00:00.000Z', visitedPages: [1, 2, 3] })))).toBe('Progresso de navegação: 30%')
     expect(progressLabel(epubEntry(epub({ progress: 42 })))).toBe('42% lido')
   })
 
@@ -61,20 +45,28 @@ describe('itens da estante unificada', () => {
 })
 
 describe('continuar de onde parei', () => {
-  it('escolhe o mais recente entre EPUBs e PDFs', () => {
+  it('escolhe o EPUB lido mais recentemente', () => {
     const entries = [
       epubEntry(epub({ lastReadAt: '2026-11-10T10:00:00.000Z', progress: 42 })),
-      pdfEntry(pdf({ lastReadAt: '2026-11-12T10:00:00.000Z', visitedPages: [1, 2] })),
+      epubEntry(epub({ id: 'b'.repeat(32), title: 'Mais Recente', lastReadAt: '2026-11-12T10:00:00.000Z', progress: 65 })),
       epubEntry(epub({ id: 'c'.repeat(32), title: 'Nunca aberto' })),
     ]
-    expect(pickLastRead(entries)).toEqual({ id: 'b'.repeat(64), kind: 'pdf', title: 'Apostila', author: '', progress: 20, href: `/livros/pdf/${'b'.repeat(64)}`, lastReadAt: '2026-11-12T10:00:00.000Z' })
+    expect(pickLastRead(entries)).toEqual({
+      id: 'b'.repeat(32),
+      kind: 'book',
+      title: 'Mais Recente',
+      author: 'Autora',
+      progress: 65,
+      href: `/livros/${'b'.repeat(32)}`,
+      lastReadAt: '2026-11-12T10:00:00.000Z',
+    })
   })
 
   it('ignora livros arquivados ou removidos e devolve null quando nada foi lido', () => {
-    const hiddenPdf = pdfEntry(pdf({ lastReadAt: '2026-11-12T10:00:00.000Z', shelf: 'hidden' }))
+    const hiddenBook = epubEntry(epub({ id: 'b'.repeat(32), lastReadAt: '2026-11-12T10:00:00.000Z', shelf: 'hidden' }))
     const read = epubEntry(epub({ lastReadAt: '2026-11-10T10:00:00.000Z' }))
-    expect(pickLastRead([hiddenPdf, read])?.kind).toBe('book')
-    expect(pickLastRead([hiddenPdf])).toBeNull()
+    expect(pickLastRead([hiddenBook, read])?.id).toBe('a'.repeat(32))
+    expect(pickLastRead([hiddenBook])).toBeNull()
     expect(pickLastRead([epubEntry(epub())])).toBeNull()
     expect(pickLastRead([])).toBeNull()
   })
@@ -88,6 +80,5 @@ describe('pergunta de livro possivelmente duplicado', () => {
     expect(text).toContain('O ISBN é o mesmo')
     expect(text).toContain('“outra-edicao.epub” é diferente')
     expect(text.endsWith('Adicionar mesmo assim?')).toBe(true)
-    expect(duplicateQuestion({ level: 'suspect', reason: 'metadata', book: pdfEntry(pdf()) }, 'x.pdf')).toContain('O título coincide')
   })
 })

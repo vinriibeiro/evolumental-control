@@ -1,5 +1,4 @@
 import 'fake-indexeddb/auto'
-import Dexie from 'dexie'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -7,23 +6,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ConfirmProvider, ToastProvider } from '@/components/ui/feedback'
 import { AuthProvider } from '@/app/auth'
 import { libraryFor, resetLibrariesForTests } from '@/services/library'
-import { PdfLibrary } from '@/services/pdfLibrary'
 import { epubFile, makeEpub } from '@/test/epubFixture'
-
-// A capa do PDF depende do pdf.js desenhando em canvas, que o jsdom não tem: aqui só os metadados.
-const describePdf = vi.hoisted(() => vi.fn(async (): Promise<{ pageCount?: number; author?: string }> => ({ pageCount: 12, author: 'Autora do PDF' })))
-vi.mock('../pdfCover', () => ({ describePdf, renderPdfCover: vi.fn() }))
-
 import LibraryPage from '../LibraryPage'
 import ReaderPage from '../ReaderPage'
 
-const PDF_DB = 'evolumental-library-pdf'
-
 beforeEach(async () => {
   await resetLibrariesForTests()
-  await Dexie.delete(PDF_DB)
   localStorage.clear()
-  describePdf.mockClear()
   URL.createObjectURL = vi.fn(() => 'blob:capa')
   URL.revokeObjectURL = vi.fn()
 })
@@ -50,26 +39,16 @@ function renderAt(path: string) {
 }
 
 const lib = () => libraryFor(null)
-/** Lê os PDFs por uma conexão própria e a fecha, para o banco poder ser apagado entre os testes. */
-async function pdfs<T>(fn: (library: PdfLibrary) => Promise<T>): Promise<T> {
-  const library = new PdfLibrary('evolumental-library')
-  try {
-    return await fn(library)
-  } finally {
-    library.close()
-  }
-}
-const pdfFile = (name: string, content = 'conteúdo') => new File([`%PDF-1.7\n${content}`], name, { type: 'application/pdf' })
 const seed = async () => {
   const a = await lib().add(await epubFile('a.epub', { title: 'Pense em Estatística', author: 'Allen Downey', cover: true, chapter: 'a' }))
   const b = await lib().add(await epubFile('b.epub', { title: 'Python e R para Dados', author: 'Rick Scavetta', chapter: 'b' }))
   return { a: a.book, b: b.book }
 }
-const input = () => screen.getByLabelText('Arquivos EPUB ou PDF para adicionar') as HTMLInputElement
+const input = () => screen.getByLabelText('Arquivos EPUB para adicionar') as HTMLInputElement
 const openMenu = (title: string) => fireEvent.click(screen.getByRole('button', { name: `Ações de ${title}` }))
 const choose = (label: string) => fireEvent.click(screen.getByRole('menuitem', { name: label }))
 
-describe('Biblioteca — estante unificada', () => {
+describe('Estante — livros EPUB', () => {
   it('mostra o estado vazio com o botão de adicionar e o aviso de privacidade', async () => {
     renderAt('/biblioteca')
     expect(await screen.findByText('Sua estante está vazia')).toBeInTheDocument()
@@ -77,20 +56,15 @@ describe('Biblioteca — estante unificada', () => {
     expect(screen.getByText(/ficam guardados só neste navegador/)).toBeInTheDocument()
   })
 
-  it('lista EPUBs e PDFs juntos, com capa, autor e progresso, e abre cada um no seu leitor', async () => {
+  it('lista livros EPUB com capa, autor e progresso e abre no leitor', async () => {
     await seed()
-    await pdfs((p) => p.add(pdfFile('Apostila_de_SQL.pdf')))
     renderAt('/biblioteca')
     expect(await screen.findByText('Pense em Estatística')).toBeInTheDocument()
     expect(screen.getByText('Allen Downey')).toBeInTheDocument()
-    expect(screen.getByText('Estante · 3 livros')).toBeInTheDocument()
+    expect(screen.getByText('Estante · 2 livros')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Abrir Python e R para Dados' })).toHaveAttribute('href', expect.stringMatching(/^\/livros\/[0-9a-f]+$/))
-    expect(screen.getByRole('link', { name: 'Abrir Apostila de SQL' })).toHaveAttribute('href', expect.stringMatching(/^\/livros\/pdf\/[0-9a-f]{64}$/))
-    // livro com capa usa a imagem; sem capa, a capa tipográfica
     expect(screen.getByAltText('Capa de Pense em Estatística')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Capa de Python e R para Dados' })).toBeInTheDocument()
-    // o progresso do PDF é sempre apresentado como progresso de navegação
-    expect(screen.getByRole('progressbar', { name: 'Progresso de navegação de Apostila de SQL' })).toBeInTheDocument()
     expect(screen.getByRole('progressbar', { name: 'Progresso de Pense em Estatística' })).toBeInTheDocument()
   })
 
@@ -160,24 +134,21 @@ describe('Biblioteca — estante unificada', () => {
   })
 })
 
-describe('Biblioteca — adicionar e antiduplicidade', () => {
-  it('importa EPUB e PDF, recusa outros formatos e não duplica o mesmo arquivo com outro nome', async () => {
+describe('Estante — adicionar e antiduplicidade', () => {
+  it('importa EPUB, recusa PDF e outros formatos e não duplica o mesmo arquivo com outro nome', async () => {
     renderAt('/biblioteca')
     await screen.findByText('Sua estante está vazia')
     const novo = await makeEpub({ title: 'Livro Novo', author: 'Fulana', chapter: 'n' })
-    fireEvent.change(input(), { target: { files: [new File([novo], 'novo.epub'), pdfFile('Manual.pdf'), new File(['oi'], 'notas.txt', { type: 'text/plain' })] } })
+    const pdf = new File(['%PDF-1.7\nconteúdo'], 'Manual.pdf', { type: 'application/pdf' })
+    fireEvent.change(input(), { target: { files: [new File([novo], 'novo.epub'), pdf, new File(['oi'], 'notas.txt', { type: 'text/plain' })] } })
     expect(await screen.findByRole('link', { name: 'Abrir Livro Novo' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Abrir Manual' })).toBeInTheDocument()
-    expect(await screen.findByText(/não é um EPUB nem um PDF/)).toBeInTheDocument()
-    expect(await screen.findByText('2 livros adicionados à estante.')).toBeInTheDocument()
-    // autor e páginas do PDF vêm do próprio arquivo
-    expect(await pdfs((p) => p.list())).toMatchObject([{ title: 'Manual', author: 'Autora do PDF', pageCount: 12 }])
+    expect(await screen.findByText(/Manual\.pdf.*não é um EPUB/)).toBeInTheDocument()
+    expect(await screen.findByText('1 livro adicionado à estante.')).toBeInTheDocument()
 
-    // os mesmos arquivos, com outros nomes: reconhecidos pelo conteúdo, sem pergunta e sem cópia
-    fireEvent.change(input(), { target: { files: [new File([novo], 'copia-renomeada.epub'), pdfFile('Manual (1).pdf')] } })
-    expect(await screen.findByText('2 livros já estavam na estante.')).toBeInTheDocument()
+    // o mesmo arquivo, com outro nome: reconhecido pelo conteúdo, sem pergunta e sem cópia
+    fireEvent.change(input(), { target: { files: [new File([novo], 'copia-renomeada.epub')] } })
+    expect(await screen.findByText('1 livro já estava na estante.')).toBeInTheDocument()
     expect(await lib().list()).toHaveLength(1)
-    expect(await pdfs((p) => p.list())).toHaveLength(1)
     expect(screen.queryByText('Livro possivelmente duplicado')).not.toBeInTheDocument()
   })
 
@@ -200,20 +171,9 @@ describe('Biblioteca — adicionar e antiduplicidade', () => {
     await waitFor(async () => expect(await lib().list()).toHaveLength(2))
     expect(await screen.findByText('Estante · 2 livros')).toBeInTheDocument()
   })
-
-  it('PDF com o mesmo título de um EPUB da estante também é tratado como suspeito, não como igual', async () => {
-    describePdf.mockResolvedValueOnce({ pageCount: 3 })
-    await lib().add(await epubFile('a.epub', { title: 'Estruturas de Dados', author: 'Ana Souza', chapter: 'x' }))
-    renderAt('/biblioteca')
-    await screen.findByRole('link', { name: 'Abrir Estruturas de Dados' })
-    fireEvent.change(input(), { target: { files: [pdfFile('Estruturas_de_Dados.pdf')] } })
-    const dialog = await screen.findByRole('dialog', { name: 'Livro possivelmente duplicado' })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Adicionar mesmo assim' }))
-    expect(await screen.findByText('Estante · 2 livros')).toBeInTheDocument()
-  })
 })
 
-describe('Biblioteca — remover, arquivar e excluir', () => {
+describe('Estante — remover, arquivar e excluir', () => {
   it('remover da estante esconde o livro, mantém arquivo e leitura, e dá para restaurar', async () => {
     const { a } = await seed()
     await lib().saveProgress(a.id, 'epubcfi(/6/2)', 42)
@@ -223,7 +183,6 @@ describe('Biblioteca — remover, arquivar e excluir', () => {
     choose('Remover da estante')
     expect(await screen.findByText('Estante · 1 livro')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Abrir Pense em Estatística' })).not.toBeInTheDocument()
-    // nada foi apagado: o arquivo abre e a posição continua lá
     expect((await lib().open(a.id)).byteLength).toBeGreaterThan(100)
     expect(await lib().get(a.id)).toMatchObject({ shelf: 'hidden', progress: 42, location: 'epubcfi(/6/2)' })
 
@@ -235,17 +194,16 @@ describe('Biblioteca — remover, arquivar e excluir', () => {
     expect((await lib().get(a.id))?.shelf).toBe('active')
   })
 
-  it('arquivar tira da estante e guarda em Arquivados (vale também para PDF)', async () => {
-    await seed()
-    const pdf = await pdfs((p) => p.add(pdfFile('Apostila.pdf')))
+  it('arquivar tira da estante e guarda em Arquivados', async () => {
+    const { a } = await seed()
     renderAt('/biblioteca')
-    await screen.findByText('Estante · 3 livros')
-    openMenu('Apostila')
+    await screen.findByText('Estante · 2 livros')
+    openMenu('Pense em Estatística')
     choose('Arquivar')
-    expect(await screen.findByText('Estante · 2 livros')).toBeInTheDocument()
+    expect(await screen.findByText('Estante · 1 livro')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Arquivados (1)' }))
-    expect(screen.getByRole('link', { name: 'Abrir Apostila' })).toBeInTheDocument()
-    expect(await pdfs(async (p) => [(await p.get(pdf.id))?.shelf, (await p.file(pdf.id))?.byteLength])).toEqual(['archived', pdf.size])
+    expect(screen.getByRole('link', { name: 'Abrir Pense em Estatística' })).toBeInTheDocument()
+    expect((await lib().get(a.id))?.shelf).toBe('archived')
   })
 
   it('adicionar de novo um livro removido devolve à estante, sem duplicar', async () => {
@@ -282,7 +240,7 @@ describe('Biblioteca — remover, arquivar e excluir', () => {
   })
 })
 
-describe('Biblioteca — leitor de EPUB', () => {
+describe('Estante — leitor de EPUB', () => {
   it('avisa quando o livro não existe e oferece voltar à estante', async () => {
     renderAt('/livros/nao-existe')
     expect(await screen.findByText('Livro não encontrado')).toBeInTheDocument()
