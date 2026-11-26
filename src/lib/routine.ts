@@ -364,16 +364,8 @@ export interface RoutineDayPillar {
   pillarId: string
   name: string
   frequency: PillarFrequency
-  /** Pilar de inglês diário: o bloco leva à aba Inglês. */
-  english: boolean
   minutes: number
   blocks: RoutineDayBlock[]
-}
-
-const plain = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-
-export function isEnglishPillar(p: Pick<RoutinePillar, 'id' | 'name'>): boolean {
-  return p.id === 'ingles' || /\b(ingles|english)\b/.test(plain(p.name))
 }
 
 /**
@@ -411,6 +403,6 @@ export function routineDayBlocks(routine: RoutineDaySource, date: DayKey): Routi
     .filter((p) => byPillar.has(p.id))
     .map((p) => {
       const blocks = byPillar.get(p.id)!.sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-      return { pillarId: p.id, name: p.name, frequency: p.frequency, english: isEnglishPillar(p), minutes: blocks.reduce((a, b) => a + b.duration_minutes, 0), blocks }
+      return { pillarId: p.id, name: p.name, frequency: p.frequency, minutes: blocks.reduce((a, b) => a + b.duration_minutes, 0), blocks }
     })
 }

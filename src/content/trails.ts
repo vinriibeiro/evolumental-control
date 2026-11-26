@@ -25,11 +25,11 @@ export function topicName(node: TopicTree[number]): string {
   return typeof node === 'string' ? node : Array.isArray(node) ? node[0] : node.name
 }
 
-/** Ciclo recomendado montado junto com a trilha: "ingles" = matéria de inglês do usuário; "curso" = primeiro curso da trilha. */
+/** Ciclo recomendado montado junto com a trilha: "curso" = primeiro curso da trilha. */
 export interface CyclePlan {
   name: string
   description: string
-  blocks: Array<{ slot: 'ingles' | 'curso'; minutes: number; activity: 'theory' | 'video' | 'questions' | 'other'; breakMinutes?: number }>
+  blocks: Array<{ slot: 'curso'; minutes: number; activity: 'theory' | 'video' | 'questions' | 'other'; breakMinutes?: number }>
 }
 
 export interface Reference {

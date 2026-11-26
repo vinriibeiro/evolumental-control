@@ -18,23 +18,21 @@ beforeEach(() => {
 const TOTAL_TOPICS = DS_TRACKS.reduce((a, t) => a + t.topics.length, 0)
 
 describe('trilha de Ciência de Dados: instalação sem duplicar', () => {
-  it('cria os cinco pilares e todos os tópicos; rodar de novo não cria nada', async () => {
+  it('cria os quatro pilares de dados e todos os tópicos; rodar de novo não cria nada', async () => {
     const first = await syncDsTrail(backend, { weeklyMinutes: 1200 })
-    expect(first).toEqual({ subjectsCreated: 5, subjectsAdopted: 0, topicsCreated: TOTAL_TOPICS, topicsAdopted: 0 })
+    expect(first).toEqual({ subjectsCreated: 4, subjectsAdopted: 0, topicsCreated: TOTAL_TOPICS, topicsAdopted: 0 })
     const second = await syncDsTrail(backend, { weeklyMinutes: 1200 })
     expect(second).toEqual({ subjectsCreated: 0, subjectsAdopted: 0, topicsCreated: 0, topicsAdopted: 0 })
     const subjects = (await backend.list('subjects')).rows
     const topics = (await backend.list('topics')).rows
-    expect(subjects).toHaveLength(5)
+    expect(subjects).toHaveLength(4)
     expect(topics).toHaveLength(TOTAL_TOPICS)
     expect(missingTrailKeys(subjects, topics)).toEqual({ subjects: 0, topics: 0 })
-    // Power BI não domina a semana: a meta semanal segue a participação de cada pilar
     const hours = Object.fromEntries(subjects.map((s) => [s.trail_key, s.weekly_goal_hours]))
     expect(hours['ds.sql']).toBe(6)
     expect(hours['ds.python']).toBe(6)
     expect(hours['ds.ml']).toBe(5)
-    expect(hours['ds.ingles']).toBe(2)
-    expect(hours['ds.powerbi']).toBe(1)
+    expect(hours['ds.powerbi']).toBe(3)
   })
 
   it('adota matéria e tópico já existentes com o mesmo nome, preservando o progresso', async () => {
@@ -43,11 +41,11 @@ describe('trilha de Ciência de Dados: instalação sem duplicar', () => {
     await backend.insert('topics', [{ subject_id: sql.id, name: 'Meu tópico antigo' }])
     const r = await syncDsTrail(backend, { weeklyMinutes: 600 })
     expect(r.subjectsAdopted).toBe(1)
-    expect(r.subjectsCreated).toBe(4)
+    expect(r.subjectsCreated).toBe(3)
     expect(r.topicsAdopted).toBe(1)
     const after = await backend.get('topics', join.id)
     expect(after).toMatchObject({ trail_key: 'ds.sql.join', status: 'completed', mastery: 4 })
-    expect((await backend.list('subjects')).rows).toHaveLength(5)
+    expect((await backend.list('subjects')).rows).toHaveLength(4)
     // o tópico antigo do usuário continua lá, sem chave
     expect((await backend.list('topics', { filters: [eq('subject_id', sql.id)] })).rows.some((t) => t.name === 'Meu tópico antigo' && !t.trail_key)).toBe(true)
     expect((await backend.list('topics', { filters: [eq('trail_key', 'ds.sql.join')] })).rows).toHaveLength(1)
@@ -58,7 +56,7 @@ describe('trilha de Ciência de Dados: instalação sem duplicar', () => {
     await syncDsTrail(backend, { weeklyMinutes: 600, tracks: partial })
     const r = await syncDsTrail(backend, { weeklyMinutes: 600 })
     expect(r.subjectsCreated).toBe(0)
-    expect(r.topicsCreated).toBe(TOTAL_TOPICS - 10)
+    expect(r.topicsCreated).toBe(TOTAL_TOPICS - 8)
     expect((await backend.list('topics', { filters: [notNull('trail_key')] })).rows).toHaveLength(TOTAL_TOPICS)
   })
 })

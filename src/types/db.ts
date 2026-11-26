@@ -522,7 +522,7 @@ export interface Project extends Owned {
   name: string
   description: string | null
   objective: string | null
-  /** Pilar principal ('sql', 'python', 'ml', 'ingles', 'powerbi') ou null. */
+  /** Pilar principal ('sql', 'python', 'ml', 'powerbi') ou null. */
   track: string | null
   skills: string[]
   /** 1 = iniciante, 2 = intermediário, 3 = avançado. */

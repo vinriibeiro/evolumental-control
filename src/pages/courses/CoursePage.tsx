@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ChevronLeft, Columns2, ExternalLink, Focus, Highlighter, Keyboard, ListVideo, Maximize, Minimize, Paperclip, Pencil, RotateCw, Timer, Trophy, Undo2, X,
+  ArrowLeft, ArrowRight, CalendarPlus, CheckCircle2, ChevronLeft, Columns2, ExternalLink, Focus, Highlighter, Keyboard, ListVideo, Maximize, Minimize, Paperclip, Pencil, RefreshCcw, RotateCw, Timer, Trophy, Undo2, X,
 } from 'lucide-react'
 import { VideoStudyTimer } from '@/pages/videos/VideoStudyTimer'
 import { DRIVE_VIEWER_HELP, DriveOpenLink, DriveViewer } from '@/components/DriveViewer'
@@ -20,6 +20,7 @@ import { formatBytes, formatDuration, materialType } from '@/lib/drive'
 import { cn } from '@/lib/cn'
 import type { CourseNode } from '@/types/db'
 import { CourseOutline } from './CourseOutline'
+import { AddCourseToCycleModal, ScheduleCourseModal } from './CourseIntegrationModals'
 import { KindIcon } from './KindIcon'
 
 const PREFS = 'evolumental.course.player'
@@ -114,6 +115,8 @@ export default function CoursePage() {
   const [side, setSide] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [editing, setEditing] = useState<CourseNode | null>(null)
+  const [cycleOpen, setCycleOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const [help, setHelp] = useState(false)
   const updatePrefs = (p: Partial<Prefs>) => setPrefs((old) => {
     const next = { ...old, ...p }
@@ -346,6 +349,8 @@ export default function CoursePage() {
                     <DriveOpenLink node={active} />
                     <button type="button" className="inline-flex items-center gap-1 text-ink hover:underline" onClick={() => setReloadKey((k) => k + 1)}><RotateCw className="size-3.5" aria-hidden /> Recarregar</button>
                     <button type="button" className="inline-flex items-center gap-1 text-ink hover:underline" onClick={() => setEditing(lesson.folder ?? lesson.primary)}><Pencil className="size-3.5" aria-hidden /> Organizar</button>
+                    <button type="button" className="inline-flex items-center gap-1 text-ink hover:underline" onClick={() => setCycleOpen(true)}><RefreshCcw className="size-3.5" aria-hidden /> Adicionar ao ciclo</button>
+                    <button type="button" className="inline-flex items-center gap-1 text-ink hover:underline" onClick={() => setScheduleOpen(true)}><CalendarPlus className="size-3.5" aria-hidden /> Agendar no cronograma</button>
                     {!prefs.timer && <button type="button" className="inline-flex items-center gap-1 text-ink hover:underline" onClick={() => updatePrefs({ timer: true })}><Timer className="size-3.5" aria-hidden /> Mostrar cronômetro</button>}
                     {next && <span className="text-muted">A seguir: <button type="button" className="text-ink hover:underline" onClick={() => open(next.primary)}>{next.title}</button></span>}
                   </div>
@@ -421,6 +426,8 @@ export default function CoursePage() {
         <p className="mt-3 flex items-center gap-1 text-xs text-muted"><ExternalLink className="size-3" aria-hidden /> Velocidade, legenda e tela cheia do vídeo: nos controles do player do Google.</p>
       </Modal>
       <EditNodeModal node={editing} onClose={() => setEditing(null)} />
+      <AddCourseToCycleModal course={cycleOpen ? view : null} onClose={() => setCycleOpen(false)} />
+      <ScheduleCourseModal course={scheduleOpen ? view : null} onClose={() => setScheduleOpen(false)} />
     </div>
   )
 }

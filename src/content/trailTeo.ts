@@ -267,14 +267,13 @@ export const TEO_TRAIL: CareerTrail = {
     'Estude um curso por vez, na ordem. Só passe para o próximo quando terminar as aulas e a prática.',
     'Cada aula tem o link do YouTube: abra o tópico e use Materiais e links.',
     'Prática: refaça o código sozinho, sem copiar. Marque o tópico como concluído só depois de praticar.',
-    'Ciclo sugerido: Inglês + Aula + Prática, 60 minutos cada. Ao terminar um curso, troque a matéria dos blocos de aula e prática.',
+    'Ciclo sugerido: Aula + Prática + Revisão, 60 minutos cada. Ao terminar um curso, troque a matéria dos blocos.',
     'O curso de Streamlit é opcional: deixe para depois de machine learning.',
   ],
   cyclePlan: {
     name: 'Do zero a cientista de dados',
-    description: 'Inglês + Aula do curso da vez + Prática, 60 minutos cada. Ao concluir um curso, troque a matéria dos blocos 2 e 3.',
+    description: 'Aula do curso da vez + Prática, 60 minutos cada. Ao concluir um curso, troque a matéria dos blocos.',
     blocks: [
-      { slot: 'ingles', minutes: 60, activity: 'other', breakMinutes: 10 },
       { slot: 'curso', minutes: 60, activity: 'video', breakMinutes: 10 },
       { slot: 'curso', minutes: 60, activity: 'questions', breakMinutes: 10 },
     ],

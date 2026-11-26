@@ -34,7 +34,6 @@ const CoursePage = lazy(() => import('@/pages/courses/CoursePage'))
 const CoursePdfReaderPage = lazy(() => import('@/pages/courses/CoursePdfReaderPage'))
 const AudiosPage = lazy(() => import('@/pages/audios/AudiosPage'))
 const VideosPage = lazy(() => import('@/pages/videos/VideosPage'))
-const EnglishPage = lazy(() => import('@/pages/english/EnglishPage'))
 // 4. Sala de Estudos
 const StudyRoomPage = lazy(() => import('@/pages/timer/StudyRoomPage'))
 const SessionHistoryPage = lazy(() => import('@/pages/timer/SessionHistoryPage'))
@@ -121,7 +120,6 @@ export function App() {
                     <Route path="cursos/:id/pdf/:itemId" element={<CoursePdfReaderPage />} />
                     <Route path="audios" element={<AudiosPage />} />
                     <Route path="videos" element={<VideosPage />} />
-                    <Route path="ingles" element={<EnglishPage />} />
 
                     {/* 4. Sala de Estudos */}
                     <Route path="sala" element={<StudyRoomPage />} />

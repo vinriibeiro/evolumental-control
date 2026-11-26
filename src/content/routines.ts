@@ -33,7 +33,7 @@ export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
     id: 'transicao_analista_cientista',
     name: 'Transição: Analista → Cientista de Dados',
     description:
-      'Estudo de ciência de dados como prioridade, sem deixar a análise de dados enferrujar, com projetos práticos, LinkedIn, certificações e inglês todos os dias.',
+      'Estudo de ciência de dados como prioridade, sem deixar a análise de dados enferrujar, com projetos práticos, LinkedIn e certificações.',
     mode: 'auto',
     pillars: [
       {
@@ -100,18 +100,6 @@ export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
         daysPerWeek: 1,
         blockMinutes: 50,
         activityType: 'review',
-        subjectIds: [],
-        trailId: null,
-        subjectKeys: [],
-      },
-      {
-        id: 'ingles',
-        name: 'Inglês — prática diária',
-        description: 'Bloco curto todos os dias, sem material (aba Inglês).',
-        weight: 2,
-        frequency: 'daily',
-        blockMinutes: 20,
-        activityType: 'other',
         subjectIds: [],
         trailId: null,
         subjectKeys: [],

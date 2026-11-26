@@ -5,30 +5,29 @@ import { DS_TOPICS, DS_TRACKS, topicByKey, trackByKey, trackOf } from '@/content
 import type { TrackKey } from '@/content/dsTypes'
 import { CHALLENGES } from '@/pages/challenges/catalog'
 
-const TRACK_KEYS: TrackKey[] = ['sql', 'python', 'ml', 'ingles', 'powerbi']
+const TRACK_KEYS: TrackKey[] = ['sql', 'python', 'ml', 'powerbi']
 const TOPIC_KEYS = new Set(DS_TOPICS.map((t) => t.key))
 
 describe('trilha de Ciência de Dados', () => {
-  it('tem os cinco pilares na ordem certa, com participações 30/30/25/10/5', () => {
+  it('tem os quatro pilares de dados na ordem certa, com participações 30/30/25/15', () => {
     expect(DS_TRACKS.map((t) => t.key)).toEqual(TRACK_KEYS)
-    expect(DS_TRACKS.map((t) => t.trailKey)).toEqual(['ds.sql', 'ds.python', 'ds.ml', 'ds.ingles', 'ds.powerbi'])
-    expect(DS_TRACKS.map((t) => t.name)).toEqual(['SQL', 'Python', 'Machine Learning', 'Inglês para tecnologia', 'Power BI'])
-    expect(DS_TRACKS.map((t) => t.share)).toEqual([30, 30, 25, 10, 5])
+    expect(DS_TRACKS.map((t) => t.trailKey)).toEqual(['ds.sql', 'ds.python', 'ds.ml', 'ds.powerbi'])
+    expect(DS_TRACKS.map((t) => t.name)).toEqual(['SQL', 'Python', 'Machine Learning', 'Power BI'])
+    expect(DS_TRACKS.map((t) => t.share)).toEqual([30, 30, 25, 15])
     expect(DS_TRACKS.reduce((sum, t) => sum + t.share, 0)).toBe(100)
-    expect(DS_TRACKS.filter((t) => t.shortSessions).map((t) => t.key)).toEqual(['ingles'])
     for (const track of DS_TRACKS) expect(track.summary.trim(), track.key).not.toBe('')
   })
 
-  it('tem 12, 14, 16, 7 e 5 tópicos', () => {
-    expect(DS_TRACKS.map((t) => t.topics.length)).toEqual([12, 14, 16, 7, 5])
-    expect(DS_TOPICS).toHaveLength(54)
+  it('tem 12, 14, 16 e 5 tópicos', () => {
+    expect(DS_TRACKS.map((t) => t.topics.length)).toEqual([12, 14, 16, 5])
+    expect(DS_TOPICS).toHaveLength(47)
   })
 
   it('usa chaves únicas no padrão ds.<pilar>.<slug>, com o prefixo do próprio pilar', () => {
     expect(TOPIC_KEYS.size).toBe(DS_TOPICS.length)
     for (const track of DS_TRACKS) {
       for (const topic of track.topics) {
-        expect(topic.key, topic.key).toMatch(/^ds\.(sql|python|ml|ingles|powerbi)\.[a-z0-9_]+$/)
+        expect(topic.key, topic.key).toMatch(/^ds\.(sql|python|ml|powerbi)\.[a-z0-9_]+$/)
         expect(topic.key.startsWith(`${track.trailKey}.`), topic.key).toBe(true)
       }
     }
@@ -54,7 +53,7 @@ describe('trilha de Ciência de Dados', () => {
         }
       })
     }
-    for (const key of ['sql', 'python', 'ingles', 'powerbi'] as const) {
+    for (const key of ['sql', 'python', 'powerbi'] as const) {
       expect(trackByKey(key)?.topics[0].prerequisites, key).toEqual([])
     }
     for (const topic of trackByKey('powerbi')?.topics ?? []) {
@@ -89,10 +88,6 @@ describe('trilha de Ciência de Dados', () => {
       expect(topic.exercise.prompt.trim().length, topic.key).toBeGreaterThan(20)
       expect(topic.minutes, topic.key).toBeGreaterThan(0)
     }
-    for (const topic of trackByKey('ingles')?.topics ?? []) {
-      expect(topic.minutes, topic.key).toBeGreaterThanOrEqual(10)
-      expect(topic.minutes, topic.key).toBeLessThanOrEqual(20)
-    }
   })
 
   it('só aponta para combinações de laboratório que existem no catálogo', () => {
@@ -122,7 +117,7 @@ describe('diagnóstico de conhecimento', () => {
     const ids = DS_QUESTIONS.map((q) => q.id)
     expect(new Set(ids).size).toBe(ids.length)
     for (const q of DS_QUESTIONS) {
-      expect(q.id, q.id).toMatch(/^dq\.(sql|python|ml|ingles|powerbi)\.[a-z0-9_]+\.\d+$/)
+      expect(q.id, q.id).toMatch(/^dq\.(sql|python|ml|powerbi)\.[a-z0-9_]+\.\d+$/)
       expect(q.id.replace(/^dq\./, 'ds.').replace(/\.\d+$/, ''), q.id).toBe(q.topicKey)
     }
   })
@@ -155,7 +150,7 @@ describe('diagnóstico de conhecimento', () => {
   })
 
   it('atinge a quantidade mínima por pilar e cobre os tópicos essenciais de SQL', () => {
-    const minimum: Record<TrackKey, number> = { sql: 26, python: 26, ml: 20, ingles: 14, powerbi: 12 }
+    const minimum: Record<TrackKey, number> = { sql: 26, python: 26, ml: 20, powerbi: 12 }
     for (const key of TRACK_KEYS) {
       expect(DS_QUESTIONS.filter((q) => q.track === key).length, key).toBeGreaterThanOrEqual(minimum[key])
     }
@@ -170,7 +165,6 @@ describe('diagnóstico de conhecimento', () => {
       sql: ['Interpretação de consultas', 'Construção de consultas', 'JOIN', 'Agregações', 'CTE', 'Window Functions', 'Problemas práticos'],
       python: ['Fundamentos', 'Estruturas de dados', 'Funções', 'Manipulação de arquivos', 'Pandas', 'NumPy', 'Resolução de problemas'],
       ml: ['Estatística', 'Preparação de dados', 'Seleção de algoritmos', 'Treinamento', 'Validação', 'Avaliação de modelos', 'Interpretação dos resultados'],
-      ingles: ['Compreensão de textos técnicos', 'Vocabulário', 'Gramática aplicada'],
       powerbi: ['Modelagem', 'DAX', 'Power Query', 'Desempenho'],
     }
     for (const key of TRACK_KEYS) {
@@ -217,7 +211,7 @@ describe('modelos de projeto', () => {
     const keys = DS_PROJECT_TEMPLATES.map((t) => t.key)
     expect(new Set(keys).size).toBe(keys.length)
     for (const template of DS_PROJECT_TEMPLATES) {
-      expect(template.key, template.key).toMatch(/^tpl\.(sql|python|ml|ingles|powerbi)\.[a-z0-9_]+$/)
+      expect(template.key, template.key).toMatch(/^tpl\.(sql|python|ml|powerbi)\.[a-z0-9_]+$/)
       expect(template.key.split('.')[1], template.key).toBe(template.track)
     }
   })

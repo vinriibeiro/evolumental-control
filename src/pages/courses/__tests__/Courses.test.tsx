@@ -67,7 +67,7 @@ afterEach(() => {
 describe('Cursos e materiais', () => {
   it('sem pastas, explica como começar e informa o modo local', async () => {
     renderAt('/cursos')
-    expect(await screen.findByText('Nenhuma pasta cadastrada')).toBeInTheDocument()
+    expect(await screen.findByText('Traga seus cursos do Google Drive')).toBeInTheDocument()
     expect(screen.getByText(/ficam só neste navegador/)).toBeInTheDocument()
   })
 
