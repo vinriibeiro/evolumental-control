@@ -38,6 +38,13 @@ export interface FlashcardReviewInput {
   dueAt: string
 }
 
+export interface MoveNotebookNodeInput {
+  nodeId: string
+  targetNotebookId: string
+  targetParentId: string | null
+  position?: number | null
+}
+
 export interface DataBackend {
   readonly kind: 'supabase' | 'local'
   list<T extends TableName>(table: T, query?: ListQuery): Promise<ListResult<Row<T>>>
@@ -51,6 +58,8 @@ export interface DataBackend {
   updateProfile(patch: Partial<Pick<Profile, 'display_name' | 'settings'>>): Promise<Profile>
   listSessions(query?: ListQuery): Promise<SessionWithPauses[]>
   recordFlashcardReview(input: FlashcardReviewInput): Promise<boolean>
+  /** Move um nó (e sua subárvore) de forma transacional, com prevenção de ciclos. */
+  moveNotebookNode(input: MoveNotebookNodeInput): Promise<number>
   /** Apaga todos os dados de estudo e restaura as preferências; mantém a conta. */
   resetAllData(): Promise<void>
   /** Exclui a conta e, em cascata, todos os dados. */

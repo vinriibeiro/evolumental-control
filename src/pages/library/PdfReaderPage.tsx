@@ -47,6 +47,7 @@ import { PdfNotesPanel } from './PdfNotesPanel'
 import { PdfReadingText } from './PdfReadingText'
 import { renderPdfCover } from './pdfCover'
 import { StudyShortcut } from './StudyShortcut'
+import { SendToNotebookModal } from '@/pages/notebooks/SendToNotebookModal'
 import './pdf-reader.css'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -218,6 +219,8 @@ export function PdfReader({
   const [password, setPassword] = useState('')
   const cancelPassword = useRef<() => void>(() => {})
   const [exporting, setExporting] = useState(false)
+  const [sendNoteOpen, setSendNoteOpen] = useState(false)
+  const [selectedExcerpt, setSelectedExcerpt] = useState('')
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
 
   const [searchOpen, setSearchOpen] = useState(false)
@@ -808,6 +811,17 @@ export function PdfReader({
             <IconButton size="sm" label="Aumentar fonte" disabled={fontSize >= FONT_MAX} onClick={() => changeFontSize(2)}>A+</IconButton>
           </>}
           {documentActions}
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<NotebookPen className="size-4" aria-hidden />}
+            onClick={() => {
+              setSelectedExcerpt(window.getSelection?.()?.toString().trim() ?? '')
+              setSendNoteOpen(true)
+            }}
+          >
+            Enviar ao caderno
+          </Button>
           <Button size="sm" icon={<Download className="size-4" aria-hidden />} loading={exporting} onClick={() => void exportPdf()}>Exportar marcações</Button>
         </div>
         {textMode && <p className="px-1.5 py-1 text-xs text-muted">Use a página original para ver figuras, tabelas e marcações.</p>}
@@ -1075,6 +1089,15 @@ export function PdfReader({
       >
         <Textarea aria-label="Texto da nota" rows={6} maxLength={10000} placeholder="O que você quer guardar deste trecho?" value={noteText} onChange={(e) => setNoteText(e.target.value)} />
       </Modal>
+      <SendToNotebookModal
+        open={sendNoteOpen}
+        onClose={() => setSendNoteOpen(false)}
+        defaultExcerpt={selectedExcerpt}
+        referenceLabel={book.title}
+        resourceKind="library_pdf"
+        resourceId={book.id}
+        location={{ page }}
+      />
     </div>
   )
 }

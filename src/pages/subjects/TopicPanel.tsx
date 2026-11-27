@@ -19,6 +19,7 @@ import { StudiedButton } from '@/components/StudiedButton'
 import { TopicScheduling } from './TopicScheduling'
 import type { Subject, Topic } from '@/types/db'
 import { CardForm } from '@/pages/flashcards/CardForm'
+import { RelatedNotebooksSection } from '@/pages/notebooks/RelatedNotebooksSection'
 import { TopicForm } from './TopicForm'
 import { TopicAudios } from './TopicAudios'
 
@@ -171,6 +172,8 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
             <TopicScheduling subject={subject} topic={topic} />
 
             <TopicAudios topicId={topic.id} />
+
+            <RelatedNotebooksSection subjectId={subject.id} topicId={topic.id} compact />
 
             <Materials subjectId={subject.id} topicId={topic.id} />
           </section>

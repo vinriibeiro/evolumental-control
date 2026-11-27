@@ -32,3 +32,21 @@ export async function runPractice(challenge: Challenge, draft: string, signal?: 
   }
   throw new Error('A execução deste exercício é feita no ambiente de Git.')
 }
+
+/**
+ * Executa manualmente um trecho Python ou SQL (SQLite em memória) de um caderno,
+ * reutilizando exatamente o mesmo sandbox isolado (iframe opaco, CSP sem rede, sem tokens).
+ */
+export async function runNotebookSnippet(language: 'python' | 'sql', code: string, signal?: AbortSignal): Promise<PracticeResult> {
+  if (signal?.aborted) throw new DOMException('Execução cancelada.', 'AbortError')
+  if (!code.trim()) throw new Error('O bloco de código está vazio.')
+  if (code.length > 40_000) throw new Error('O código excedeu o limite de 40.000 caracteres.')
+  return runSandbox(
+    {
+      id: `notebook-${language}`,
+      track: language === 'python' ? 'notebook-python' : 'notebook-sql',
+      draft: code,
+    },
+    signal,
+  )
+}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, ArrowRight, BookOpen, CalendarPlus, CheckCircle2, ChevronLeft, Columns2, ExternalLink, Focus, Keyboard, ListVideo, Maximize, Minimize, Paperclip, Pencil, RefreshCcw, RotateCw, Timer, Trophy, Undo2, X,
+  ArrowLeft, ArrowRight, BookOpen, BookText, CalendarPlus, CheckCircle2, ChevronLeft, Columns2, ExternalLink, Focus, Keyboard, ListVideo, Maximize, Minimize, Paperclip, Pencil, RefreshCcw, RotateCw, Timer, Trophy, Undo2, X,
 } from 'lucide-react'
 import { VideoStudyTimer } from '@/pages/videos/VideoStudyTimer'
 import { DRIVE_VIEWER_HELP, DriveOpenLink, DriveViewer } from '@/components/DriveViewer'
@@ -22,14 +22,15 @@ import type { CourseNode } from '@/types/db'
 import { CourseOutline } from './CourseOutline'
 import { AddCourseToCycleModal, ScheduleCourseModal } from './CourseIntegrationModals'
 import { KindIcon } from './KindIcon'
+import { CourseNotesPanel } from '@/pages/notebooks/CourseNotesPanel'
 
 const PREFS = 'evolumental.course.player'
-type Prefs = { outline: boolean; timer: boolean }
+type Prefs = { outline: boolean; timer: boolean; notes: boolean; notesWidth: number }
 function loadPrefs(): Prefs {
   try {
-    return { outline: true, timer: true, ...(JSON.parse(localStorage.getItem(PREFS) ?? '{}') as Partial<Prefs>) }
+    return { outline: true, timer: true, notes: false, notesWidth: 42, ...(JSON.parse(localStorage.getItem(PREFS) ?? '{}') as Partial<Prefs>) }
   } catch {
-    return { outline: true, timer: true }
+    return { outline: true, timer: true, notes: false, notesWidth: 42 }
   }
 }
 function savePrefs(p: Prefs) {
@@ -258,6 +259,15 @@ export default function CoursePage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 max-sm:w-full max-sm:justify-end">
+            <Button
+              size="sm"
+              variant={prefs.notes ? 'dark' : 'secondary'}
+              aria-pressed={prefs.notes}
+              icon={<BookText className="size-4" aria-hidden />}
+              onClick={() => updatePrefs({ notes: !prefs.notes })}
+            >
+              <span className="max-sm:sr-only">{prefs.notes ? 'Fechar caderno' : 'Caderno'}</span>
+            </Button>
             <Button size="sm" aria-pressed={prefs.outline} icon={<ListVideo className="size-4" aria-hidden />} onClick={() => updatePrefs({ outline: !prefs.outline })}>
               <span className="max-sm:sr-only">{prefs.outline ? 'Ocultar conteúdo' : 'Mostrar conteúdo'}</span>
             </Button>
@@ -311,13 +321,34 @@ export default function CoursePage() {
                       ))}
                     </div>
                   )}
-                  <div className={cn('grid', sideNode && 'lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]')}>
+                  <div
+                    className={cn('grid', (sideNode || prefs.notes) && 'lg:grid-cols-2')}
+                    style={
+                      prefs.notes && !sideNode
+                        ? { gridTemplateColumns: `minmax(0, ${100 - prefs.notesWidth}fr) minmax(0, ${prefs.notesWidth}fr)` }
+                        : undefined
+                    }
+                  >
                     <DriveViewer key={`${active.id}-${reloadKey}`} node={active} title={displayTitle(active)} frameClassName={frame} />
                     {sideNode && (
                       <div className="relative border-t border-line lg:border-t-0 lg:border-l">
                         <IconButton size="sm" label="Fechar material ao lado" className="absolute top-2 right-2 z-10 bg-bg/90" onClick={() => setSide(null)}><X className="size-4" /></IconButton>
                         {sideNode.mime_type === 'application/pdf' && sideNode.status === 'available' && <div className="border-b border-line bg-surface px-3 py-2 pr-12"><PdfReadingLink courseId={view.course.id} node={sideNode} /></div>}
                         <DriveViewer key={`${sideNode.id}-${reloadKey}`} node={sideNode} title={displayTitle(sideNode)} frameClassName={frame ?? 'h-[75dvh] min-h-[420px]'} />
+                      </div>
+                    )}
+                    {prefs.notes && !sideNode && (
+                      <div className="border-t border-line lg:border-t-0 lg:border-l">
+                        <CourseNotesPanel
+                          lessonNodeId={lesson.primary.id}
+                          courseTitle={view.title}
+                          lessonTitle={lesson.title}
+                          subjectId={link.subjectId}
+                          topicId={link.topicId}
+                          splitWidth={prefs.notesWidth}
+                          onChangeSplitWidth={(notesWidth) => updatePrefs({ notesWidth })}
+                          onClose={() => updatePrefs({ notes: false })}
+                        />
                       </div>
                     )}
                   </div>

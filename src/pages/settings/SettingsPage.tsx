@@ -421,11 +421,28 @@ function DataSection() {
   }
 
   const counts = plan?.plan.counts
-  const labels: Record<string, string> = { subjects: 'Matérias', topics: 'Tópicos', study_materials: 'Materiais', flashcard_decks: 'Baralhos', flashcards: 'Flashcards', mind_maps: 'Mapas mentais', study_sessions: 'Sessões de estudo', study_session_pauses: 'Pausas' }
+  const labels: Record<string, string> = {
+    subjects: 'Matérias',
+    topics: 'Tópicos',
+    study_materials: 'Materiais',
+    flashcard_decks: 'Baralhos',
+    flashcards: 'Flashcards',
+    mind_maps: 'Mapas mentais',
+    study_sessions: 'Sessões de estudo',
+    study_session_pauses: 'Pausas',
+    notebooks: 'Cadernos',
+    notebook_nodes: 'Seções e páginas',
+    notebook_page_contents: 'Conteúdos de páginas',
+    notebook_tags: 'Tags de cadernos',
+    notebook_tag_links: 'Vínculos de tags',
+    notebook_page_links: 'Links internos',
+    notebook_flashcard_links: 'Vínculos cartão↔nota',
+    notebook_templates: 'Templates de páginas',
+  }
 
   return (
     <>
-      <Section icon={<Database className="size-5" />} title="Seus dados" description="Exporte um backup completo ou importe conteúdo (matérias, tópicos, flashcards, mapas e sessões de estudo) de um arquivo JSON.">
+      <Section icon={<Database className="size-5" />} title="Seus dados" description="Exporte um backup completo ou importe conteúdo (matérias, tópicos, flashcards, cadernos, mapas e sessões de estudo) de um arquivo JSON.">
         <div className="flex flex-wrap gap-2">
           <Button icon={<Download className="size-4" />} onClick={exportAll} loading={busy && !danger}>
             Exportar todos os dados

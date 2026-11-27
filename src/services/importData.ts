@@ -4,11 +4,29 @@
 // trocados por IDs novos e os vínculos internos são refeitos, então nada de
 // outro usuário ou de outra importação é sobrescrito.
 import type { DataBackend } from '@/lib/data/types'
-import type { Insert, MindMapData, TableName } from '@/types/db'
+import { ensureBlockIds, extractDocSummary } from '@/lib/notebooks'
+import type { Insert, MindMapData, NotebookContentDoc, NotebookContentNode, TableName } from '@/types/db'
 
 type Raw = Record<string, unknown>
 
-export const IMPORT_TABLES = ['subjects', 'topics', 'study_materials', 'flashcard_decks', 'flashcards', 'mind_maps', 'study_sessions', 'study_session_pauses'] as const
+export const IMPORT_TABLES = [
+  'subjects',
+  'topics',
+  'study_materials',
+  'flashcard_decks',
+  'flashcards',
+  'mind_maps',
+  'study_sessions',
+  'study_session_pauses',
+  'notebooks',
+  'notebook_nodes',
+  'notebook_page_contents',
+  'notebook_tags',
+  'notebook_tag_links',
+  'notebook_page_links',
+  'notebook_flashcard_links',
+  'notebook_templates',
+] as const
 export type ImportTable = (typeof IMPORT_TABLES)[number]
 
 export interface ImportPlan {
@@ -41,6 +59,10 @@ export function planImport(input: unknown): ImportPlan {
   const subjMap = new Map<string, string>()
   const topicMap = new Map<string, string>()
   const deckMap = new Map<string, string>()
+  const cardMap = new Map<string, string>()
+  const notebookMap = new Map<string, string>()
+  const nbNodeMap = new Map<string, string>()
+  const nbTagMap = new Map<string, string>()
   const remap = (m: Map<string, string>, v: unknown) => (typeof v === 'string' ? (m.get(v) ?? null) : null)
   const newId = (m: Map<string, string>, old: unknown) => {
     const id = crypto.randomUUID()
@@ -159,7 +181,7 @@ export function planImport(input: unknown): ImportPlan {
     const reps = int(c.repetitions, 0, 1e6, 0)
     return [
       {
-        id: crypto.randomUUID(),
+        id: newId(cardMap, c.id),
         deck_id,
         subject_id: remap(subjMap, c.subject_id),
         topic_id: remap(topicMap, c.topic_id),
@@ -255,10 +277,215 @@ export function planImport(input: unknown): ImportPlan {
   })
   if (skippedSessions) warnings.push(`${skippedSessions} sessão(ões) ignorada(s) (não concluídas, datas inválidas, no futuro ou com mais de 24 h).`)
 
-  const rows = { subjects, topics, study_materials, flashcard_decks, flashcards, mind_maps, study_sessions, study_session_pauses } as ImportPlan['rows']
+  // Meus Cadernos (VLM Knowledge): cadernos, hierarquia de nós, conteúdos, tags, links e templates.
+  // Anexos binários do bucket privado não são embutidos no JSON global (imagens inline em content_json são preservadas).
+  const notebooks = arr(src.notebooks).flatMap((nb, i) => {
+    const title = str(nb.title, 200)
+    if (!title) return warnings.push(`Caderno #${i + 1} sem título foi ignorado.`), []
+    return [
+      {
+        id: newId(notebookMap, nb.id),
+        subject_id: remap(subjMap, nb.subject_id),
+        title,
+        description: str(nb.description, 4000),
+        icon: str(nb.icon, 40),
+        color: color(nb.color, '#171717'),
+        cover: str(nb.cover, 500),
+        is_favorite: nb.is_favorite === true,
+        sort_order: int(nb.sort_order, -1e6, 1e6, i),
+        archived_at: iso(nb.archived_at),
+        deleted_at: iso(nb.deleted_at),
+      },
+    ]
+  })
+
+  const rawNbNodes = arr(src.notebook_nodes)
+  const nbNodeByOld = new Map(rawNbNodes.filter((n) => typeof n.id === 'string').map((n) => [n.id as string, n]))
+  const nbNodeDepth = (n: Raw) => {
+    let d = 0
+    let cur: Raw | undefined = n
+    const seen = new Set<unknown>()
+    while (cur && typeof cur.parent_id === 'string' && nbNodeByOld.has(cur.parent_id) && !seen.has(cur.parent_id) && d < 100) {
+      seen.add(cur.parent_id)
+      cur = nbNodeByOld.get(cur.parent_id)
+      d++
+    }
+    return d
+  }
+  for (const n of rawNbNodes) if (typeof n.id === 'string') nbNodeMap.set(n.id, crypto.randomUUID())
+  const notebook_nodes = [...rawNbNodes]
+    .map((n, i) => ({ n, i, d: nbNodeDepth(n) }))
+    .sort((a, b) => a.d - b.d || a.i - b.i)
+    .flatMap(({ n, i }) => {
+      const title = str(n.title, 300)
+      const notebook_id = remap(notebookMap, n.notebook_id)
+      if (!title || !notebook_id) return []
+      const id = (typeof n.id === 'string' && nbNodeMap.get(n.id)) || crypto.randomUUID()
+      const parent = remap(nbNodeMap, n.parent_id)
+      return [
+        {
+          id,
+          notebook_id,
+          parent_id: parent && parent !== id ? parent : null,
+          node_type: oneOf(n.node_type, ['section', 'page'] as const, 'page'),
+          title,
+          icon: str(n.icon, 40),
+          cover: str(n.cover, 500),
+          color: typeof n.color === 'string' && /^#[0-9A-Fa-f]{6}$/.test(n.color) ? n.color.toUpperCase() : null,
+          status: oneOf(n.status, ['draft', 'in_progress', 'ready', 'reviewing', 'reviewed', 'archived'] as const, 'draft'),
+          difficulty: n.difficulty == null ? null : int(n.difficulty, 1, 5, 3),
+          needs_review: n.needs_review === true,
+          is_favorite: n.is_favorite === true,
+          is_pinned: n.is_pinned === true,
+          position: int(n.position, -1e6, 1e6, i),
+          subject_id: remap(subjMap, n.subject_id),
+          topic_id: remap(topicMap, n.topic_id),
+          last_studied_at: iso(n.last_studied_at),
+          archived_at: iso(n.archived_at),
+          deleted_at: iso(n.deleted_at),
+        },
+      ]
+    })
+  const keptNbNodes = new Set(notebook_nodes.map((n) => n.id))
+  for (const n of notebook_nodes) if (n.parent_id && !keptNbNodes.has(n.parent_id)) n.parent_id = null
+
+  const remapDocInternalLinks = (doc: NotebookContentDoc): NotebookContentDoc => {
+    const walk = (node: NotebookContentNode): NotebookContentNode => {
+      const nextMarks = Array.isArray(node.marks)
+        ? node.marks.map((m) => {
+            if (m.type === 'link' && typeof m.attrs?.href === 'string') {
+              const hit = /^\/cadernos\/([0-9a-f-]{36})\/pagina\/([0-9a-f-]{36})(.*)$/i.exec(m.attrs.href)
+              if (hit) {
+                const newNb = notebookMap.get(hit[1]) ?? hit[1]
+                const newNd = nbNodeMap.get(hit[2]) ?? hit[2]
+                return { ...m, attrs: { ...m.attrs, href: `/cadernos/${newNb}/pagina/${newNd}${hit[3] ?? ''}` } }
+              }
+            }
+            return m
+          })
+        : node.marks
+      return {
+        ...node,
+        ...(nextMarks ? { marks: nextMarks } : {}),
+        ...(Array.isArray(node.content) ? { content: node.content.map(walk) } : {}),
+      }
+    }
+    return { type: 'doc', content: (doc.content ?? []).map(walk) }
+  }
+
+  const notebook_page_contents = arr(src.notebook_page_contents).flatMap((c) => {
+    const node_id = remap(nbNodeMap, c.node_id)
+    if (!node_id || !keptNbNodes.has(node_id)) return []
+    const rawDoc = c.content_json && typeof c.content_json === 'object' && Array.isArray((c.content_json as Raw).content)
+      ? (c.content_json as NotebookContentDoc)
+      : { type: 'doc' as const, content: [] }
+    const content_json = ensureBlockIds(remapDocInternalLinks(rawDoc))
+    const summary = extractDocSummary(content_json)
+    return [
+      {
+        id: crypto.randomUUID(),
+        node_id,
+        content_json,
+        content_schema_version: 1,
+        content_text: summary.text,
+        word_count: summary.wordCount,
+        revision: Math.max(1, int(c.revision, 1, 1e6, 1)),
+      },
+    ]
+  })
+
+  const seenTagNames = new Set<string>()
+  const notebook_tags = arr(src.notebook_tags).flatMap((t) => {
+    const name = str(t.name, 60)
+    if (!name) return []
+    const lowerName = name.toLowerCase()
+    if (seenTagNames.has(lowerName)) return []
+    seenTagNames.add(lowerName)
+    return [{ id: newId(nbTagMap, t.id), name, color: color(t.color, '#525252') }]
+  })
+
+  const notebook_tag_links = arr(src.notebook_tag_links).flatMap((tl) => {
+    const tag_id = remap(nbTagMap, tl.tag_id)
+    const notebook_id = remap(notebookMap, tl.notebook_id)
+    const node_id = remap(nbNodeMap, tl.node_id)
+    if (!tag_id || Boolean(notebook_id) === Boolean(node_id)) return []
+    return [{ id: crypto.randomUUID(), tag_id, notebook_id, node_id }]
+  })
+
+  const notebook_page_links = arr(src.notebook_page_links).flatMap((pl) => {
+    const source_node_id = remap(nbNodeMap, pl.source_node_id)
+    const target_node_id = remap(nbNodeMap, pl.target_node_id)
+    const target_block_id = str(pl.target_block_id, 80)
+    if (!source_node_id || !target_node_id || (source_node_id === target_node_id && !target_block_id)) return []
+    return [
+      {
+        id: crypto.randomUUID(),
+        source_node_id,
+        target_node_id,
+        source_block_id: str(pl.source_block_id, 80),
+        target_block_id,
+        link_text: str(pl.link_text, 300),
+      },
+    ]
+  })
+
+  const notebook_flashcard_links = arr(src.notebook_flashcard_links).flatMap((fl) => {
+    const flashcard_id = remap(cardMap, fl.flashcard_id)
+    const notebook_id = remap(notebookMap, fl.notebook_id)
+    const node_id = remap(nbNodeMap, fl.node_id)
+    if (!flashcard_id || (!notebook_id && !node_id)) return []
+    return [
+      {
+        id: crypto.randomUUID(),
+        flashcard_id,
+        notebook_id,
+        node_id,
+        block_id: str(fl.block_id, 80),
+        source_excerpt: str(fl.source_excerpt, 2000),
+      },
+    ]
+  })
+
+  const notebook_templates = arr(src.notebook_templates).flatMap((tpl) => {
+    const name = str(tpl.name, 160)
+    if (!name) return []
+    const rawDoc = tpl.content_json && typeof tpl.content_json === 'object' && Array.isArray((tpl.content_json as Raw).content)
+      ? (tpl.content_json as NotebookContentDoc)
+      : { type: 'doc' as const, content: [] }
+    return [
+      {
+        id: crypto.randomUUID(),
+        name,
+        description: str(tpl.description, 1000),
+        icon: str(tpl.icon, 40),
+        category: str(tpl.category, 80),
+        content_json: ensureBlockIds(rawDoc),
+        content_schema_version: 1,
+      },
+    ]
+  })
+
+  const rows = {
+    subjects,
+    topics,
+    study_materials,
+    flashcard_decks,
+    flashcards,
+    mind_maps,
+    study_sessions,
+    study_session_pauses,
+    notebooks,
+    notebook_nodes,
+    notebook_page_contents,
+    notebook_tags,
+    notebook_tag_links,
+    notebook_page_links,
+    notebook_flashcard_links,
+    notebook_templates,
+  } as ImportPlan['rows']
   const counts = Object.fromEntries(IMPORT_TABLES.map((t) => [t, rows[t].length])) as ImportPlan['counts']
   const unsupported = Object.keys(src).filter((k) => Array.isArray(src[k]) && !(IMPORT_TABLES as readonly string[]).includes(k) && k !== 'study_session_pauses' && (src[k] as unknown[]).length > 0)
-  if (unsupported.length) warnings.push(`Não importados nesta versão (histórico): ${unsupported.join(', ')}.`)
+  if (unsupported.length) warnings.push(`Não importados nesta versão (histórico/anexos binários): ${unsupported.join(', ')}.`)
   return { rows, counts, warnings }
 }
 
@@ -266,27 +493,62 @@ export function planImport(input: unknown): ImportPlan {
 export async function runImport(backend: DataBackend, plan: ImportPlan, onProgress?: (done: number, total: number) => void): Promise<number> {
   const total = IMPORT_TABLES.reduce((a, t) => a + plan.rows[t].length, 0)
   let done = 0
+  // Reaproveita tags já existentes (unicidade case-insensitive) para evitar falhas em importações repetidas
+  const tagIdOverride = new Map<string, string>()
+
   for (const table of IMPORT_TABLES) {
     const rows = plan.rows[table]
-    // Tópicos em lotes por nível: um lote nunca contém filho antes do pai.
-    const size = table === 'topics' ? 1 : 300
-    if (table === 'topics') {
-      const levels: Array<ImportPlan['rows']['topics']> = []
+    if (rows.length === 0) continue
+
+    if (table === 'topics' || table === 'notebook_nodes') {
+      const levels: Array<Array<Record<string, unknown>>> = []
       const level = new Map<string, number>()
-      for (const t of rows as ImportPlan['rows']['topics']) {
-        const l = t.parent_id ? (level.get(t.parent_id) ?? 0) + 1 : 0
-        level.set(t.id, l)
-        ;(levels[l] ??= []).push(t)
+      for (const item of rows as Array<{ id: string; parent_id?: string | null }>) {
+        const l = item.parent_id ? (level.get(item.parent_id) ?? 0) + 1 : 0
+        level.set(item.id, l)
+        ;(levels[l] ??= []).push(item as Record<string, unknown>)
       }
       for (const group of levels) {
         for (let i = 0; i < group.length; i += 300) {
-          await backend.insert('topics', group.slice(i, i + 300) as never)
+          await backend.insert(table as TableName, group.slice(i, i + 300) as never)
           done += Math.min(300, group.length - i)
           onProgress?.(done, total)
         }
       }
       continue
     }
+
+    if (table === 'notebook_tags') {
+      const existing = (await backend.list('notebook_tags')).rows
+      const byLower = new Map(existing.map((t) => [t.name.trim().toLowerCase(), t.id]))
+      const toInsert: ImportPlan['rows']['notebook_tags'] = []
+      for (const t of rows as ImportPlan['rows']['notebook_tags']) {
+        const matchId = byLower.get((t.name ?? '').trim().toLowerCase())
+        if (matchId) tagIdOverride.set(t.id, matchId)
+        else toInsert.push(t)
+      }
+      for (let i = 0; i < toInsert.length; i += 300) {
+        await backend.insert('notebook_tags', toInsert.slice(i, i + 300) as never)
+      }
+      done += rows.length
+      onProgress?.(done, total)
+      continue
+    }
+
+    if (table === 'notebook_tag_links' && tagIdOverride.size > 0) {
+      const remapped = (rows as ImportPlan['rows']['notebook_tag_links']).map((tl) => ({
+        ...tl,
+        tag_id: tl.tag_id ? (tagIdOverride.get(tl.tag_id) ?? tl.tag_id) : tl.tag_id,
+      }))
+      for (let i = 0; i < remapped.length; i += 300) {
+        await backend.insert('notebook_tag_links', remapped.slice(i, i + 300) as never)
+        done += Math.min(300, remapped.length - i)
+        onProgress?.(done, total)
+      }
+      continue
+    }
+
+    const size = 300
     for (let i = 0; i < rows.length; i += size) {
       await backend.insert(table as TableName, rows.slice(i, i + size) as never)
       done += Math.min(size, rows.length - i)

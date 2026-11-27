@@ -59,7 +59,7 @@ export interface TaskRecurrence {
 
 /** De onde a sessão foi iniciada: o cronômetro reconhece o conteúdo sem perguntar de novo. */
 export interface SessionSource {
-  kind: 'topic' | 'book' | 'pdf' | 'course' | 'exercise' | 'project' | 'task' | 'review'
+  kind: 'topic' | 'book' | 'pdf' | 'course' | 'exercise' | 'project' | 'task' | 'review' | 'notebook' | 'notebook_page'
   id: string
   label: string
   /** Caminho dentro do app para voltar ao conteúdo. */
@@ -572,6 +572,139 @@ export interface Assessment extends Owned {
   start_key: string | null
 }
 
+// ---------------------------------------------------------------------
+// VLM Knowledge: Meus Cadernos (gestão de conhecimento pessoal)
+// ---------------------------------------------------------------------
+
+export type NotebookNodeType = 'section' | 'page'
+export type NotebookPageStatus = 'draft' | 'in_progress' | 'ready' | 'reviewing' | 'reviewed' | 'archived'
+export type NotebookVersionReason = 'snapshot' | 'manual' | 'restore' | 'conflict_backup' | 'import'
+export type NotebookResourceKind = 'subject' | 'topic' | 'course_node' | 'library_book' | 'library_pdf' | 'study_material' | 'project' | 'external_url'
+
+export interface NotebookContentMark {
+  type: string
+  attrs?: Record<string, unknown>
+}
+
+export interface NotebookContentNode {
+  type: string
+  attrs?: Record<string, unknown>
+  text?: string
+  marks?: NotebookContentMark[]
+  content?: NotebookContentNode[]
+}
+
+export interface NotebookContentDoc {
+  type: 'doc'
+  content: NotebookContentNode[]
+}
+
+export interface Notebook extends Owned {
+  subject_id: UUID | null
+  title: string
+  description: string | null
+  icon: string | null
+  color: string
+  cover: string | null
+  is_favorite: boolean
+  sort_order: number
+  archived_at: ISODateTime | null
+  deleted_at: ISODateTime | null
+}
+
+export interface NotebookNode extends Owned {
+  notebook_id: UUID
+  parent_id: UUID | null
+  node_type: NotebookNodeType
+  title: string
+  icon: string | null
+  cover: string | null
+  color: string | null
+  status: NotebookPageStatus
+  difficulty: number | null
+  needs_review: boolean
+  is_favorite: boolean
+  is_pinned: boolean
+  position: number
+  subject_id: UUID | null
+  topic_id: UUID | null
+  last_studied_at: ISODateTime | null
+  archived_at: ISODateTime | null
+  deleted_at: ISODateTime | null
+}
+
+export interface NotebookPageContent extends Owned {
+  node_id: UUID
+  content_json: NotebookContentDoc
+  content_schema_version: number
+  content_text: string
+  word_count: number
+  revision: number
+}
+
+export interface NotebookPageVersion extends Owned {
+  node_id: UUID
+  title: string
+  content_json: NotebookContentDoc
+  content_schema_version: number
+  revision: number
+  reason: NotebookVersionReason
+}
+
+export interface NotebookTag extends Owned {
+  name: string
+  color: string
+}
+
+export interface NotebookTagLink extends Owned {
+  tag_id: UUID
+  notebook_id: UUID | null
+  node_id: UUID | null
+}
+
+export interface NotebookPageLink extends Owned {
+  source_node_id: UUID
+  target_node_id: UUID
+  source_block_id: string | null
+  target_block_id: string | null
+  link_text: string | null
+}
+
+export interface NotebookFlashcardLink extends Owned {
+  flashcard_id: UUID
+  notebook_id: UUID | null
+  node_id: UUID | null
+  block_id: string | null
+  source_excerpt: string | null
+}
+
+export interface NotebookTemplate extends Owned {
+  name: string
+  description: string | null
+  category: string | null
+  content_json: NotebookContentDoc
+  content_schema_version: number
+}
+
+export interface NotebookResourceLink extends Owned {
+  notebook_id: UUID | null
+  node_id: UUID | null
+  resource_kind: NotebookResourceKind
+  resource_id: string | null
+  label: string
+  url: string | null
+  location: Record<string, unknown> | null
+}
+
+export interface NotebookAttachment extends Owned {
+  notebook_id: UUID
+  node_id: UUID | null
+  storage_path: string
+  file_name: string
+  mime_type: string
+  size_bytes: number
+}
+
 export interface Tables {
   profiles: Profile
   subjects: Subject
@@ -597,6 +730,17 @@ export interface Tables {
   inbox_items: InboxItem
   projects: Project
   assessments: Assessment
+  notebooks: Notebook
+  notebook_nodes: NotebookNode
+  notebook_page_contents: NotebookPageContent
+  notebook_page_versions: NotebookPageVersion
+  notebook_tags: NotebookTag
+  notebook_tag_links: NotebookTagLink
+  notebook_page_links: NotebookPageLink
+  notebook_flashcard_links: NotebookFlashcardLink
+  notebook_templates: NotebookTemplate
+  notebook_resource_links: NotebookResourceLink
+  notebook_attachments: NotebookAttachment
 }
 
 export type TableName = keyof Tables

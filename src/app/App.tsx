@@ -33,7 +33,14 @@ const CoursePage = lazy(() => import('@/pages/courses/CoursePage'))
 const CoursePdfReaderPage = lazy(() => import('@/pages/courses/CoursePdfReaderPage'))
 const AudiosPage = lazy(() => import('@/pages/audios/AudiosPage'))
 const VideosPage = lazy(() => import('@/pages/videos/VideosPage'))
-// 4. Sala de Estudos
+// 4. Meus Cadernos (VLM Knowledge)
+const NotebooksHomePage = lazy(() => import('@/pages/notebooks/NotebooksHomePage'))
+const NotebookWorkspacePage = lazy(() => import('@/pages/notebooks/NotebookWorkspacePage'))
+const NotebooksFavoritesPage = lazy(() => import('@/pages/notebooks/NotebooksSubPages').then((m) => ({ default: m.NotebooksFavoritesPage })))
+const NotebooksRecentPage = lazy(() => import('@/pages/notebooks/NotebooksSubPages').then((m) => ({ default: m.NotebooksRecentPage })))
+const NotebooksConnectionsPage = lazy(() => import('@/pages/notebooks/NotebooksSubPages').then((m) => ({ default: m.NotebooksConnectionsPage })))
+const NotebooksTrashPage = lazy(() => import('@/pages/notebooks/NotebooksSubPages').then((m) => ({ default: m.NotebooksTrashPage })))
+// 5. Sala de Estudos
 const StudyRoomPage = lazy(() => import('@/pages/timer/StudyRoomPage'))
 const SessionHistoryPage = lazy(() => import('@/pages/timer/SessionHistoryPage'))
 // 5. Metas e Evolução
@@ -118,7 +125,16 @@ export function App() {
                     <Route path="audios" element={<AudiosPage />} />
                     <Route path="videos" element={<VideosPage />} />
 
-                    {/* 4. Sala de Estudos */}
+                    {/* 4. Meus Cadernos (VLM Knowledge) */}
+                    <Route path="cadernos" element={<NotebooksHomePage />} />
+                    <Route path="cadernos/favoritos" element={<NotebooksFavoritesPage />} />
+                    <Route path="cadernos/recentes" element={<NotebooksRecentPage />} />
+                    <Route path="cadernos/conexoes" element={<NotebooksConnectionsPage />} />
+                    <Route path="cadernos/lixeira" element={<NotebooksTrashPage />} />
+                    <Route path="cadernos/:notebookId" element={<NotebookWorkspacePage />} />
+                    <Route path="cadernos/:notebookId/pagina/:pageId" element={<NotebookWorkspacePage />} />
+
+                    {/* 5. Sala de Estudos */}
                     <Route path="sala" element={<StudyRoomPage />} />
                     <Route path="sala/historico" element={<SessionHistoryPage />} />
                     <Route path="cronometro" element={<Redirect to="/sala" />} />

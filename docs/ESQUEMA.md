@@ -31,6 +31,8 @@ Fonte da verdade: `supabase/migrations/20261021000000_init.sql`. Os tipos TypeSc
 | `course_sources` | Pastas do Google Drive cadastradas (migração `20261103000000_courses_drive`) | Única por `(user_id, drive_folder_id)`; mapeamento em `config`; resultado da última atualização. |
 | `course_nodes` | Catálogo: curso → módulos → aulas/materiais | Só metadados do Drive (ID, nome, MIME, tamanho); única por `(user_id, source_id, placement_key)`; nome personalizado, ordem/pasta manuais, oculto, `status` (`available/missing/excluded`), vínculo opcional com matéria/tópico. |
 | `course_progress` | Conclusão e último acesso por arquivo do Drive | Única por `(user_id, drive_id)`: sobrevive a reimportações e à remoção da fonte. |
+| `notebooks` / `notebook_nodes` / `notebook_page_contents` / `notebook_page_versions` | Meus Cadernos — VLM Knowledge (migração `20261127000000_vlm_knowledge`) | Cadernos independentes ou vinculados a matéria; árvore hierárquica ilimitada (`section`/`page`) com prevenção de ciclos e movimentação atômica (`move_notebook_node`); conteúdo JSON versionado separado dos metadados, com índice GIN FTS (`portuguese`) e `revision` otimista; lixeira lógica (`deleted_at`). |
+| `notebook_tags` / `notebook_tag_links` / `notebook_page_links` / `notebook_flashcard_links` / `notebook_templates` / `notebook_resource_links` / `notebook_attachments` | Metadados, conexões, vínculos e anexos de cadernos | Tags globais (nome único case-insensitive); links internos/backlinks; vínculo não destrutivo com `flashcards` (`ON DELETE SET NULL` na página/caderno); templates personalizados; bucket privado `cadernos` (20 MiB). Veja `docs/CADERNOS.md`. |
 
 ## Política de exclusão
 
@@ -42,7 +44,8 @@ Fonte da verdade: `supabase/migrations/20261021000000_init.sql`. Os tipos TypeSc
 | Cronograma / ciclo | seus blocos | sessões vinculadas |
 | Baralho | cartões e respostas | — |
 | Fonte do Drive | itens do catálogo (e subitens) | progresso (último item) |
-| Matéria / tópico | — | itens de cursos vinculados |
+| Matéria / tópico | — | itens de cursos vinculados, cadernos e nós vinculados |
+| Caderno / página (exclusão permanente) | subárvore de nós, conteúdos, versões, links de tags/páginas/recursos | `notebook_flashcard_links` (`notebook_id`/`node_id` nulos; flashcards e histórico SM-2 preservados) |
 
 A interface mostra essas contagens antes de confirmar e oferece arquivamento de matérias e baralhos.
 
@@ -50,5 +53,7 @@ A interface mostra essas contagens antes de confirmar e oferece arquivamento de 
 
 - `study_session_net` (view, `security_invoker`): tempo líquido e pausado por sessão finalizada, com a mesma regra do app.
 - `record_flashcard_review(...)` (função, `security invoker`): grava a resposta e atualiza o agendamento do cartão na mesma transação; idempotente pelo ID da resposta.
+- `move_notebook_node(...)` (função, `security invoker`): move um nó e toda a sua subárvore entre seções e cadernos em uma única instrução atômica, impedindo ciclos e validando propriedade.
+- `notebook_nodes_validate_hierarchy` (gatilho `AFTER INSERT OR UPDATE`): valida que todo nó pai pertence ao mesmo caderno e impede ciclos em qualquer profundidade.
 - `topics_track_completion` (gatilho): preenche/limpa `completed_at` conforme o status.
 - `handle_new_user` (gatilho, `security definer`): cria o perfil de cada novo usuário.

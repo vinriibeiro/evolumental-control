@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { MENU, NAV, groupFor, tabsFor, titleFor } from '../nav'
 
-describe('navegação: seis áreas focadas em Dados, Cursos do Drive e Organização', () => {
-  it('tem exatamente as seis áreas principais, nesta ordem', () => {
+describe('navegação: sete áreas focadas em Dados, Cursos do Drive, Meus Cadernos e Organização', () => {
+  it('tem exatamente as sete áreas principais, nesta ordem', () => {
     expect(MENU.map((g) => g.label)).toEqual([
       'Meu Planejamento',
       'Cursos do Drive',
       'Estudos em Dados',
+      'Meus Cadernos',
       'Sala de Estudos',
       'Metas e Evolução',
       'Configurações',
     ])
     expect(MENU[0].to).toBe('/')
     expect(MENU[1].to).toBe('/cursos')
+    expect(MENU[3].to).toBe('/cadernos')
   })
 
   it('cada rota pertence a uma única área e o item do menu abre uma das suas abas', () => {
@@ -40,6 +42,13 @@ describe('navegação: seis áreas focadas em Dados, Cursos do Drive e Organiza�
       '/materias/123': 'Estudos em Dados',
       '/flashcards/revisar': 'Estudos em Dados',
       '/banco-de-questoes': 'Estudos em Dados',
+      '/cadernos': 'Meus Cadernos',
+      '/cadernos/favoritos': 'Meus Cadernos',
+      '/cadernos/recentes': 'Meus Cadernos',
+      '/cadernos/conexoes': 'Meus Cadernos',
+      '/cadernos/lixeira': 'Meus Cadernos',
+      '/cadernos/abc': 'Meus Cadernos',
+      '/cadernos/abc/pagina/xyz': 'Meus Cadernos',
       '/sala': 'Sala de Estudos',
       '/sala/historico': 'Sala de Estudos',
       '/cronometro': 'Sala de Estudos',
@@ -59,6 +68,9 @@ describe('navegação: seis áreas focadas em Dados, Cursos do Drive e Organiza�
   it('mostra as abas só nas páginas principais da área', () => {
     expect(tabsFor('/').map((t) => t.label)).toEqual(['Planejamento', 'Ciclo de estudos', 'Rotinas', 'Revisões'])
     expect(tabsFor('/cursos').map((t) => t.label)).toEqual(['Meus Cursos', 'Estante', 'Vídeos', 'Áudios'])
+    expect(tabsFor('/cadernos').map((t) => t.label)).toEqual(['Cadernos', 'Favoritos', 'Recentes', 'Conexões', 'Lixeira'])
+    expect(tabsFor('/cadernos/abc')).toEqual([])
+    expect(tabsFor('/cadernos/abc/pagina/xyz')).toEqual([])
     expect(tabsFor('/metas').map((t) => t.label)).toEqual(['Metas', 'Evolução', 'Relatório semanal', 'Exercícios'])
     expect(tabsFor('/sala/historico').map((t) => t.label)).toEqual(['Sessão', 'Histórico'])
     expect(tabsFor('/livros/abc')).toEqual([])
@@ -70,6 +82,6 @@ describe('navegação: seis áreas focadas em Dados, Cursos do Drive e Organiza�
     const tos = NAV.map((n) => n.to)
     expect(new Set(tos).size).toBe(tos.length)
     expect(tos).not.toContain('/ingles')
-    for (const to of ['/', '/cursos', '/trilhas', '/biblioteca', '/sala', '/metas', '/configuracoes']) expect(tos).toContain(to)
+    for (const to of ['/', '/cursos', '/trilhas', '/cadernos', '/biblioteca', '/sala', '/metas', '/configuracoes']) expect(tos).toContain(to)
   })
 })

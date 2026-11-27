@@ -6,7 +6,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { Insert, Patch, Profile, Row, TableName } from '@/types/db'
 import { DEFAULTS, RELATIONS, RESET_TABLES, TABLES, UNIQUE_RULES } from './schema'
-import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type SessionWithPauses } from './types'
+import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type MoveNotebookNodeInput, type SessionWithPauses } from './types'
 
 export const LOCAL_USER_ID = '00000000-0000-4000-8000-000000000001'
 
@@ -37,12 +37,39 @@ const INDEXES: Record<TableName, string> = {
   inbox_items: 'id',
   projects: 'id, status',
   assessments: 'id, track, taken_at',
+  notebooks: 'id, subject_id, is_favorite, archived_at, deleted_at, updated_at',
+  notebook_nodes: 'id, notebook_id, parent_id, node_type, deleted_at, updated_at, last_studied_at',
+  notebook_page_contents: 'id, node_id',
+  notebook_page_versions: 'id, node_id, created_at',
+  notebook_tags: 'id, name',
+  notebook_tag_links: 'id, tag_id, notebook_id, node_id',
+  notebook_page_links: 'id, source_node_id, target_node_id',
+  notebook_flashcard_links: 'id, flashcard_id, notebook_id, node_id',
+  notebook_templates: 'id, category',
+  notebook_resource_links: 'id, notebook_id, node_id, resource_kind, resource_id',
+  notebook_attachments: 'id, notebook_id, node_id',
 }
 
+/** Tabelas criadas no VLM Knowledge (Meus Cadernos, v4). */
+const V4_TABLES = [
+  'notebooks',
+  'notebook_nodes',
+  'notebook_page_contents',
+  'notebook_page_versions',
+  'notebook_tags',
+  'notebook_tag_links',
+  'notebook_page_links',
+  'notebook_flashcard_links',
+  'notebook_templates',
+  'notebook_resource_links',
+  'notebook_attachments',
+]
+/** Tabelas da versão 3 do banco local (antes de Meus Cadernos). */
+const INDEXES_V3 = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !V4_TABLES.includes(t)))
 /** Tabelas criadas na 2.0 (caixa de entrada, projetos e diagnósticos). */
 const V3_TABLES = ['inbox_items', 'projects', 'assessments']
 /** Tabelas da versão 2 do banco local (antes da 2.0). */
-const INDEXES_V2 = Object.fromEntries(Object.entries(INDEXES).filter(([t]) => !V3_TABLES.includes(t)))
+const INDEXES_V2 = Object.fromEntries(Object.entries(INDEXES_V3).filter(([t]) => !V3_TABLES.includes(t)))
 /** Tabelas da versão 1 do banco local (antes de Cursos). */
 const INDEXES_V1 = Object.fromEntries(Object.entries(INDEXES_V2).filter(([t]) => !t.startsWith('course_')))
 
@@ -63,7 +90,7 @@ class LocalDb extends Dexie {
     this.version(2).stores(INDEXES_V2)
     // v3 (VLM Control 2.0): tabelas novas e colunas novas com valor padrão nas linhas que já existiam
     this.version(3)
-      .stores(INDEXES)
+      .stores(INDEXES_V3)
       .upgrade(async (tx) => {
         for (const [table, columns] of Object.entries(V3_COLUMNS)) {
           const defaults = DEFAULTS[table as TableName] as Record<string, unknown>
@@ -75,6 +102,8 @@ class LocalDb extends Dexie {
             })
         }
       })
+    // v4 (VLM Knowledge — Meus Cadernos): tabelas novas aditivas, preservando todos os dados existentes
+    this.version(4).stores(INDEXES)
   }
   t(table: TableName): Table<AnyRow, string> {
     return this.table(table)
@@ -158,12 +187,34 @@ export class LocalBackend implements DataBackend {
     if (!rules) return
     for (const rule of rules) {
       if (!rule.where(row)) continue
+      const rowKey = rule.key?.(row)
       const clash = await this.db
         .t(table)
-        .filter((r) => r.id !== row.id && rule.where(r) && rule.columns.every((c) => r[c] === row[c]))
+        .filter((r) => {
+          if (r.id === row.id || !rule.where(r)) return false
+          if (rule.key) return rule.key(r) === rowKey
+          return rule.columns.every((c) => r[c] === row[c])
+        })
         .first()
       if (clash) throw new DataError('duplicate', `Violação de unicidade (${rule.name}).`)
     }
+  }
+
+  private async validateNotebookNode(row: AnyRow, pendingById?: Map<string, AnyRow>) {
+    const parentId = row.parent_id as string | null
+    if (!parentId) return
+    if (parentId === row.id) throw new DataError('validation', 'Um item não pode ser pai de si mesmo.')
+    const lookup = async (id: string): Promise<AnyRow | undefined> => pendingById?.get(id) ?? (await this.db.t('notebook_nodes').get(id))
+    const parent = await lookup(parentId)
+    if (!parent) throw new DataError('validation', 'Nó pai inexistente.')
+    if (parent.notebook_id !== row.notebook_id) throw new DataError('validation', 'O nó pai precisa pertencer ao mesmo caderno.')
+    let cur: AnyRow | undefined = parent
+    let guard = 0
+    while (cur && cur.parent_id && guard++ < 256) {
+      if (cur.parent_id === row.id) throw new DataError('validation', 'Hierarquia inválida: ciclo detectado em notebook_nodes.')
+      cur = await lookup(cur.parent_id as string)
+    }
+    if (guard >= 256) throw new DataError('validation', 'Hierarquia inválida: profundidade máxima excedida.')
   }
 
   async list<T extends TableName>(table: T, query?: ListQuery): Promise<ListResult<Row<T>>> {
@@ -185,6 +236,7 @@ export class LocalBackend implements DataBackend {
   async insert<T extends TableName>(table: T, rows: Insert<T>[]): Promise<Row<T>[]> {
     const out: AnyRow[] = []
     await this.db.transaction('rw', this.db.t(table), async () => {
+      const pending = new Map<string, AnyRow>()
       for (const r of rows) {
         const now = this.now()
         const row = {
@@ -195,8 +247,10 @@ export class LocalBackend implements DataBackend {
           created_at: now,
           updated_at: now,
         } as AnyRow
-        if (await this.db.t(table).get(row.id)) throw new DataError('duplicate', 'Registro já existe.')
+        if (pending.has(row.id) || (await this.db.t(table).get(row.id))) throw new DataError('duplicate', 'Registro já existe.')
         await this.checkUnique(table, row)
+        if (table === 'notebook_nodes') await this.validateNotebookNode(row, pending)
+        pending.set(row.id, row)
         out.push(row)
       }
       await this.db.t(table).bulkAdd(out)
@@ -219,6 +273,7 @@ export class LocalBackend implements DataBackend {
           else if (next.status !== 'completed') next.completed_at = null
         }
         await this.checkUnique(table, next)
+        if (table === 'notebook_nodes') await this.validateNotebookNode(next)
         await this.db.t(table).put(next)
         updated.push(next)
       }
@@ -318,6 +373,73 @@ export class LocalBackend implements DataBackend {
       applied = true
     })
     return applied
+  }
+
+  async moveNotebookNode(input: MoveNotebookNodeInput): Promise<number> {
+    let moved = 0
+    await this.db.transaction('rw', [this.db.t('notebooks'), this.db.t('notebook_nodes')], async () => {
+      const node = await this.db.t('notebook_nodes').get(input.nodeId)
+      if (!node) throw new DataError('not_found', 'Nó não encontrado.')
+      const targetNb = await this.db.t('notebooks').get(input.targetNotebookId)
+      if (!targetNb) throw new DataError('not_found', 'Caderno de destino não encontrado.')
+
+      const allNodes = await this.db.t('notebook_nodes').toArray()
+      const childrenByParent = new Map<string, AnyRow[]>()
+      for (const n of allNodes) {
+        if (n.parent_id) {
+          const list = childrenByParent.get(n.parent_id as string) ?? []
+          list.push(n)
+          childrenByParent.set(n.parent_id as string, list)
+        }
+      }
+      const subtree: AnyRow[] = [node]
+      const subtreeIds = new Set<string>([node.id])
+      const stack = [node.id]
+      while (stack.length) {
+        const cur = stack.pop()!
+        for (const c of childrenByParent.get(cur) ?? []) {
+          if (!subtreeIds.has(c.id)) {
+            subtreeIds.add(c.id)
+            subtree.push(c)
+            stack.push(c.id)
+          }
+        }
+      }
+
+      if (input.targetParentId != null) {
+        if (subtreeIds.has(input.targetParentId)) {
+          throw new DataError('validation', 'Não é possível mover um item para dentro dele mesmo ou de um descendente.')
+        }
+        const parent = allNodes.find((n) => n.id === input.targetParentId)
+        if (!parent || parent.notebook_id !== input.targetNotebookId) {
+          throw new DataError('validation', 'Nó pai de destino inválido para este caderno.')
+        }
+      }
+
+      const siblings = allNodes.filter(
+        (n) =>
+          n.notebook_id === input.targetNotebookId &&
+          (n.parent_id ?? null) === input.targetParentId &&
+          n.deleted_at == null &&
+          n.id !== node.id,
+      )
+      const pos =
+        input.position != null
+          ? Math.max(0, Math.round(input.position))
+          : siblings.reduce((m, s) => Math.max(m, Number(s.position ?? 0)), -1) + 1
+
+      const now = this.now()
+      const updatedRows = subtree.map((n) => ({
+        ...n,
+        notebook_id: input.targetNotebookId,
+        parent_id: n.id === node.id ? input.targetParentId : n.parent_id,
+        position: n.id === node.id ? pos : n.position,
+        updated_at: now,
+      }))
+      await this.db.t('notebook_nodes').bulkPut(updatedRows)
+      moved = updatedRows.length
+    })
+    return moved
   }
 
   /** Zera o progresso (sessões, agenda, ciclos, revisões, metas, preferências e status dos tópicos); o conteúdo fica. */

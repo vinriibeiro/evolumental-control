@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle2, Eye, Headphones, Pause, Play, Square, Volume2, VolumeX } from 'lucide-react'
+import { ArrowLeft, BookOpen, CheckCircle2, Eye, Headphones, Pause, Play, Square, Volume2, VolumeX } from 'lucide-react'
 import { useBackend } from '@/app/data'
 import { Button } from '@/components/ui/Button'
 import { Checkbox, Field, Select } from '@/components/ui/Field'
@@ -11,13 +11,22 @@ import { invalidateTables, useTransaction } from '@/hooks/data'
 import { useSettings, useUpdateSettings } from '@/hooks/useSettings'
 import { useSpeech } from '@/hooks/useSpeech'
 import { eq, inList, lte, type Filter } from '@/lib/data/types'
+import {
+  clozeToSpeechText,
+  hasClozeSyntax,
+  parseClozeSegments,
+  parseImageOcclusionNote,
+  type ImageOcclusionPayload,
+} from '@/lib/flashcardAdvanced'
+import { extractDocImages } from '@/lib/notebooks'
 import { RATING_LABELS, previewIntervals, reviewPriority, type Rating } from '@/lib/srs'
 import { formatDuration } from '@/lib/time'
 import { reviewCard } from '@/services/flashcards'
+import { listLinkedFlashcardIds } from '@/services/notebookStudies'
 import { addManualSession } from '@/services/sessions'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/cn'
-import type { Flashcard } from '@/types/db'
+import type { Flashcard, NotebookFlashcardLink } from '@/types/db'
 import { QuestionTranslation } from './QuestionTranslation'
 
 type Mode = 'vencidos' | 'todos' | 'aleatorio' | 'selecionados' | 'continuo'
@@ -53,7 +62,11 @@ export default function StudyCardsPage() {
     ...(params.get('baralho') ? [eq('deck_id', params.get('baralho'))] : []),
     ...(params.get('topico') ? [eq('topic_id', params.get('topico'))] : []),
     ...(params.get('materia') ? [eq('subject_id', params.get('materia'))] : []),
+    ...(params.get('tag') ? [{ column: 'tags', op: 'contains' as const, value: [params.get('tag')!] }] : []),
   ]
+  const notebookId = params.get('caderno')
+  const sectionId = params.get('secao')
+  const pageNodeId = params.get('pagina')
   const ids = (params.get('ids') ?? '').split(',').filter(Boolean).slice(0, 1000)
 
   // A fila é montada uma única vez por sessão de estudo (não recarrega ao responder).
@@ -68,11 +81,27 @@ export default function StudyCardsPage() {
         const order = new Map(ids.map((id, i) => [id, i]))
         return rows.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
       }
+
+      const effectiveScope = [...scope]
+      if (notebookId || sectionId || pageNodeId) {
+        const linkedIds = await listLinkedFlashcardIds(backend, {
+          notebookId,
+          sectionId,
+          nodeId: pageNodeId,
+        })
+        if (linkedIds.length === 0) return []
+        effectiveScope.push(inList('id', linkedIds))
+      }
+
       if (mode === 'vencidos') {
-        const { rows } = await backend.list('flashcards', { filters: [...scope, inList('status', ACTIVE), lte('due_at', new Date().toISOString())], order: [{ column: 'due_at' }], limit: 500 })
+        const { rows } = await backend.list('flashcards', {
+          filters: [...effectiveScope, inList('status', ACTIVE), lte('due_at', new Date().toISOString())],
+          order: [{ column: 'due_at' }],
+          limit: 500,
+        })
         return reviewPriority(rows)
       }
-      const { rows } = await backend.list('flashcards', { filters: [...scope, inList('status', ACTIVE)], order: [{ column: 'due_at' }], limit: 2000 })
+      const { rows } = await backend.list('flashcards', { filters: [...effectiveScope, inList('status', ACTIVE)], order: [{ column: 'due_at' }], limit: 2000 })
       return mode === 'aleatorio' ? shuffle(rows).slice(0, 200) : rows
     },
   })
@@ -107,9 +136,24 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
   const updateSettings = useUpdateSettings()
   const speech = useSpeech({ voiceURI: settings.voiceURI, rate: settings.speechRate })
   const navigate = useNavigate()
+  const backend = useBackend()
   const toast = useToast()
   const qc = useQueryClient()
   const [queue, setQueue] = useState<Flashcard[]>(initial)
+
+  // Carrega vínculos com anotações de cadernos para disponibilizar "Ver anotação de origem"
+  const originLinks = useQuery({
+    queryKey: ['data', ['notebook_flashcard_links'], 'review-origins', backend.kind, initial.map((c) => c.id).join(',')],
+    enabled: initial.length > 0,
+    queryFn: async (): Promise<Map<string, NotebookFlashcardLink>> => {
+      try {
+        const { rows } = await backend.list('notebook_flashcard_links', { filters: [inList('flashcard_id', initial.map((c) => c.id))] })
+        return new Map(rows.map((r) => [r.flashcard_id, r]))
+      } catch {
+        return new Map()
+      }
+    },
+  })
   const [idx, setIdx] = useState(0)
   const [revealed, setRevealed] = useState(false)
   const [record, setRecord] = useState(mode !== 'continuo')
@@ -130,11 +174,26 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
   const card = queue[idx]
   const done = idx >= queue.length
   const preview = useMemo(() => (card ? previewIntervals(card, Date.now(), settings.srs) : null), [card, settings.srs])
+  const parsedNote = useMemo(() => parseImageOcclusionNote(card?.note), [card?.note])
+  const occlusionPayload = parsedNote.occlusion
+
+  // Se o cartão de oclusão referencia uma imagem já salva em uma página de caderno, resolve sob demanda
+  const occlusionPageImage = useQuery({
+    queryKey: ['data', ['notebook_page_contents'], 'occlusion-img', backend.kind, occlusionPayload?.sourceNodeId, occlusionPayload?.imageIndex],
+    enabled: Boolean(occlusionPayload && !occlusionPayload.src && occlusionPayload.sourceNodeId && occlusionPayload.imageIndex != null),
+    queryFn: async (): Promise<string | null> => {
+      if (!occlusionPayload?.sourceNodeId || occlusionPayload.imageIndex == null) return null
+      const { rows } = await backend.list('notebook_page_contents', { filters: [eq('node_id', occlusionPayload.sourceNodeId)], limit: 1 })
+      const imgs = extractDocImages(rows[0]?.content_json)
+      return imgs[occlusionPayload.imageIndex]?.src ?? null
+    },
+  })
+  const occlusionImageSrc = occlusionPayload?.src ?? occlusionPageImage.data ?? null
 
   // Leitura automática da pergunta ao trocar de cartão (não no modo contínuo, que tem seu próprio fluxo).
   useEffect(() => {
     if (!card || continuous || !settings.autoRead || !speech.supported) return
-    void speech.speak([card.front])
+    void speech.speak([clozeToSpeechText(card.front, false)])
   }, [card?.id, continuous, settings.autoRead]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ao sair da tela, interrompe qualquer fala.
@@ -282,19 +341,41 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
 
       <Card className="overflow-hidden">
         <div className="min-h-48 p-6 sm:p-8">
-          <div className="mb-3 flex flex-wrap gap-1.5">
-            {card.tags.slice(0, 5).map((t) => (
-              <Badge key={t}>#{t}</Badge>
-            ))}
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {card.tags.slice(0, 5).map((t) => (
+                <Badge key={t}>#{t}</Badge>
+              ))}
+            </div>
+            {(() => {
+              const origin = originLinks.data?.get(card.id)
+              if (!origin?.notebook_id || !origin?.node_id) return null
+              const href = `/cadernos/${origin.notebook_id}/pagina/${origin.node_id}${origin.block_id ? `?bloco=${encodeURIComponent(origin.block_id)}` : ''}`
+              return (
+                <Link
+                  to={href}
+                  onClick={() => speech.stop()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:border-ink/40 hover:text-accent"
+                >
+                  <BookOpen className="size-3.5" aria-hidden />
+                  Ver anotação de origem
+                </Link>
+              )
+            })()}
           </div>
-          <p className="text-xs font-medium tracking-wide text-muted uppercase">Pergunta</p>
-          <p className="mt-2 text-lg leading-relaxed break-words whitespace-pre-wrap text-ink sm:text-xl">{card.front}</p>
-          {!continuous && card.front.trim() && <QuestionTranslation key={`${idx}:${card.id}`} question={card.front} />}
+          <p className="text-xs font-medium tracking-wide text-muted uppercase">
+            {hasClozeSyntax(card.front) ? 'Preencha a lacuna (Cloze)' : occlusionPayload ? 'Oclusão de imagem' : 'Pergunta'}
+          </p>
+          <ClozeText text={card.front} revealed={revealed} className="mt-2 text-lg leading-relaxed break-words whitespace-pre-wrap text-ink sm:text-xl" />
+          {occlusionPayload && occlusionImageSrc && (
+            <ImageOcclusionReviewView src={occlusionImageSrc} occlusion={occlusionPayload} revealed={revealed} />
+          )}
+          {!continuous && card.front.trim() && <QuestionTranslation key={`${idx}:${card.id}`} question={clozeToSpeechText(card.front, revealed)} />}
           {revealed ? (
             <div className="animate-fade-in mt-6 border-t border-line pt-6">
               <p className="text-xs font-medium tracking-wide text-muted uppercase">Resposta</p>
               <p className="mt-2 text-lg leading-relaxed break-words whitespace-pre-wrap text-ink">{card.back}</p>
-              {card.note && <p className="mt-4 rounded-lg bg-surface p-3 text-sm break-words whitespace-pre-wrap text-muted">{card.note}</p>}
+              {parsedNote.textNote && <p className="mt-4 rounded-lg bg-surface p-3 text-sm break-words whitespace-pre-wrap text-muted">{parsedNote.textNote}</p>}
             </div>
           ) : null}
         </div>
@@ -359,6 +440,54 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
           <Checkbox label="Registrar respostas no agendamento (desmarque para apenas praticar)" checked={record} onChange={(e) => setRecord(e.target.checked)} />
         </div>
       )}
+    </div>
+  )
+}
+
+function ClozeText({ text, revealed, className }: { text: string; revealed: boolean; className?: string }) {
+  if (!hasClozeSyntax(text)) return <p className={className}>{text}</p>
+  const segments = parseClozeSegments(text)
+  return (
+    <p className={className}>
+      {segments.map((seg, i) => {
+        if (seg.type === 'text') return <span key={i}>{seg.value}</span>
+        if (revealed) {
+          return (
+            <span key={i} className="mx-0.5 inline-block rounded-md border border-accent/40 bg-accent/10 px-1.5 py-0.5 font-semibold text-accent">
+              {seg.answer}
+            </span>
+          )
+        }
+        return (
+          <span
+            key={i}
+            className="mx-0.5 inline-block rounded-md border border-ink/30 bg-surface-2 px-2 py-0.5 font-mono text-sm font-semibold text-ink"
+            title={seg.hint ? `Dica: ${seg.hint}` : 'Lacuna oculta'}
+          >
+            [{seg.hint ? `… ${seg.hint}` : `c${seg.index}`}]
+          </span>
+        )
+      })}
+    </p>
+  )
+}
+
+function ImageOcclusionReviewView({ src, occlusion, revealed }: { src: string; occlusion: ImageOcclusionPayload; revealed: boolean }) {
+  return (
+    <div className="relative mx-auto mt-4 w-fit max-w-full overflow-hidden rounded-xl border border-line bg-surface-2">
+      <img src={src} alt="Imagem com regiões ocultas" className="block max-h-80 w-auto max-w-full object-contain" />
+      {occlusion.rects.map((r, idx) => (
+        <div
+          key={r.id}
+          style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }}
+          className={cn(
+            'absolute flex items-center justify-center rounded border-2 transition-all duration-300',
+            revealed ? 'border-accent/70 bg-accent/10' : 'border-accent bg-ink text-xs font-semibold text-bg shadow',
+          )}
+        >
+          {!revealed && <span>{idx + 1}</span>}
+        </div>
+      ))}
     </div>
   )
 }

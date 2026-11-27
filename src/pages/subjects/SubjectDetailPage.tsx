@@ -41,9 +41,10 @@ import { TopicForm } from './TopicForm'
 import { TopicPanel } from './TopicPanel'
 import { duplicateTopic, importOutline, moveTopic, parseOutline } from './topicOps'
 import { SessionList } from '@/features/timer/SessionList'
+import { RelatedNotebooksSection } from '@/pages/notebooks/RelatedNotebooksSection'
 import { SubjectCardsTab, SubjectQuestionsTab } from './SubjectTabs'
 
-type Tab = 'topics' | 'sessions' | 'cards' | 'questions'
+type Tab = 'topics' | 'notebooks' | 'sessions' | 'cards' | 'questions'
 
 export default function SubjectDetailPage() {
   const { id = '' } = useParams()
@@ -159,6 +160,7 @@ export default function SubjectDetailPage() {
         onChange={setTab}
         tabs={[
           { value: 'topics', label: 'Tópicos' },
+          { value: 'notebooks', label: 'Cadernos e anotações' },
           { value: 'sessions', label: 'Sessões' },
           { value: 'cards', label: 'Flashcards' },
           { value: 'questions', label: 'Questões' },
@@ -176,6 +178,7 @@ export default function SubjectDetailPage() {
           />
         </QueryState>
       )}
+      {tab === 'notebooks' && <RelatedNotebooksSection subjectId={s.id} />}
       {tab === 'sessions' && <SessionList filters={[eq('subject_id', s.id)]} />}
       {tab === 'cards' && <SubjectCardsTab subjectId={s.id} />}
       {tab === 'questions' && <SubjectQuestionsTab subjectId={s.id} topics={topics.data ?? []} />}

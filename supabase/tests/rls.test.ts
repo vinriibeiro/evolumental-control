@@ -526,3 +526,117 @@ describe('cursos do Drive (catálogo e progresso por usuário)', () => {
     })
   })
 })
+
+describe('meus cadernos (VLM Knowledge) + RLS + integridade hierárquica', () => {
+  const ALICE = '55555555-5555-4555-8555-555555555555'
+  const BOB = '66666666-6666-4666-8666-666666666666'
+
+  beforeAll(async () => {
+    await db.exec(`reset role; insert into auth.users (id, email) values ('${ALICE}', 'alice.kb@example.com'), ('${BOB}', 'bob.kb@example.com');`)
+  })
+
+  it('o bucket cadernos é privado com limite de 20 MiB e isolamento por pasta do usuário', async () => {
+    const r = await db.query<{ public: boolean; file_size_limit: string }>(`select public, file_size_limit from storage.buckets where id = 'cadernos'`)
+    expect(r.rows[0].public).toBe(false)
+    expect(Number(r.rows[0].file_size_limit)).toBe(20971520)
+
+    await as(ALICE, async () => {
+      await db.query(`insert into storage.objects (bucket_id, name) values ('cadernos', $1)`, [`${ALICE}/diagrama.png`])
+      await expect(db.query(`insert into storage.objects (bucket_id, name) values ('cadernos', $1)`, [`${BOB}/invasao.png`])).rejects.toThrow()
+      await expect(db.query(`insert into storage.objects (bucket_id, name) values ('cadernos', 'raiz.png')`)).rejects.toThrow()
+    })
+    await as(BOB, async () => {
+      expect((await db.query(`select * from storage.objects where bucket_id = 'cadernos'`)).rows).toHaveLength(0)
+    })
+  })
+
+  it('isola cadernos, nós, conteúdos, tags e links por RLS e bloqueia FKs cross-tenant e anon', async () => {
+    const alice = await as(ALICE, async () => {
+      const nb = (await db.query<{ id: string }>(`insert into public.notebooks (title) values ('SQL Privado') returning id`)).rows[0].id
+      const node = (await db.query<{ id: string }>(`insert into public.notebook_nodes (notebook_id, node_type, title) values ($1, 'page', 'Window Functions') returning id`, [nb])).rows[0].id
+      await db.query(`insert into public.notebook_page_contents (node_id, content_text, word_count) values ($1, 'SELECT OVER()', 2)`, [node])
+      const tag = (await db.query<{ id: string }>(`insert into public.notebook_tags (name) values ('PostgreSQL') returning id`)).rows[0].id
+      await db.query(`insert into public.notebook_tag_links (tag_id, node_id) values ($1, $2)`, [tag, node])
+      return { nb, node, tag }
+    })
+
+    await as(BOB, async () => {
+      for (const t of ['notebooks', 'notebook_nodes', 'notebook_page_contents', 'notebook_tags', 'notebook_tag_links']) {
+        expect((await db.query(`select * from public.${t}`)).rows).toHaveLength(0)
+      }
+      expect((await db.query(`update public.notebooks set title = 'hack' where id = $1`, [alice.nb])).affectedRows).toBe(0)
+      expect((await db.query(`delete from public.notebooks where id = $1`, [alice.nb])).affectedRows).toBe(0)
+      // FKs compostas impedem apontar para caderno/nó/tag de outro usuário
+      await expect(db.query(`insert into public.notebook_nodes (notebook_id, node_type, title) values ($1, 'page', 'invasao')`, [alice.nb])).rejects.toThrow()
+      await expect(db.query(`insert into public.notebook_page_contents (node_id, content_text) values ($1, 'x')`, [alice.node])).rejects.toThrow()
+      await expect(db.query(`insert into public.notebook_tag_links (tag_id, node_id) values ($1, $2)`, [alice.tag, alice.node])).rejects.toThrow()
+    })
+
+    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false); set role anon;`)
+    await expect(db.query(`select * from public.notebooks`)).rejects.toThrow()
+    await expect(db.query(`select * from public.notebook_nodes`)).rejects.toThrow()
+    await expect(db.query(`select * from public.notebook_page_contents`)).rejects.toThrow()
+    await expect(db.query(`select public.move_notebook_node($1, $2, null, 0)`, [alice.node, alice.nb])).rejects.toThrow()
+    await db.exec(`reset role;`)
+  })
+
+  it('impede ciclos hierárquicos, pai de outro caderno e move subárvore atomicamente com move_notebook_node', async () => {
+    await as(ALICE, async () => {
+      const nb1 = (await db.query<{ id: string }>(`insert into public.notebooks (title) values ('Origem') returning id`)).rows[0].id
+      const nb2 = (await db.query<{ id: string }>(`insert into public.notebooks (title) values ('Destino') returning id`)).rows[0].id
+      const a = (await db.query<{ id: string }>(`insert into public.notebook_nodes (notebook_id, node_type, title) values ($1, 'section', 'A') returning id`, [nb1])).rows[0].id
+      const b = (await db.query<{ id: string }>(`insert into public.notebook_nodes (notebook_id, parent_id, node_type, title) values ($1, $2, 'section', 'B') returning id`, [nb1, a])).rows[0].id
+      const c = (await db.query<{ id: string }>(`insert into public.notebook_nodes (notebook_id, parent_id, node_type, title) values ($1, $2, 'page', 'C') returning id`, [nb1, b])).rows[0].id
+
+      // Auto-referência e ciclo indireto rejeitados
+      await expect(db.query(`update public.notebook_nodes set parent_id = $1 where id = $1`, [a])).rejects.toThrow()
+      await expect(db.query(`update public.notebook_nodes set parent_id = $1 where id = $2`, [c, a])).rejects.toThrow(/ciclo/i)
+
+      // Pai pertencente a outro caderno rejeitado
+      await expect(
+        db.query(`insert into public.notebook_nodes (notebook_id, parent_id, node_type, title) values ($1, $2, 'page', 'Inválida')`, [nb2, a]),
+      ).rejects.toThrow(/mesmo caderno/i)
+
+      // RPC rejeita mover para descendente
+      await expect(db.query(`select public.move_notebook_node($1, $2, $3, 0)`, [a, nb1, c])).rejects.toThrow(/descendente/i)
+
+      // RPC move toda a subárvore A -> B -> C para nb2 atomicamente
+      const moved = await db.query<{ n: number }>(`select public.move_notebook_node($1, $2, null, 0) as n`, [a, nb2])
+      expect(moved.rows[0].n).toBe(3)
+      const check = await db.query<{ notebook_id: string }>(`select distinct notebook_id from public.notebook_nodes where id in ($1, $2, $3)`, [a, b, c])
+      expect(check.rows).toEqual([{ notebook_id: nb2 }])
+    })
+  })
+
+  it('preserva flashcards ao excluir página, preserva cadernos em reset_my_data e remove tudo em delete_my_account', async () => {
+    const EVE = '77777777-7777-4777-8777-777777777777'
+    await db.exec(`reset role; insert into auth.users (id, email) values ('${EVE}', 'eve.kb@example.com');`)
+
+    await as(EVE, async () => {
+      const nb = (await db.query<{ id: string }>(`insert into public.notebooks (title) values ('Caderno Eve') returning id`)).rows[0].id
+      const page = (await db.query<{ id: string }>(`insert into public.notebook_nodes (notebook_id, node_type, title) values ($1, 'page', 'Página Eve') returning id`, [nb])).rows[0].id
+      const deck = (await db.query<{ id: string }>(`insert into public.flashcard_decks (name) values ('Baralho Eve') returning id`)).rows[0].id
+      const card = (await db.query<{ id: string }>(`insert into public.flashcards (deck_id, front, back) values ($1, 'Q', 'A') returning id`, [deck])).rows[0].id
+      await db.query(`insert into public.notebook_flashcard_links (flashcard_id, notebook_id, node_id) values ($1, $2, $3)`, [card, nb, page])
+
+      // reset_my_data mantém os cadernos
+      await db.query(`select public.reset_my_data()`)
+      expect((await db.query(`select id from public.notebooks where id = $1`, [nb])).rows).toHaveLength(1)
+
+      // Excluir página mantém o flashcard e apenas limpa node_id no vínculo
+      await db.query(`delete from public.notebook_nodes where id = $1`, [page])
+      expect((await db.query(`select id from public.flashcards where id = $1`, [card])).rows).toHaveLength(1)
+      const link = await db.query<{ notebook_id: string | null; node_id: string | null }>(`select notebook_id, node_id from public.notebook_flashcard_links where flashcard_id = $1`, [card])
+      expect(link.rows[0]).toEqual({ notebook_id: nb, node_id: null })
+
+      // Excluir conta apaga tudo da Eve
+      await db.query(`select public.delete_my_account()`)
+    })
+
+    expect((await db.query(`select id from public.notebooks where user_id = $1`, [EVE])).rows).toHaveLength(0)
+    // Dados da Alice continuam intactos
+    await as(ALICE, async () => {
+      expect((await db.query(`select id from public.notebooks`)).rows.length).toBeGreaterThan(0)
+    })
+  })
+})

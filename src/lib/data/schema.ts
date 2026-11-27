@@ -55,6 +55,25 @@ export const RELATIONS: Relation[] = [
   { child: 'study_sessions', column: 'project_id', parent: 'projects', onDelete: 'set null' },
   { child: 'calendar_tasks', column: 'project_id', parent: 'projects', onDelete: 'set null' },
   { child: 'inbox_items', column: 'task_id', parent: 'calendar_tasks', onDelete: 'set null' },
+  { child: 'notebooks', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
+  { child: 'notebook_nodes', column: 'notebook_id', parent: 'notebooks', onDelete: 'cascade' },
+  { child: 'notebook_nodes', column: 'parent_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_nodes', column: 'subject_id', parent: 'subjects', onDelete: 'set null' },
+  { child: 'notebook_nodes', column: 'topic_id', parent: 'topics', onDelete: 'set null' },
+  { child: 'notebook_page_contents', column: 'node_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_page_versions', column: 'node_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_tag_links', column: 'tag_id', parent: 'notebook_tags', onDelete: 'cascade' },
+  { child: 'notebook_tag_links', column: 'notebook_id', parent: 'notebooks', onDelete: 'cascade' },
+  { child: 'notebook_tag_links', column: 'node_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_page_links', column: 'source_node_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_page_links', column: 'target_node_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_flashcard_links', column: 'flashcard_id', parent: 'flashcards', onDelete: 'cascade' },
+  { child: 'notebook_flashcard_links', column: 'notebook_id', parent: 'notebooks', onDelete: 'set null' },
+  { child: 'notebook_flashcard_links', column: 'node_id', parent: 'notebook_nodes', onDelete: 'set null' },
+  { child: 'notebook_resource_links', column: 'notebook_id', parent: 'notebooks', onDelete: 'cascade' },
+  { child: 'notebook_resource_links', column: 'node_id', parent: 'notebook_nodes', onDelete: 'cascade' },
+  { child: 'notebook_attachments', column: 'notebook_id', parent: 'notebooks', onDelete: 'cascade' },
+  { child: 'notebook_attachments', column: 'node_id', parent: 'notebook_nodes', onDelete: 'set null' },
 ]
 
 export const TABLES: TableName[] = [
@@ -82,6 +101,17 @@ export const TABLES: TableName[] = [
   'inbox_items',
   'projects',
   'assessments',
+  'notebooks',
+  'notebook_nodes',
+  'notebook_page_contents',
+  'notebook_page_versions',
+  'notebook_tags',
+  'notebook_tag_links',
+  'notebook_page_links',
+  'notebook_flashcard_links',
+  'notebook_templates',
+  'notebook_resource_links',
+  'notebook_attachments',
 ]
 
 /**
@@ -120,7 +150,14 @@ export function affectedTables(table: TableName): TableName[] {
 }
 
 /** Restrições únicas parciais do SQL, reproduzidas no modo local. */
-export const UNIQUE_RULES: Partial<Record<TableName, Array<{ name: string; columns: string[]; where: (row: Record<string, unknown>) => boolean }>>> = {
+export interface UniqueRule {
+  name: string
+  columns: string[]
+  where: (row: Record<string, unknown>) => boolean
+  key?: (row: Record<string, unknown>) => string
+}
+
+export const UNIQUE_RULES: Partial<Record<TableName, UniqueRule[]>> = {
   study_sessions: [
     { name: 'study_sessions_one_live', columns: ['user_id'], where: (r) => r.status === 'active' || r.status === 'pending_review' },
   ],
@@ -136,6 +173,20 @@ export const UNIQUE_RULES: Partial<Record<TableName, Array<{ name: string; colum
   subjects: [{ name: 'subjects_trail_key', columns: ['user_id', 'trail_key'], where: (r) => r.trail_key != null }],
   topics: [{ name: 'topics_trail_key', columns: ['user_id', 'trail_key'], where: (r) => r.trail_key != null }],
   projects: [{ name: 'projects_template_key', columns: ['user_id', 'template_key'], where: (r) => r.template_key != null }],
+  notebook_page_contents: [{ name: 'notebook_page_contents_node_key', columns: ['user_id', 'node_id'], where: () => true }],
+  notebook_tags: [
+    {
+      name: 'notebook_tags_user_name_key',
+      columns: ['user_id', 'name'],
+      where: () => true,
+      key: (r) => `${String(r.user_id ?? '')}::${String(r.name ?? '').trim().toLowerCase()}`,
+    },
+  ],
+  notebook_tag_links: [
+    { name: 'notebook_tag_links_notebook_key', columns: ['user_id', 'tag_id', 'notebook_id'], where: (r) => r.notebook_id != null },
+    { name: 'notebook_tag_links_node_key', columns: ['user_id', 'tag_id', 'node_id'], where: (r) => r.node_id != null },
+  ],
+  notebook_flashcard_links: [{ name: 'notebook_flashcard_links_card_key', columns: ['user_id', 'flashcard_id'], where: () => true }],
 }
 
 type Defaults = { [K in TableName]: Partial<Tables[K]> }
@@ -275,6 +326,58 @@ export const DEFAULTS: Defaults = {
     completed_at: null,
   },
   assessments: { answers: [], topics: [], total: 0, correct: 0, start_key: null },
+  notebooks: {
+    subject_id: null,
+    description: null,
+    icon: 'book-open',
+    color: '#171717',
+    cover: null,
+    is_favorite: false,
+    sort_order: 0,
+    archived_at: null,
+    deleted_at: null,
+  },
+  notebook_nodes: {
+    parent_id: null,
+    icon: null,
+    cover: null,
+    color: null,
+    status: 'draft',
+    difficulty: null,
+    needs_review: false,
+    is_favorite: false,
+    is_pinned: false,
+    position: 0,
+    subject_id: null,
+    topic_id: null,
+    last_studied_at: null,
+    archived_at: null,
+    deleted_at: null,
+  },
+  notebook_page_contents: {
+    content_json: { type: 'doc', content: [] },
+    content_schema_version: 1,
+    content_text: '',
+    word_count: 0,
+    revision: 1,
+  },
+  notebook_page_versions: {
+    content_schema_version: 1,
+    revision: 1,
+    reason: 'snapshot',
+  },
+  notebook_tags: { color: '#525252' },
+  notebook_tag_links: { notebook_id: null, node_id: null },
+  notebook_page_links: { source_block_id: null, target_block_id: null, link_text: null },
+  notebook_flashcard_links: { notebook_id: null, node_id: null, block_id: null, source_excerpt: null },
+  notebook_templates: {
+    description: null,
+    category: null,
+    content_json: { type: 'doc', content: [] },
+    content_schema_version: 1,
+  },
+  notebook_resource_links: { notebook_id: null, node_id: null, resource_id: null, url: null, location: null },
+  notebook_attachments: { node_id: null },
 }
 
 export const TABLE_LABELS: Record<TableName, string> = {
@@ -302,4 +405,15 @@ export const TABLE_LABELS: Record<TableName, string> = {
   inbox_items: 'itens da caixa de entrada',
   projects: 'projetos',
   assessments: 'diagnósticos',
+  notebooks: 'cadernos',
+  notebook_nodes: 'seções e páginas',
+  notebook_page_contents: 'conteúdos de página',
+  notebook_page_versions: 'versões de página',
+  notebook_tags: 'tags de caderno',
+  notebook_tag_links: 'vínculos de tags',
+  notebook_page_links: 'conexões entre páginas',
+  notebook_flashcard_links: 'vínculos de flashcards',
+  notebook_templates: 'templates de página',
+  notebook_resource_links: 'referências de estudo',
+  notebook_attachments: 'anexos de caderno',
 }

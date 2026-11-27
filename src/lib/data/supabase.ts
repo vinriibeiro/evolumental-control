@@ -3,7 +3,7 @@
 import type { SupabaseClient, PostgrestError } from '@supabase/supabase-js'
 import type { Insert, Patch, Profile, Row, TableName } from '@/types/db'
 import { DEFAULTS } from './schema'
-import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type SessionWithPauses } from './types'
+import { DataError, type DataBackend, type Filter, type FlashcardReviewInput, type ListQuery, type ListResult, type MoveNotebookNodeInput, type SessionWithPauses } from './types'
 
 function toDataError(e: PostgrestError | Error | null): DataError {
   if (!e) return new DataError('unknown', 'Erro desconhecido.')
@@ -180,6 +180,17 @@ export class SupabaseBackend implements DataBackend {
     })
     if (error) throw toDataError(error)
     return Boolean(data)
+  }
+
+  async moveNotebookNode(input: MoveNotebookNodeInput): Promise<number> {
+    const { data, error } = await this.client.rpc('move_notebook_node', {
+      p_node_id: input.nodeId,
+      p_target_notebook_id: input.targetNotebookId,
+      p_target_parent_id: input.targetParentId,
+      p_position: input.position ?? null,
+    })
+    if (error) throw toDataError(error)
+    return Number(data ?? 0)
   }
 
   async resetAllData(): Promise<void> {

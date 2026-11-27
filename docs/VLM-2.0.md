@@ -11,6 +11,7 @@ toda funcionalidade nova reaproveita os motores que já existiam (sessões, revi
 | Meu Planejamento | `/` | Planejamento (tela inicial), Rotinas, Revisões, Ciclo de estudos |
 | Trilhas de Estudo | `/trilhas` | Trilhas (Ciência de Dados), Projetos, Laboratório, Matérias, Flashcards, Questões, Outras trilhas (catálogo antigo) · também `/diagnostico/:pilar` e o Plano CGU (`/cgu`) |
 | Biblioteca | `/biblioteca` | Estante (EPUB + PDF), Cursos, Áudios, Vídeos · leitores em `/livros/:id` e `/livros/pdf/:id` |
+| Meus Cadernos | `/cadernos` | Cadernos, Favoritos, Recentes, Conexões, Lixeira · workspace em `/cadernos/:notebookId` e `/cadernos/:notebookId/pagina/:pageId` (veja `docs/CADERNOS.md`) |
 | Sala de Estudos | `/sala` | Sessão (cronômetro / modo foco / confirmação), Histórico |
 | Metas e Evolução | `/metas` | Metas, Evolução, Relatório semanal, Exercícios |
 | Configurações | `/configuracoes` | — |

@@ -1,4 +1,4 @@
-import { CalendarCheck, GraduationCap, Route, Settings, Target, Timer, type LucideIcon } from 'lucide-react'
+import { BookText, CalendarCheck, GraduationCap, Route, Settings, Target, Timer, type LucideIcon } from 'lucide-react'
 
 export interface MenuTab {
   to: string
@@ -68,6 +68,19 @@ export const MENU: MenuGroup[] = [
       { to: '/catalogo', label: 'Catálogo' },
     ],
     also: ['/cgu', '/diagnostico'],
+  },
+  {
+    label: 'Meus Cadernos',
+    short: 'Cadernos',
+    icon: BookText,
+    to: '/cadernos',
+    tabs: [
+      { to: '/cadernos', label: 'Cadernos' },
+      { to: '/cadernos/favoritos', label: 'Favoritos' },
+      { to: '/cadernos/recentes', label: 'Recentes' },
+      { to: '/cadernos/conexoes', label: 'Conexões' },
+      { to: '/cadernos/lixeira', label: 'Lixeira' },
+    ],
   },
   {
     label: 'Sala de Estudos',

@@ -413,7 +413,83 @@ def evaluate_sql_case(request, variant, label):
         connection.close()
 
 
+async def evaluate_notebook_python(source):
+    out = BoundedOutput()
+    student = types.ModuleType("__main__")
+    student.__file__ = "exercicio.py"
+    student.__dict__["__builtins__"] = dict(vars(builtins), input=lambda _p="": "")
+    cwd = os.getcwd()
+    error = None
+    try:
+        tree = ast.parse(source, "exercicio.py")
+        program = compile(tree, "exercicio.py", "exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            os.chdir(directory)
+            try:
+                stack.enter_context(contextlib.redirect_stdout(out))
+                stack.enter_context(contextlib.redirect_stderr(out))
+                stack.enter_context(mock.patch.dict(sys.modules, {"__main__": student}))
+                stack.enter_context(mock.patch.object(sys, "argv", ["caderno.py"]))
+                result = eval(program, student.__dict__)
+                if inspect.isawaitable(result):
+                    await result
+            finally:
+                os.chdir(cwd)
+    except SystemExit:
+        pass
+    except BaseException as exc:
+        error = explain_python_error(exc, source)
+    output = out.getvalue()
+    return {
+        "passed": error is None,
+        "summary": "Código Python executado no ambiente isolado." if error is None else "Erro ao executar o código Python.",
+        "cases": [{"label": "Python 3 (Pyodide isolado)", "passed": error is None, "feedback": (error or "Execução concluída sem erros.")[:1600]}],
+        "output": output[:MAX_OUTPUT],
+    }
+
+
+def evaluate_notebook_sql(source):
+    connection = sqlite3.connect(":memory:", isolation_level=None, cached_statements=0)
+    connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 1_000_000)
+    connection.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
+    steps = 0
+
+    def budget():
+        nonlocal steps
+        steps += 1
+        return 1 if steps > 500 else 0
+
+    connection.set_progress_handler(budget, 1000)
+    try:
+        last_result = None
+        for statement in sql_statements(source):
+            res = collect(connection.execute(statement))
+            if res is not None:
+                last_result = res
+        output = display_rows(last_result) if last_result is not None else "(Consulta executada sem linhas de retorno)"
+        return {
+            "passed": True,
+            "summary": "Consulta executada no banco SQLite temporário em memória.",
+            "cases": [{"label": "SQLite em memória (não é PostgreSQL/SQL Server)", "passed": True, "feedback": "Execução concluída."}],
+            "output": output[:MAX_OUTPUT],
+        }
+    except (ValueError, sqlite3.Error) as exc:
+        error = explain_sql_error(connection, str(exc)) if isinstance(exc, sqlite3.Error) else str(exc)
+        return {
+            "passed": False,
+            "summary": "Erro ao executar SQL no SQLite temporário.",
+            "cases": [{"label": "SQLite em memória (não é PostgreSQL/SQL Server)", "passed": False, "feedback": error[:1600]}],
+            "output": "",
+        }
+    finally:
+        connection.close()
+
+
 async def evaluate(request):
+    if request["track"] == "notebook-python":
+        return json.dumps(await evaluate_notebook_python(request["draft"]), ensure_ascii=False)
+    if request["track"] == "notebook-sql":
+        return json.dumps(evaluate_notebook_sql(request["draft"]), ensure_ascii=False)
     cases = []
     output = ""
     if request["track"] == "python":

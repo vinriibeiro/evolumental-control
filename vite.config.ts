@@ -64,6 +64,9 @@ export default defineConfig({
           if (id.includes('recharts') || id.includes('d3-')) return 'charts'
           if (id.includes('@supabase')) return 'supabase'
           if (id.includes('epubjs') || id.includes('jszip')) return 'leitor-epub'
+          if (id.includes('katex')) return 'math-katex'
+          if (id.includes('mermaid') || id.includes('cytoscape') || id.includes('elkjs')) return 'diagrams-mermaid'
+          if (id.includes('@tiptap') || id.includes('prosemirror') || id.includes('lowlight') || id.includes('highlight.js')) return 'editor-cadernos'
           return undefined
         },
       },
