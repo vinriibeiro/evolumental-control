@@ -10,7 +10,6 @@ import { useSettings } from '@/hooks/useSettings'
 import { cn } from '@/lib/cn'
 import { eq, gte, lt, lte } from '@/lib/data/types'
 import { downloadCsv, downloadPdf } from '@/lib/download'
-import { MIN_SAMPLE } from '@/lib/evolution'
 import { addDays, formatDateTime, formatDayKey, formatDuration, periodRange, startOfMonth, todayKey, zonedDayStart } from '@/lib/time'
 import { STATEMENT_LABELS, buildWeeklyReport, weekHeadline, weeklyReportCsvRows, weeklyReportDocument, type ReportSection, type Statement, type WeeklyReport } from '@/lib/weeklyReport'
 
@@ -28,7 +27,7 @@ export default function WeeklyReportPage() {
 
   const week = useMemo(() => periodRange('week', anchor), [anchor])
   const isCurrent = week.from <= today && today <= week.to
-  // Sessões e questões: da semana anterior (comparação) e do começo do mês (metas mensais) até o fim da semana.
+  // Sessões da semana anterior e do começo do mês entram nas comparações e metas.
   const fetchFrom = [addDays(week.from, -7), startOfMonth(week.from)].sort()[0]
   const fromIso = new Date(zonedDayStart(fetchFrom, tz) - 86400000).toISOString()
   const weekEndIso = new Date(zonedDayStart(addDays(week.to, 1), tz)).toISOString()
@@ -39,12 +38,10 @@ export default function WeeklyReportPage() {
   const openBefore = useAll('calendar_tasks', { filters: [lt('date', week.from), eq('done', false)] }, { keepPrevious: true })
   const doneLater = useAll('calendar_tasks', { filters: [lt('date', week.from), eq('done', true), gte('done_at', weekEndIso)] }, { keepPrevious: true })
   const planItems = useAll('study_plan_items', { filters: [gte('date', week.from), lte('date', week.to)] }, { keepPrevious: true })
-  const questions = useAll('question_records', { filters: [gte('date', fetchFrom), lte('date', week.to)] }, { keepPrevious: true })
   const reviews = useAll('flashcard_reviews', { filters: [gte('reviewed_at', fromIso), lt('reviewed_at', weekEndIso)] }, { keepPrevious: true })
   const goals = useAll('study_goals')
-  const projects = useAll('projects')
 
-  const queries = [sessions, weekTasks, openBefore, doneLater, planItems, questions, reviews, goals, projects]
+  const queries = [sessions, weekTasks, openBefore, doneLater, planItems, reviews, goals]
   const failed = queries.find((x) => x.isError)
   const loading = queries.some((x) => x.isPending) || lookups.loading
 
@@ -57,14 +54,12 @@ export default function WeeklyReportPage() {
         sessions: sessions.data ?? [],
         tasks: [...(weekTasks.data ?? []), ...(openBefore.data ?? []), ...(doneLater.data ?? [])],
         planItems: planItems.data ?? [],
-        questions: questions.data ?? [],
         topics: lookups.topics,
         subjects: lookups.subjects,
         goals: goals.data ?? [],
-        projects: projects.data ?? [],
         flashcardReviews: reviews.data ?? [],
       }),
-    [week, tz, today, sessions.data, weekTasks.data, openBefore.data, doneLater.data, planItems.data, questions.data, lookups.topics, lookups.subjects, goals.data, projects.data, reviews.data],
+    [week, tz, today, sessions.data, weekTasks.data, openBefore.data, doneLater.data, planItems.data, lookups.topics, lookups.subjects, goals.data, reviews.data],
   )
 
   const slug = `${week.from}-a-${week.to}`
@@ -88,7 +83,7 @@ export default function WeeklyReportPage() {
     <div>
       <PageHeader
         title="Relatório semanal"
-        description="Resumo automático da semana, montado por regras fixas sobre os seus registros — sem IA e sem estimativas."
+        description="Veja suas horas, atividades e metas da semana."
         actions={
           <>
             <Button size="sm" icon={<Download className="size-4" />} onClick={() => downloadCsv(weeklyReportCsvRows(report), `relatorio-semanal-${slug}.csv`)} disabled={loading}>
@@ -145,11 +140,7 @@ export default function WeeklyReportPage() {
               <StatCard label="Horas planejadas" value={formatDuration(t.plannedSeconds)} hint={t.plannedSeconds ? 'Cronograma + atividades de estudo' : 'Nada planejado'} />
               <StatCard label="Horas realizadas" value={formatDuration(t.actualSeconds)} hint={t.plannedPercent == null ? `${t.sessions} ${t.sessions === 1 ? 'sessão' : 'sessões'}` : `${pct(t.plannedPercent)} do planejado`} />
               <StatCard label="Atividades concluídas" value={t.tasksTotal ? `${t.tasksDone}/${t.tasksTotal}` : '—'} hint={t.tasksLate ? `${t.tasksLate} ${t.tasksLate === 1 ? 'atrasada' : 'atrasadas'}` : t.tasksTotal ? 'Nenhuma atrasada' : 'Nenhuma atividade na semana'} />
-              <StatCard
-                label="Exercícios e questões"
-                value={t.questions.toLocaleString('pt-BR')}
-                hint={t.accuracy == null ? 'Sem registros' : t.questions < MIN_SAMPLE ? 'Acerto: dados insuficientes' : `${pct(t.accuracy)} de acerto`}
-              />
+              <StatCard label="Dias com estudo" value={t.studyDays} hint={`de ${t.elapsedDays} dias da semana`} />
             </section>
           )}
 
@@ -234,27 +225,25 @@ function WeekTables({ report }: { report: WeeklyReport }) {
         legend={legend}
         summary={`Na semana: ${formatDuration(t.actualSeconds)} realizados de ${formatDuration(t.plannedSeconds)} planejados.`}
         empty={t.actualSeconds === 0 && t.plannedSeconds === 0 ? 'Nenhuma hora planejada ou estudada na semana.' : null}
-        table={{ columns: ['Dia', 'Planejado', 'Realizado', 'Atividades', 'Questões'], rows: report.days.map((d) => [formatDayKey(d.day, 'weekday'), formatDuration(d.plannedSeconds), formatDuration(d.actualSeconds), d.tasks ? `${d.tasksDone}/${d.tasks}` : '—', d.questions]) }}
+        table={{ columns: ['Dia', 'Planejado', 'Realizado', 'Atividades'], rows: report.days.map((d) => [formatDayKey(d.day, 'weekday'), formatDuration(d.plannedSeconds), formatDuration(d.actualSeconds), d.tasks ? `${d.tasksDone}/${d.tasks}` : '—']) }}
       >
         <ColumnChart data={days} series={legend} xKey="key" format={(n) => `${n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h`} xFormat={(d) => formatDayKey(d, 'weekday').slice(0, 3)} />
       </ChartCard>
 
       <Card className="p-4">
         <h3 className="text-sm font-semibold text-ink">Por matéria</h3>
-        <p className="text-xs text-muted">Planejado, realizado e exercícios da semana</p>
+        <p className="text-xs text-muted">Horas planejadas e realizadas na semana</p>
         {report.subjects.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted">Nenhuma matéria com plano, estudo ou questões na semana.</p>
+          <p className="py-10 text-center text-sm text-muted">Nenhuma matéria com plano ou estudo na semana.</p>
         ) : (
           <div className="scroll-thin mt-3 overflow-x-auto">
-            <table className="w-full min-w-[420px] text-sm">
-              <caption className="sr-only">Planejado, realizado e exercícios por matéria na semana</caption>
+            <table className="w-full text-sm">
+              <caption className="sr-only">Horas planejadas e realizadas por matéria</caption>
               <thead>
                 <tr className="border-b border-line text-left text-xs text-muted">
                   <th scope="col" className="py-2 pr-3 font-medium">Matéria</th>
                   <th scope="col" className="px-2 py-2 text-right font-medium">Planejado</th>
                   <th scope="col" className="px-2 py-2 text-right font-medium">Realizado</th>
-                  <th scope="col" className="px-2 py-2 text-right font-medium">Questões</th>
-                  <th scope="col" className="py-2 pl-2 text-right font-medium">Acerto</th>
                 </tr>
               </thead>
               <tbody>
@@ -263,9 +252,6 @@ function WeekTables({ report }: { report: WeeklyReport }) {
                     <th scope="row" className="max-w-40 truncate py-2 pr-3 text-left font-normal text-ink">{s.name}</th>
                     <td className="tabular px-2 py-2 text-right text-muted">{formatDuration(s.plannedSeconds)}</td>
                     <td className="tabular px-2 py-2 text-right font-medium text-ink">{formatDuration(s.actualSeconds)}</td>
-                    <td className="tabular px-2 py-2 text-right text-muted">{s.questions}</td>
-                    {/* Com poucas questões o percentual engana: mostra o aviso em vez do número. */}
-                    <td className="tabular py-2 pl-2 text-right text-muted">{s.accuracy == null ? '—' : s.questions < MIN_SAMPLE ? 'Dados insuficientes' : pct(s.accuracy)}</td>
                   </tr>
                 ))}
               </tbody>

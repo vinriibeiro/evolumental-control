@@ -13,7 +13,7 @@ import type {
 
 export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   theory: 'Teoria',
-  questions: 'Questões',
+  questions: 'Prática',
   review: 'Revisão',
   video: 'Videoaula',
   reading: 'Leitura',

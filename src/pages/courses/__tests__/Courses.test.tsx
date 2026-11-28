@@ -65,10 +65,10 @@ afterEach(() => {
 })
 
 describe('Cursos e materiais', () => {
-  it('sem pastas, explica como começar e informa o modo local', async () => {
+  it('sem pastas, oferece os atalhos para importar', async () => {
     renderAt('/cursos')
     expect(await screen.findByText('Traga seus cursos do Google Drive')).toBeInTheDocument()
-    expect(screen.getByText(/ficam só neste navegador/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Importar pasta do Drive' })).toBeInTheDocument()
   })
 
   it('catálogo conta aulas (pasta com vídeo + materiais = 1 aula), duração e busca', async () => {

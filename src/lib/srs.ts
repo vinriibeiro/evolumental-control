@@ -11,6 +11,8 @@ import type { CardStatus, Flashcard, SrsParams } from '@/types/db'
 
 export type Rating = 1 | 2 | 3 | 4
 
+export const QUICK_REVIEW_SIZE = 10
+
 export const RATING_LABELS: Record<Rating, string> = { 1: 'Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' }
 
 export const DEFAULT_SRS: SrsParams = {

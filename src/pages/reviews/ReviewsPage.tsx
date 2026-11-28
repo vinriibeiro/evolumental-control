@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Brain, CalendarClock, Check, Layers, Play, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Textarea } from '@/components/ui/Field'
@@ -61,9 +61,14 @@ export default function ReviewsPage() {
         title="Revisões"
         description="Revisões planejadas de tópicos e flashcards. Uma revisão só conta como feita quando você a registra."
         actions={
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ review: null })}>
-            Agendar revisão
-          </Button>
+          <>
+            <Link to="/flashcards" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-surface-2">
+              <Layers className="size-4" aria-hidden /> Baralhos
+            </Link>
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setForm({ review: null })}>
+              Agendar revisão
+            </Button>
+          </>
         }
       />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

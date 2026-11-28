@@ -25,7 +25,7 @@ import {
 import { Button, IconButton } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/cn'
-import type { PracticeResult } from '@/pages/challenges/runners'
+import type { PracticeResult } from './codeRunner'
 import { CODE_LANGUAGES, getLanguageDef } from './languages'
 
 export type CalloutVariant = 'info' | 'warning' | 'definition' | 'example' | 'summary' | 'pitfall' | 'exercise'
@@ -316,7 +316,7 @@ export function CodeBlockNodeView({ node, updateAttributes, editor }: NodeViewPr
     setRunResult(null)
     setRunError(null)
     try {
-      const { runNotebookSnippet } = await import('@/pages/challenges/runners')
+      const { runNotebookSnippet } = await import('./codeRunner')
       const res = await runNotebookSnippet(langDef.runnable, rawCode, controller.signal)
       if (!controller.signal.aborted) setRunResult(res)
     } catch (e) {

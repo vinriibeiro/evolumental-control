@@ -1,6 +1,6 @@
 # Cursos e materiais (Google Drive)
 
-Aba **Biblioteca → Cursos** (`/cursos`): catálogo de cursos montado a partir de pastas do Google Drive, com módulos, aulas, visualizador dentro da plataforma, progresso e "Continuar estudando".
+**Meus Cursos** (`/cursos`) reúne cursos do Google Drive e do YouTube, com módulos, visualizadores integrados, progresso e retomada de aulas.
 
 ## O que fica onde
 
@@ -9,7 +9,7 @@ Aba **Biblioteca → Cursos** (`/cursos`): catálogo de cursos montado a partir 
 | **Google Drive** | Os arquivos (vídeos, PDFs, documentos…). Continuam lá, com as permissões de sempre. |
 | **App (local ou Supabase)** | Só referências: IDs do Drive, nomes, tipos (MIME), tamanho, hierarquia, ordem, nome personalizado, ocultação, vínculo com matéria/tópico e o progresso (concluído, último acesso). |
 
-A visualização padrão carrega o arquivo diretamente no visualizador incorporado do Google. Para PDFs, **Ler e marcar PDF** abre o leitor próprio após autorização de leitura: os bytes são carregados pela API do Drive somente na memória da aba; as marcações ficam separadas no navegador. Não há cópia persistente do arquivo do curso, proxy, upload ou alteração do original no Drive. Veja [Leitor PDF](LEITOR-PDF.md) para configuração, exportação e limites.
+A visualização padrão usa o leitor incorporado do Google. Os leitores de PDF e HTML carregam o arquivo pela API com autorização de leitura. O leitor de PDF grava as marcações separadamente e oferece uma cópia offline opcional. O leitor de HTML mantém o documento em memória durante a exibição. [Leitor PDF](LEITOR-PDF.md)
 
 - **Modo local:** catálogo e progresso ficam no IndexedDB **deste navegador**.
 - **Supabase:** tabelas `course_sources`, `course_nodes` e `course_progress`, com RLS por usuário; sincronizam entre aparelhos da mesma conta.
@@ -69,9 +69,15 @@ Regras da reimportação (`src/lib/courseImport.ts`):
 
 Remover uma pasta tira o catálogo dela do app (nada muda no Drive); o progresso fica e volta se a pasta for cadastrada de novo. "Zerar dados" zera o progresso dos cursos e mantém o catálogo.
 
+## Pastas e capas do catálogo
+
+Cursos com o mesmo nome-base e partes numeradas, por exemplo `(Parte 1)`, `(Parte 2)` ou `Vol. 3`, aparecem juntos em uma pasta. A pasta soma o progresso e abre a aula pendente do curso estudado mais recentemente. Cada parte mantém seu endereço e o progresso por arquivo. O agrupamento é calculado no catálogo, e as pastas originais do Drive ficam onde estão.
+
+As capas das formações reconhecidas vêm das imagens de divulgação publicadas nas páginas da Data Science Academy. Cursos do YouTube usam a miniatura de uma aula. **Editar capa** aceita o endereço HTTPS de uma imagem e grava a preferência no perfil da conta. [Catálogo oficial de formações da DSA](https://www.datascienceacademy.com.br/formacoesdsa)
+
 ## Cursos do YouTube (Téo Me Why)
 
-Desde 07/11/2026, **Cursos → Cursos do Téo (YouTube)** coloca no catálogo os 9 cursos gratuitos da trilha "Do zero a Cientista de Dados" do Téo Me Why (135 aulas, mesma lista de `src/content/trailTeo.ts`), na mesma sala dos cursos do Drive: aulas em ordem, duração, Concluir/Próxima, "Continuar estudando", organização e progresso.
+**Meus Cursos → Cursos do Téo (YouTube)** importa os 9 cursos gratuitos do Téo Me Why. As 135 aulas estão em `src/content/teoCourses.ts` e usam a mesma sala, progresso e retomada dos cursos do Drive.
 
 - Como fica no banco (`src/lib/youtubeCourses.ts`, `src/services/youtubeCourses.ts`): uma fonte fixa `youtube-teomewhy-trilha` em `course_sources`; um nó `course` por curso (`drive_id` = `youtube-course-<chave>`) e um nó `item` por vídeo com `mime_type` `video/x-youtube` e `drive_id` = ID do vídeo (11 caracteres). Os IDs respeitam a regra de formato já existente (`^[A-Za-z0-9_-]{10,128}$`), então **não há migração**. A fonte aparece em Pastas do Drive com o selo YouTube e sem "Atualizar do Drive".
 - Instalação idempotente: reconhece pela posição (`placement_key`); repetir não duplica e mantém o progresso (que é por vídeo). Se a trilha do Téo já foi instalada em Matérias, o curso recebe `subject_id` da matéria de mesmo nome e cada aula o `topic_id` do tópico de mesmo nome (o estudo é registrado neles).
@@ -86,7 +92,10 @@ O visualizador é escolhido pelo **MIME real** informado pelo Drive (ou pelo MIM
 |---|---|
 | PDF, vídeo, áudio, imagem, Word, PowerPoint, Excel, texto, CSV | `drive.google.com/file/d/<id>/preview` |
 | Documentos, Planilhas e Apresentações Google | `docs.google.com/.../<id>/preview` |
-| Outros (ZIP, HTML, JSON, Markdown, formulários…) | Sem visualizador: item no catálogo com **Abrir no Drive** |
+| HTML e XHTML | Leitor na aula com autorização de leitura do Drive |
+| Outros (ZIP, JSON, Markdown, formulários…) | **Abrir no Drive** |
+
+Ao selecionar um HTML, o leitor abre o material da aula atual e usa a autorização de conteúdo já concedida na aba. **Autorizar leitura** volta ao arquivo selecionado depois de passar pelo Google. O documento é exibido em um iframe isolado, com estilos e imagens incorporadas, até 24 MiB. Scripts, formulários e recursos externos ficam bloqueados. [API do Google Drive](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/get)
 
 Os endereços são montados pelo app a partir de IDs validados, só para `drive.google.com` e `docs.google.com` (nunca HTML/embed colado pelo usuário). O iframe usa `sandbox` (scripts, popups e apresentação) e `referrerpolicy="strict-origin-when-cross-origin"`.
 

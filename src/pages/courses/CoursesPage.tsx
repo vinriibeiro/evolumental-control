@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarPlus,
   CheckCircle2,
+  FolderClosed,
   FolderSync,
   GraduationCap,
   Link2,
@@ -18,21 +19,20 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Switch } from '@/components/ui/Field'
 import { EmptyState, ErrorState, Spinner, useToast } from '@/components/ui/feedback'
 import { Badge, Card, PageHeader, Progress, Segmented } from '@/components/ui/layout'
-import { useBackend } from '@/app/data'
 import { useAll, useTransaction } from '@/hooks/data'
-import { useLookups } from '@/hooks/domain'
 import { useCourses } from '@/hooks/useCourses'
+import { useSettings } from '@/hooks/useSettings'
 import { courseStatus, displayTitle, lastStudied, lessonOf, resumeItem, type CourseStatusFilter, type CourseView } from '@/lib/courseCatalog'
+import { courseFolders, courseHref as courseLink, coverFor, folderHref, type CourseFolder } from '@/lib/courseFolders'
 import { formatDuration, KIND_LABELS, materialType, type MaterialKind } from '@/lib/drive'
 import { DRIVE_READ_SCOPE, consumeRedirectToken } from '@/lib/googleAuth'
 import { normalizeText } from '@/lib/videoProgress'
 import { TEO_SOURCE } from '@/lib/youtubeCourses'
 import { COURSE_TABLES } from '@/services/courses'
-import { DATA_AREAS, detectDataArea, type DataAreaId } from '@/services/courseIntegration'
 import { installYoutubeCourses } from '@/services/youtubeCourses'
-import { cn } from '@/lib/cn'
 import { AddCourseToCycleModal, QuickDriveCourseModal, ScheduleCourseModal } from './CourseIntegrationModals'
 import { DriveSources } from './DriveSources'
+import { CourseCover } from './CourseCover'
 
 const STATUS_TABS: Array<{ value: CourseStatusFilter; label: string }> = [
   { value: 'all', label: 'Todos' },
@@ -41,14 +41,11 @@ const STATUS_TABS: Array<{ value: CourseStatusFilter; label: string }> = [
   { value: 'completed', label: 'Concluídos' },
 ]
 
-export const courseLink = (v: CourseView, itemId?: string | null) => `/cursos/${v.course.id}${itemId ? `?item=${itemId}` : ''}`
-
 function CourseCard({
   v,
   source,
   resumeId,
-  areaLabel,
-  areaColor,
+  cover,
   inCycle,
   onAddToCycle,
   onSchedule,
@@ -56,8 +53,7 @@ function CourseCard({
   v: CourseView
   source?: string
   resumeId: string | null
-  areaLabel: string
-  areaColor: string
+  cover?: string
   inCycle: boolean
   onAddToCycle: (v: CourseView) => void
   onSchedule: (v: CourseView) => void
@@ -67,14 +63,12 @@ function CourseCard({
   const dur = formatDuration(v.durationMs)
   return (
     <Card className="group flex flex-col overflow-hidden transition-[border-color,box-shadow] hover:border-accent/40 hover:shadow-md">
-      <Link to={courseLink(v, resumeId)} tabIndex={-1} aria-hidden className="relative flex h-36 items-center overflow-hidden border-b border-line bg-surface px-6">
-        <span className="text-5xl font-semibold tracking-tighter text-accent-strong/25">{v.title.trim().slice(0, 2).toLocaleUpperCase('pt-BR')}</span>
-        <GraduationCap className="absolute -right-3 -bottom-5 size-32 rotate-[-12deg] text-accent-strong/10 transition-transform group-hover:rotate-0" />
+      <Link to={courseLink(v, resumeId)} tabIndex={-1} aria-hidden className="relative border-b border-line">
+        <CourseCover title={v.title} automatic={coverFor(v.title, [v])} custom={cover} className="aspect-[16/8]" />
         <div className="absolute top-3.5 left-4 flex flex-wrap items-center gap-1.5">
           <span className="rounded-full border border-line bg-bg px-2.5 py-1 text-[11px] font-semibold text-ink">
             {status === 'completed' ? 'Concluído' : status === 'in_progress' ? `${pct}% concluído` : 'Não iniciado'}
           </span>
-          <Badge color={areaColor}>{areaLabel}</Badge>
           {inCycle && <Badge color="var(--success)">No ciclo</Badge>}
         </div>
       </Link>
@@ -119,10 +113,29 @@ function CourseCard({
   )
 }
 
-/** Catálogo de cursos e materiais vindos do Google Drive, 100% integrado ao ciclo e cronograma em Dados. */
+function FolderCard({ folder, cover, showHidden }: { folder: CourseFolder; cover?: string; showHidden: boolean }) {
+  const progress = folder.total ? Math.round(folder.done * 100 / folder.total) : 0
+  return (
+    <Card className="overflow-hidden transition-[border-color,box-shadow] hover:border-accent/40 hover:shadow-md">
+      <Link to={folderHref(folder.key, showHidden)} className="relative flex h-full flex-col rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-strong">
+        <CourseCover title={folder.title} custom={cover} automatic={coverFor(folder.title, folder.parts.map((part) => part.view))} className="aspect-[16/8] border-b border-line" />
+        <Badge className="absolute top-3.5 left-4 gap-1.5 px-2.5 py-1"><FolderClosed className="size-3.5" aria-hidden /> {folder.parts.length} {folder.parts.length === 1 ? 'parte' : 'partes'}</Badge>
+        <div className="flex flex-1 flex-col gap-4 p-5">
+          <h3 className="text-lg leading-snug font-semibold tracking-tight text-ink">{folder.title}</h3>
+          <div className="mt-auto space-y-1.5">
+            <p className="flex justify-between gap-2 text-xs text-muted"><span>{folder.done} de {folder.total} aulas concluídas</span><span className="tabular">{progress}%</span></p>
+            <Progress value={progress} label={`Progresso de ${folder.title}`} />
+          </div>
+          <span className="flex min-h-10 items-center justify-between rounded-lg bg-surface-2 px-3 text-sm font-semibold text-ink">Abrir pasta <ArrowUpRight className="size-4 text-muted" aria-hidden /></span>
+        </div>
+      </Link>
+    </Card>
+  )
+}
+
+/** Catálogo de cursos e materiais integrados ao ciclo, cronograma e cronômetro. */
 export default function CoursesPage() {
-  const backend = useBackend()
-  const lookups = useLookups()
+  const settings = useSettings()
   const [showHidden, setShowHidden] = useState(false)
   const data = useCourses({ includeHidden: showHidden })
   const cycleItems = useAll('study_cycle_items')
@@ -143,7 +156,7 @@ export default function CoursesPage() {
       toast.error(result.message)
       return
     }
-    toast.success(result.scope === DRIVE_READ_SCOPE ? 'Leitura do PDF autorizada nesta aba.' : 'Google Drive conectado (só leitura de metadados).')
+    toast.success(result.scope === DRIVE_READ_SCOPE ? 'Leitura de arquivos autorizada nesta aba.' : 'Google Drive conectado (só leitura de metadados).')
     if (result.returnTo) navigate(result.returnTo, { replace: true })
     else setSourcesOpen(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,7 +176,6 @@ export default function CoursesPage() {
   const [status, setStatus] = useState<CourseStatusFilter>('all')
   const [kind, setKind] = useState<MaterialKind | ''>('')
   const [sourceId, setSourceId] = useState('')
-  const [areaFilter, setAreaFilter] = useState<DataAreaId | ''>('')
 
   const sources = data.sources.data ?? []
   const sourceName = new Map(sources.map((s) => [s.id, s.label ?? s.title]))
@@ -175,20 +187,8 @@ export default function CoursesPage() {
   )
 
   const subjectsInCycle = useMemo(() => new Set((cycleItems.data ?? []).map((i) => i.subject_id)), [cycleItems.data])
-  const areaOf = useMemo(() => {
-    const map = new Map<string, ReturnType<typeof detectDataArea>>()
-    for (const v of data.views) {
-      const subName = v.course.subject_id ? lookups.subjectName(v.course.subject_id) : null
-      map.set(v.course.id, detectDataArea(v.title, subName))
-    }
-    return map
-  }, [data.views, lookups])
-
-  const areaCounts = useMemo(() => {
-    const counts = new Map<DataAreaId, number>()
-    for (const area of areaOf.values()) counts.set(area.id, (counts.get(area.id) ?? 0) + 1)
-    return counts
-  }, [areaOf])
+  const folders = useMemo(() => courseFolders(data.views), [data.views])
+  const groupedIds = useMemo(() => new Set(folders.flatMap((folder) => folder.parts.map((part) => part.view.course.id))), [folders])
 
   const filtered = useMemo(() => {
     const q = normalizeText(query.trim())
@@ -196,11 +196,13 @@ export default function CoursesPage() {
       if (sourceId && v.course.source_id !== sourceId) return false
       if (status !== 'all' && courseStatus(v) !== status) return false
       if (kind && !v.kinds[kind]) return false
-      if (areaFilter && areaOf.get(v.course.id)?.id !== areaFilter) return false
       if (!q) return true
       return normalizeText(v.title).includes(q) || v.lessons.some((l) => normalizeText(l.title).includes(q)) || v.items.some((i) => normalizeText(displayTitle(i)).includes(q))
     })
-  }, [data.views, query, status, kind, sourceId, areaFilter, areaOf])
+  }, [data.views, query, status, kind, sourceId])
+  const matchingIds = new Set(filtered.map((v) => v.course.id))
+  const filteredFolders = folders.filter((folder) => folder.parts.some((part) => matchingIds.has(part.view.course.id)))
+  const individualCourses = filtered.filter((v) => !groupedIds.has(v.course.id))
 
   // Busca também por aula: mostra os materiais que batem, com link direto.
   const itemHits = useMemo(() => {
@@ -221,21 +223,20 @@ export default function CoursesPage() {
     }),
     { lessons: 0, done: 0, inProgress: 0, inCycle: 0 },
   )
-  const hasFilters = Boolean(query.trim() || status !== 'all' || kind || sourceId || areaFilter)
+  const hasFilters = Boolean(query.trim() || status !== 'all' || kind || sourceId)
   const clearFilters = () => {
     setQuery('')
     setStatus('all')
     setKind('')
     setSourceId('')
-    setAreaFilter('')
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Cursos do Google Drive"
-        description="Seus cursos da área de dados integrados 100% ao ciclo de estudos, cronograma e cronômetro. Os arquivos continuam no seu Google Drive."
-        actions={
+        title="Meus cursos"
+        description="Organize seus cursos, retome suas aulas e encaixe o estudo no seu planejamento."
+        actions={data.views.length > 0 || sources.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {teoButton}
             <Button icon={<Link2 className="size-4" aria-hidden />} onClick={() => setQuickOpen(true)}>
@@ -245,18 +246,8 @@ export default function CoursesPage() {
               Pastas do Drive
             </Button>
           </div>
-        }
+        ) : undefined}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-3xl text-xs leading-relaxed text-muted">
-          {backend.kind === 'local'
-            ? 'Modo local: o catálogo e o progresso ficam só neste navegador.'
-            : 'O catálogo e o progresso ficam na sua conta e sincronizam entre aparelhos.'}{' '}
-          Conecte uma pasta completa em <strong>Pastas do Drive</strong> ou cadastre um curso rápido em <strong>Adicionar por link</strong>.
-        </p>
-        {sources.length > 0 && <Switch checked={showHidden} onChange={setShowHidden} label="Mostrar ocultos" />}
-      </div>
-
       {data.isPending ? <Spinner /> : missingTable ? (
         <Card className="flex gap-3 p-4">
           <AlertTriangle className="size-5 shrink-0 text-warning" aria-hidden />
@@ -269,14 +260,16 @@ export default function CoursesPage() {
         <EmptyState
           icon={<GraduationCap className="size-8" aria-hidden />}
           title={sources.length ? 'Nenhum curso importado ainda' : 'Traga seus cursos do Google Drive'}
-          description="Conecte uma pasta do Google Drive para importar todos os seus cursos de Dados de uma vez, ou cole o link de um curso agora mesmo para colocar no seu ciclo e cronograma."
-          action={
+          description="Conecte uma pasta para importar seus cursos ou cole o link de um curso para incluí-lo no planejamento."
+          action={sources.length > 0 ? (
+            <Switch checked={showHidden} onChange={setShowHidden} label="Mostrar ocultos" />
+          ) : (
             <div className="flex flex-wrap justify-center gap-2">
               <Button variant="primary" icon={<FolderSync className="size-4" />} onClick={() => setSourcesOpen(true)}>Importar pasta do Drive</Button>
               <Button icon={<Link2 className="size-4" />} onClick={() => setQuickOpen(true)}>Adicionar por link</Button>
               {teoButton}
             </div>
-          }
+          )}
         />
       ) : (
         <>
@@ -311,42 +304,12 @@ export default function CoursesPage() {
             </Card>
           )}
 
-          {/* Filtro rápido por Área de Dados */}
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar por área de dados">
-            <button
-              type="button"
-              onClick={() => setAreaFilter('')}
-              className={cn(
-                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                areaFilter === '' ? 'border-ink bg-ink text-bg' : 'border-line bg-bg text-muted hover:text-ink',
-              )}
-            >
-              Todas as áreas ({data.views.length})
-            </button>
-            {DATA_AREAS.filter((a) => (areaCounts.get(a.id) ?? 0) > 0).map((area) => {
-              const active = areaFilter === area.id
-              return (
-                <button
-                  key={area.id}
-                  type="button"
-                  onClick={() => setAreaFilter(active ? '' : area.id)}
-                  className={cn(
-                    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                    active ? 'border-ink bg-ink text-bg' : 'border-line bg-bg text-muted hover:text-ink',
-                  )}
-                >
-                  {area.label} ({areaCounts.get(area.id)})
-                </button>
-              )
-            })}
-          </div>
-
           <Card className="space-y-4 p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold tracking-tight text-ink">Explore seu catálogo</h2>
-                <p className="mt-1 text-xs text-muted">Encontre um curso, uma aula ou envie direto para seu ciclo e cronograma.</p>
               </div>
+              {sources.length > 0 && <Switch checked={showHidden} onChange={setShowHidden} label="Mostrar ocultos" />}
               {hasFilters && filtered.length > 0 && <Button size="sm" variant="ghost" icon={<X className="size-3.5" aria-hidden />} onClick={clearFilters}>Limpar filtros</Button>}
             </div>
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
@@ -390,12 +353,19 @@ export default function CoursesPage() {
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted" aria-live="polite">{filtered.length} {filtered.length === 1 ? 'curso' : 'cursos'}{hasFilters ? ` de ${data.views.length}` : ' no seu catálogo'}</p>
+            <p className="text-sm text-muted" aria-live="polite">
+              {filteredFolders.length > 0 && <>{filteredFolders.length} {filteredFolders.length === 1 ? 'pasta' : 'pastas'} · </>}
+              {individualCourses.length} {individualCourses.length === 1 ? 'curso individual' : 'cursos individuais'}
+            </p>
           </div>
           {filtered.length === 0 ? <EmptyState icon={<Search className="size-7" aria-hidden />} title="Nenhum curso encontrado" description="Experimente outro termo ou remova os filtros para ver seu catálogo." action={<Button onClick={clearFilters}>Limpar filtros</Button>} /> : (
             <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.map((v) => {
-                const area = areaOf.get(v.course.id) ?? DATA_AREAS[DATA_AREAS.length - 1]
+              {filteredFolders.map((folder) => (
+                <li key={folder.key} className="grid">
+                  <FolderCard folder={folder} cover={settings.courseCovers?.[`pasta:${folder.key}`]} showHidden={showHidden} />
+                </li>
+              ))}
+              {individualCourses.map((v) => {
                 const inCycle = Boolean(v.course.subject_id && subjectsInCycle.has(v.course.subject_id))
                 return (
                   <li key={v.course.id} className="grid">
@@ -403,8 +373,7 @@ export default function CoursesPage() {
                       v={v}
                       source={sources.length > 1 ? sourceName.get(v.course.source_id) : undefined}
                       resumeId={resumeItem(v, data.index)?.id ?? null}
-                      areaLabel={area.label}
-                      areaColor={area.color}
+                      cover={settings.courseCovers?.[v.course.id]}
                       inCycle={inCycle}
                       onAddToCycle={setCycleTarget}
                       onSchedule={setScheduleTarget}

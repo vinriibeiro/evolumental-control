@@ -1,4 +1,4 @@
-import { BookText, CalendarCheck, GraduationCap, Route, Settings, Target, Timer, type LucideIcon } from 'lucide-react'
+import { BookOpen, BookText, CalendarCheck, GraduationCap, Settings, Timer, type LucideIcon } from 'lucide-react'
 
 export interface MenuTab {
   to: string
@@ -18,15 +18,6 @@ export interface MenuGroup {
   also?: string[]
 }
 
-/**
- * VLM Control — Sistema de Aprendizagem Total em Dados:
- * 1. Meu Planejamento: calendário, cronograma, tarefas, caixa de entrada, ciclo de estudos, rotinas e revisões.
- * 2. Cursos do Drive: catálogo de cursos do Google Drive em primeiro plano + estante, vídeos e áudios.
- * 3. Estudos em Dados: trilhas de dados (SQL, Python, ML, Power BI), projetos práticos, laboratório, matérias, flashcards e questões.
- * 4. Sala de Estudos: cronômetro, pomodoro e histórico de sessões.
- * 5. Metas e Evolução: metas, gráficos, relatório semanal e registro de exercícios.
- * 6. Configurações.
- */
 export const MENU: MenuGroup[] = [
   {
     label: 'Meu Planejamento',
@@ -35,39 +26,30 @@ export const MENU: MenuGroup[] = [
     to: '/',
     tabs: [
       { to: '/', label: 'Planejamento' },
+      { to: '/materias', label: 'Matérias' },
       { to: '/ciclos', label: 'Ciclo de estudos' },
-      { to: '/rotinas', label: 'Rotinas' },
       { to: '/revisoes', label: 'Revisões' },
     ],
+    also: ['/flashcards'],
   },
   {
-    label: 'Cursos do Drive',
+    label: 'Meus Cursos',
     short: 'Cursos',
     icon: GraduationCap,
     to: '/cursos',
     tabs: [
       { to: '/cursos', label: 'Meus Cursos' },
-      { to: '/biblioteca', label: 'Estante' },
       { to: '/videos', label: 'Vídeos' },
       { to: '/audios', label: 'Áudios' },
     ],
-    also: ['/livros'],
   },
   {
-    label: 'Estudos em Dados',
-    short: 'Dados',
-    icon: Route,
-    to: '/trilhas',
-    tabs: [
-      { to: '/trilhas', label: 'Trilhas de Dados' },
-      { to: '/projetos', label: 'Projetos' },
-      { to: '/laboratorio', label: 'Laboratório' },
-      { to: '/materias', label: 'Matérias' },
-      { to: '/flashcards', label: 'Flashcards' },
-      { to: '/banco-de-questoes', label: 'Questões' },
-      { to: '/catalogo', label: 'Catálogo' },
-    ],
-    also: ['/cgu', '/diagnostico'],
+    label: 'Meus Livros',
+    short: 'Livros',
+    icon: BookOpen,
+    to: '/biblioteca',
+    tabs: [{ to: '/biblioteca', label: 'Estante' }],
+    also: ['/livros'],
   },
   {
     label: 'Meus Cadernos',
@@ -90,21 +72,11 @@ export const MENU: MenuGroup[] = [
     tabs: [
       { to: '/sala', label: 'Sessão' },
       { to: '/sala/historico', label: 'Histórico' },
-    ],
-    also: ['/cronometro'],
-  },
-  {
-    label: 'Metas e Evolução',
-    short: 'Evolução',
-    icon: Target,
-    to: '/metas',
-    tabs: [
       { to: '/metas', label: 'Metas' },
       { to: '/evolucao', label: 'Evolução' },
       { to: '/relatorio-semanal', label: 'Relatório semanal' },
-      { to: '/questoes', label: 'Exercícios' },
     ],
-    also: ['/relatorios'],
+    also: ['/cronometro', '/relatorios'],
   },
   { label: 'Configurações', short: 'Ajustes', icon: Settings, to: '/configuracoes', tabs: [{ to: '/configuracoes', label: 'Configurações' }] },
 ]
@@ -115,9 +87,10 @@ export interface NavItem {
   icon: LucideIcon
 }
 
-/** Todas as páginas alcançáveis pela busca (Ctrl K): uma entrada por aba das seis áreas. */
+/** Páginas alcançáveis pela busca (Ctrl K). */
 export const NAV: NavItem[] = [
   ...MENU.flatMap((g) => g.tabs.map((t) => ({ to: t.to, label: t.to === g.to ? g.label : t.label, icon: g.icon }))),
+  { to: '/flashcards', label: 'Baralhos de revisão', icon: CalendarCheck },
 ]
 
 const inTab = (pathname: string, to: string) => (to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(to + '/'))

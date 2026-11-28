@@ -9,6 +9,8 @@ import { useToast } from '@/components/ui/feedback'
 import { useAll, useInsert, useRemove, useSessions } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
 import { useCourses } from '@/hooks/useCourses'
+import { useLastRead } from '@/pages/library/lastRead'
+import { LastReadLine } from './LastReadLine'
 import { useStartStudy } from '@/features/timer/useStartStudy'
 import { eq, isNull } from '@/lib/data/types'
 import { displayTitle, lastStudied, lessonOf, resumeItem } from '@/lib/courseCatalog'
@@ -217,12 +219,13 @@ export function WeekSummary({
 // ---------------------------------------------------------------------
 // Continuar de onde parei: o último estudo registrado
 // ---------------------------------------------------------------------
-export function ContinueCard({ tz, extra }: { tz: string; extra?: ReactNode }) {
+export function ContinueCard({ tz }: { tz: string }) {
   const last = useSessions({ filters: [eq('status', 'completed')], order: [{ column: 'started_at', ascending: false }], limit: 1 })
+  const reading = useLastRead().data
   const lookups = useLookups()
   const study = useStartStudy()
   const s = last.data?.[0]
-  if (!s && !extra) return null
+  if (!s && !reading) return null
   const label = s ? (s.source?.label ?? (s.topic_id ? lookups.topicName(s.topic_id) : lookups.subjectName(s.subject_id))) : ''
   return (
     <Panel title="Continuar de onde parei" icon={<BookOpen className="size-4 text-muted" aria-hidden />}>
@@ -246,7 +249,7 @@ export function ContinueCard({ tz, extra }: { tz: string; extra?: ReactNode }) {
           </Button>
         </div>
       )}
-      {extra && <div className={s ? 'mt-3 border-t border-line pt-3' : ''}>{extra}</div>}
+      {reading && <div className={s ? 'mt-3 border-t border-line pt-3' : ''}><LastReadLine reading={reading} /></div>}
     </Panel>
   )
 }

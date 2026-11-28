@@ -6,7 +6,7 @@ import { EmptyState, QueryState, Spinner } from '@/components/ui/feedback'
 import { useAll, useSessions } from '@/hooks/data'
 import { useSettings } from '@/hooks/useSettings'
 import { eq, gte, inList, notNull } from '@/lib/data/types'
-import { checklistProgress, dueState, historyStart, isDeliverable, periodFor, progress, type GoalData } from '@/lib/goals'
+import { checklistProgress, dueState, historyStart, isDeliverable, isStudyGoalAvailable, periodFor, progress, type GoalData } from '@/lib/goals'
 import { todayKey, zonedDayStart } from '@/lib/time'
 import type { GoalKind, StudyGoal } from '@/types/db'
 import { DeliverableGoalCard, MetricGoalCard } from './GoalCards'
@@ -22,18 +22,16 @@ export default function GoalsPage() {
   const start = historyStart(today)
   const startIso = new Date(zonedDayStart(start, tz) - 86400000).toISOString()
   const sessions = useSessions({ filters: [eq('status', 'completed'), gte('started_at', startIso)] })
-  const questions = useAll('question_records', { filters: [gte('date', start)] })
   const topics = useAll('topics', { filters: [notNull('completed_at'), gte('completed_at', startIso)] })
   const reviews = useAll('flashcard_reviews', { filters: [gte('reviewed_at', startIso)] })
-  const projects = useAll('projects', { filters: [eq('status', 'done')] })
   const data: GoalData = useMemo(
-    () => ({ sessions: sessions.data ?? [], questions: questions.data ?? [], topics: topics.data ?? [], reviews: reviews.data ?? [], projects: projects.data ?? [], timezone: tz }),
-    [sessions.data, questions.data, topics.data, reviews.data, projects.data, tz],
+    () => ({ sessions: sessions.data ?? [], questions: [], topics: topics.data ?? [], reviews: reviews.data ?? [], timezone: tz }),
+    [sessions.data, topics.data, reviews.data, tz],
   )
 
-  const list = useMemo(() => goals.data ?? [], [goals.data])
+  const list = useMemo(() => (goals.data ?? []).filter(isStudyGoalAvailable), [goals.data])
   // Só as metas por número dependem dos registros; as por entregas aparecem de imediato.
-  const loadingRecords = sessions.isPending || questions.isPending || topics.isPending || reviews.isPending || projects.isPending
+  const loadingRecords = sessions.isPending || topics.isPending || reviews.isPending
   const waiting = loadingRecords && list.some((g) => !isDeliverable(g))
 
   const { pending, achieved, overdue } = useMemo(() => {
@@ -89,7 +87,7 @@ export default function GoalsPage() {
             <EmptyState
               icon={<Target className="size-8" />}
               title={show === 'current' ? 'Nenhuma meta definida' : 'Nenhuma meta encerrada'}
-              description={show === 'current' ? 'Exemplos: "Concluir JOIN e resolver 20 exercícios até domingo", 10 horas de estudo por semana, 80% de acertos no mês.' : undefined}
+              description={show === 'current' ? 'Por exemplo, concluir um curso até domingo ou estudar 10 horas por semana.' : undefined}
               action={
                 show === 'current' ? (
                   <div className="flex flex-wrap justify-center gap-2">

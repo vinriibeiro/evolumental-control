@@ -16,6 +16,7 @@ import { useRow } from '@/hooks/data'
 import { useClassroomView } from '@/hooks/useClassroomView'
 import { useCourseActions, useCourses } from '@/hooks/useCourses'
 import { displayTitle, isLessonDone, lessonOf, modulePath, neighbors, remainingMs, resumeItem, type Lesson } from '@/lib/courseCatalog'
+import { courseFolders, courseHref, folderHref } from '@/lib/courseFolders'
 import { formatBytes, formatDuration, materialType } from '@/lib/drive'
 import { cn } from '@/lib/cn'
 import type { CourseNode } from '@/types/db'
@@ -23,6 +24,7 @@ import { CourseOutline } from './CourseOutline'
 import { AddCourseToCycleModal, ScheduleCourseModal } from './CourseIntegrationModals'
 import { KindIcon } from './KindIcon'
 import { CourseNotesPanel } from '@/pages/notebooks/CourseNotesPanel'
+import { CourseCoverAction } from './CourseCover'
 
 const PREFS = 'evolumental.course.player'
 type Prefs = { outline: boolean; timer: boolean; notes: boolean; notesWidth: number }
@@ -126,6 +128,7 @@ export default function CoursePage() {
   })
 
   const view = data.views.find((v) => v.course.id === id) ?? null
+  const folder = useMemo(() => courseFolders(data.views).find((group) => group.parts.some((part) => part.view.course.id === id)), [data.views, id])
   const byId = useMemo(() => new Map((data.nodes.data ?? []).map((n) => [n.id, n])), [data.nodes.data])
   const wanted = params.get('item')
   const fallback = view ? resumeItem(view, data.index) : null
@@ -245,13 +248,14 @@ export default function CoursePage() {
       <div ref={classroom} data-theater={theater} className="video-classroom course-classroom rounded-xl bg-bg">
         {/* Barra do curso */}
         <header className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2.5">
-          <Link to="/cursos" className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-bg" aria-label="Voltar para Cursos e materiais" title="Voltar para Cursos e materiais">
+          <Link to={folder ? folderHref(folder.key, organize) : '/cursos'} className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-ink hover:bg-bg" aria-label={folder ? 'Voltar para a pasta' : 'Voltar para meus cursos'} title={folder?.title ?? 'Meus cursos'}>
             <ChevronLeft className="size-5" aria-hidden />
           </Link>
           <div className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] sm:basis-auto">
             <div className="flex items-center gap-1">
               <h1 className="line-clamp-2 text-sm font-semibold text-ink sm:truncate sm:text-base">{view.title}</h1>
               <IconButton size="sm" label="Organizar curso" onClick={() => setEditing(view.course)}><Pencil className="size-3.5" /></IconButton>
+              {!folder && <CourseCoverAction coverKey={view.course.id} title={view.title} iconOnly />}
             </div>
             <div className="flex items-center gap-2 text-xs text-muted">
               <Progress value={pct} className="h-1.5 w-28 sm:w-40" label="Progresso do curso" />
@@ -329,12 +333,12 @@ export default function CoursePage() {
                         : undefined
                     }
                   >
-                    <DriveViewer key={`${active.id}-${reloadKey}`} node={active} title={displayTitle(active)} frameClassName={frame} />
+                    <DriveViewer key={`${active.id}-${reloadKey}`} node={active} title={displayTitle(active)} frameClassName={frame} returnTo={courseHref(view, active.id)} />
                     {sideNode && (
                       <div className="relative border-t border-line lg:border-t-0 lg:border-l">
                         <IconButton size="sm" label="Fechar material ao lado" className="absolute top-2 right-2 z-10 bg-bg/90" onClick={() => setSide(null)}><X className="size-4" /></IconButton>
                         {sideNode.mime_type === 'application/pdf' && sideNode.status === 'available' && <div className="border-b border-line bg-surface px-3 py-2 pr-12"><PdfReadingLink courseId={view.course.id} node={sideNode} /></div>}
-                        <DriveViewer key={`${sideNode.id}-${reloadKey}`} node={sideNode} title={displayTitle(sideNode)} frameClassName={frame ?? 'h-[75dvh] min-h-[420px]'} />
+                        <DriveViewer key={`${sideNode.id}-${reloadKey}`} node={sideNode} title={displayTitle(sideNode)} frameClassName={frame ?? 'h-[75dvh] min-h-[420px]'} returnTo={courseHref(view, sideNode.id)} />
                       </div>
                     )}
                     {prefs.notes && !sideNode && (

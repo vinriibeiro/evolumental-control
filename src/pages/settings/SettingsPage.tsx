@@ -400,7 +400,7 @@ function DataSection() {
           /* sem armazenamento local */
         }
         await invalidateTables(qc, TABLES)
-        toast.success('Progresso zerado. Seu conteúdo (matérias, vídeos, flashcards, livros, áudios e questões) foi mantido.')
+        toast.success('Progresso de estudo zerado.')
         navigate('/')
       } else if (kind === 'reading') {
         await library.resetReadingProgress()

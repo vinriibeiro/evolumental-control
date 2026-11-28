@@ -17,6 +17,7 @@ export const SHORTCUT_MIME = 'application/vnd.google-apps.shortcut'
 export const YOUTUBE_MIME = 'video/x-youtube'
 const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/
 export const isYoutubeMime = (mime: string | null | undefined) => (mime ?? '').toLowerCase() === YOUTUBE_MIME
+export const isHtmlMime = (mime: string | null | undefined) => ['text/html', 'application/xhtml+xml'].includes((mime ?? '').split(';')[0].trim().toLowerCase())
 /** Hosts aceitos em iframes: Drive/Docs e o player sem cookies do YouTube. */
 const EMBED_HOSTS = new Set([...DRIVE_HOSTS, 'www.youtube-nocookie.com'])
 
@@ -46,7 +47,7 @@ export type MaterialKind = 'video' | 'pdf' | 'document' | 'spreadsheet' | 'prese
 export interface MaterialType {
   kind: MaterialKind
   label: string
-  /** Há visualizador incorporado do Google para este tipo? Sem ele, o item fica no catálogo com "Abrir no Drive". */
+  /** O material pode abrir dentro do app. */
   embeddable: boolean
 }
 
@@ -72,6 +73,7 @@ const OFFICE: Record<string, MaterialType> = {
 export function materialType(mime: string | null | undefined): MaterialType {
   const m = (mime ?? '').toLowerCase()
   if (m === 'application/pdf') return { kind: 'pdf', label: 'PDF', embeddable: true }
+  if (isHtmlMime(m)) return { kind: 'text', label: 'HTML', embeddable: true }
   if (m === YOUTUBE_MIME) return { kind: 'video', label: 'Vídeo do YouTube', embeddable: true }
   if (GOOGLE_APPS[m]) return GOOGLE_APPS[m]
   if (OFFICE[m]) return OFFICE[m]
@@ -102,7 +104,7 @@ const withKey = (base: string, resourceKey?: string | null) => (isResourceKey(re
  */
 export function driveEmbedUrl(id: string, mime: string | null | undefined, resourceKey?: string | null): string | null {
   if (isYoutubeMime(mime)) return YOUTUBE_ID.test(id) ? youtubeEmbedUrl({ videoId: id, playlistId: null, start: 0 }) : null
-  if (!isDriveId(id)) return null
+  if (!isDriveId(id) || isHtmlMime(mime)) return null
   const type = materialType(mime)
   if (!type.embeddable) return null
   const m = (mime ?? '').toLowerCase()

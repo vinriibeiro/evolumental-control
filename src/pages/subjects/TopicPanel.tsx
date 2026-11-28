@@ -43,13 +43,11 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
   const cardCount = useCount('flashcards', [eq('topic_id', tid)], { enabled })
   const dueCount = useCount('flashcards', [eq('topic_id', tid), inList('status', ['new', 'learning', 'review']), lte('due_at', minuteIso())], { enabled })
   const reviews = useAll('reviews', { filters: [eq('topic_id', tid)], order: [{ column: 'scheduled_for', ascending: false }] }, { enabled })
-  const questions = useAll('question_records', { filters: [eq('topic_id', tid)] }, { enabled })
   const insertReview = useInsert('reviews')
 
   if (!topic) return null
   const byId = new Map(allTopics.map((t) => [t.id, t]))
   const path = topicPath(byId, topic.parent_id)
-  const qTotals = (questions.data ?? []).reduce((a, q) => ({ total: a.total + q.total, correct: a.correct + q.correct }), { total: 0, correct: 0 })
   const estimate = topic.estimated_minutes ? topic.estimated_minutes * 60 : null
 
   const scheduleReview = async (days: number) => {
@@ -102,7 +100,6 @@ export function TopicPanel({ topic, subject, allTopics, stats, nextReview, onClo
               <Info label="Estimativa" value={estimate ? formatDuration(estimate) : '—'} />
               <Info label="Última sessão" value={stats?.last ? formatDateTime(new Date(stats.last).getTime(), settings.timezone, settings.hourFormat) : '—'} />
               <Info label="Próxima revisão" value={nextReview ? formatDayKey(nextReview, 'long') : '—'} />
-              <Info label="Questões" value={qTotals.total ? `${qTotals.correct}/${qTotals.total} (${Math.round((qTotals.correct / qTotals.total) * 100)}%)` : '—'} />
               <Info label="Concluído em" value={topic.completed_at ? formatDateTime(new Date(topic.completed_at).getTime(), settings.timezone) : '—'} />
             </dl>
             {estimate ? <Progress value={((stats?.seconds ?? 0) / estimate) * 100} label="Tempo estudado em relação à estimativa" /> : null}

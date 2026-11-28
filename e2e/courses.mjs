@@ -60,6 +60,9 @@ await context.route('https://www.googleapis.com/drive/v3/files**', (r) => {
     if (url.searchParams.get('alt') === 'media') return r.fulfill({ contentType: 'application/pdf', body: pdfBytes })
     return json({ id: id('p1'), name: 'Apostila.pdf', mimeType: 'application/pdf', size: String(pdfBytes.length), capabilities: { canDownload: true } })
   }
+  if (m?.[1] === id('handout') && url.searchParams.get('alt') === 'media') {
+    return r.fulfill({ contentType: 'text/html; charset=utf-8', body: '<!doctype html><style>h1{color:rgb(180,0,0)}</style><main><h1>Material HTML da aula</h1><a href="#resumo">Ir ao resumo</a><p id="resumo">Revisão da matéria</p><script>document.body.textContent="Script executado"</script></main>' })
+  }
   if (m) return m[1] === ROOT ? json({ id: ROOT, name: 'Cursos (simulado)', mimeType: F }) : json({ error: { code: 404 } }, 404)
   const parent = /'([^']+)' in parents/.exec(url.searchParams.get('q') ?? '')?.[1]
   const all = tree[parent] ?? []
@@ -76,9 +79,10 @@ const frameSrc = () => page.locator('iframe').getAttribute('src')
 
 try {
   await page.goto(`${base}/cursos`)
+  await page.getByRole('button', { name: 'Importar pasta do Drive' }).click()
   await page.getByText('Nenhuma pasta cadastrada').waitFor()
-  await page.getByText(/ficam só neste navegador/).waitFor()
-  await page.getByRole('button', { name: 'Adicionar pasta do Drive' }).click()
+  await page.getByText('Modo local:').waitFor()
+  await page.getByLabel('Adicionar pasta do Drive').waitFor()
   await page.getByLabel('ID do cliente OAuth do Google').fill('123456789012-abcdefghij.apps.googleusercontent.com')
   await page.getByRole('button', { name: 'Conectar com o Google' }).click()
   await page.getByText('— conectado (só leitura)').waitFor()
@@ -282,6 +286,42 @@ try {
   }
   await noOverflow()
   console.log('OK | PDF do Drive abre em sépia, aceita destaque por toque e retoma a leitura da cópia local')
+
+  const formation = 'Formação Cientista de Dados 4.0 - Data Science Academy'
+  const formationParts = [id('p10-dsa'), id('p1-dsa'), id('p2-dsa')]
+  tree[ROOT].push(...formationParts.map((part, index) => ({ id: part, name: `${formation} (Parte ${[10, 1, 2][index]})`, mimeType: F })))
+  tree[formationParts[0]] = [{ id: id('video10'), name: 'Aula 10.mp4', mimeType: 'video/mp4' }]
+  tree[formationParts[1]] = [{ id: id('handout'), name: 'Material.html', mimeType: 'text/html', resourceKey: 'key-html-example' }]
+  tree[formationParts[2]] = [{ id: id('video2'), name: 'Aula 2.mp4', mimeType: 'video/mp4' }]
+  await page.goto(`${base}/cursos`)
+  await page.getByRole('button', { name: 'Pastas do Drive' }).click()
+  await page.getByRole('button', { name: 'Conectar com o Google' }).click()
+  await page.getByRole('button', { name: 'Atualizar do Drive' }).click()
+  await page.getByRole('button', { name: 'Aplicar atualização' }).click()
+  await page.getByText(/Catálogo atualizado: 6 novo/).waitFor()
+  await page.keyboard.press('Escape')
+  const folder = page.getByRole('link', { name: /Formação Cientista de Dados 4\.0.*Abrir pasta/ })
+  await folder.waitFor()
+  await page.waitForFunction(() => [...document.images].some((image) => image.src.endsWith('dsa-cientista-dados-4.jpg') && image.complete && image.naturalWidth > 0))
+  assert.equal(await page.getByRole('link', { name: `${formation} (Parte 1)`, exact: true }).count(), 0)
+  await folder.click()
+  const parts = page.getByRole('region', { name: 'Partes da formação' })
+  await parts.getByRole('link').first().waitFor()
+  assert.deepEqual((await parts.getByRole('link').allTextContents()).map((title) => title.match(/^Parte (\d+)/)?.[1]), ['1', '2', '10'])
+  await noOverflow()
+  await page.screenshot({ path: `${out}/pasta-formacao.png` })
+  await page.getByRole('link', { name: 'Começar formação' }).click()
+  const htmlRoute = await page.waitForURL((url) => url.searchParams.has('item')).then(() => page.url())
+  await page.getByRole('button', { name: 'Autorizar leitura', exact: true }).click()
+  const htmlFrame = page.frameLocator('iframe[title="HTML: Material.html"]')
+  await htmlFrame.getByRole('heading', { name: 'Material HTML da aula' }).waitFor()
+  assert.equal(page.url(), htmlRoute)
+  assert.equal(await page.locator('iframe[title="HTML: Material.html"]').getAttribute('sandbox'), '')
+  assert.equal(await htmlFrame.getByRole('heading').evaluate((element) => getComputedStyle(element).color), 'rgb(180, 0, 0)')
+  assert.equal(await htmlFrame.getByText('Script executado').count(), 0)
+  await noOverflow()
+  await page.screenshot({ path: `${out}/celular-leitor-html.png` })
+  console.log('OK | pasta com capa e partes ordenadas, abertura automática do HTML selecionado e scripts desativados')
 
   for (const path of ['/videos', '/biblioteca', '/sala']) {
     await page.goto(`${base}${path}`)

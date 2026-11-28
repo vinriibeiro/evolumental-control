@@ -2,8 +2,7 @@
 // Em vez de um ID do Drive, o `drive_id` da aula guarda o ID do vídeo (11 caracteres) e o do curso um identificador
 // fixo "youtube-course-<chave>": os dois respeitam o formato exigido pelo banco (letras, números, "-" e "_", 10 a 128).
 // Nada é baixado: o player incorporado do YouTube (domínio sem cookies) toca o vídeo, como na sala de vídeos.
-import { TEO_SUBJECTS } from '@/content/trailTeo'
-import { topicName, type SubjectDef, type TopicTree } from '@/content/trails'
+import { TEO_COURSES, type YoutubeCourseSource, type YoutubeLessonSource, type YoutubeTopicTree } from '@/content/teoCourses'
 import type { CourseSource } from '@/types/db'
 import { placementKey } from './courseImport'
 import { isDriveId } from './drive'
@@ -36,21 +35,17 @@ export interface YoutubeCoursePlan {
   skipped: string[]
 }
 
-type Leaf = { name: string; url?: string; minutes?: number }
-const isLeaf = (n: TopicTree[number]): n is Leaf => typeof n === 'object' && !Array.isArray(n)
-
-function* leaves(tree: TopicTree): Generator<Leaf> {
+function* leaves(tree: YoutubeTopicTree): Generator<YoutubeLessonSource> {
   for (const node of tree) {
     if (Array.isArray(node)) yield* leaves(node[1])
-    else if (isLeaf(node)) yield node
-    else yield { name: topicName(node) }
+    else yield typeof node === 'string' ? { name: node } : node
   }
 }
 
 export const youtubeCourseId = (key: string) => `youtube-course-${key}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 128)
 
-/** Um curso por matéria da trilha e uma aula por vídeo do YouTube, na ordem da trilha. */
-export function buildYoutubeCourses(subjects: readonly SubjectDef[] = TEO_SUBJECTS): YoutubeCoursePlan[] {
+/** Uma aula por vídeo do catálogo, preservando a ordem do curso. */
+export function buildYoutubeCourses(subjects: readonly YoutubeCourseSource[] = TEO_COURSES): YoutubeCoursePlan[] {
   return subjects.map((s, i) => {
     const driveId = youtubeCourseId(s.key)
     const lessons: YoutubeLessonPlan[] = []

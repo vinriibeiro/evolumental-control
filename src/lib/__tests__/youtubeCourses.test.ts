@@ -32,11 +32,6 @@ describe('plano dos cursos do Téo Me Why (YouTube) para Cursos', () => {
       {
         key: 'x',
         name: 'X',
-        area: 'Tecnologia',
-        color: '#000',
-        icon: 'x',
-        difficulty: 1,
-        description: '',
         topics: [
           'Só texto',
           { name: 'A', url: 'https://youtu.be/abcdefghijk', minutes: 10 },

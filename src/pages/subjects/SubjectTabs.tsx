@@ -1,12 +1,10 @@
-import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ClipboardCheck, Layers, Plus } from 'lucide-react'
+import { Layers } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/layout'
 import { EmptyState, QueryState } from '@/components/ui/feedback'
 import { useAll, useCount } from '@/hooks/data'
 import { eq } from '@/lib/data/types'
-import type { Topic } from '@/types/db'
 
 export function SubjectCardsTab({ subjectId }: { subjectId: string }) {
   const decks = useAll('flashcard_decks', { filters: [eq('subject_id', subjectId)], order: [{ column: 'name' }] })
@@ -42,60 +40,6 @@ export function SubjectCardsTab({ subjectId }: { subjectId: string }) {
             </Link>
           ))}
         </div>
-      )}
-    </QueryState>
-  )
-}
-
-export function SubjectQuestionsTab({ subjectId, topics }: { subjectId: string; topics: Topic[] }) {
-  const records = useAll('question_records', { filters: [eq('subject_id', subjectId)] })
-  const navigate = useNavigate()
-  const rows = useMemo(() => {
-    const m = new Map<string, { total: number; correct: number }>()
-    for (const r of records.data ?? []) {
-      const k = r.topic_id ?? ''
-      const cur = m.get(k) ?? { total: 0, correct: 0 }
-      cur.total += r.total
-      cur.correct += r.correct
-      m.set(k, cur)
-    }
-    const name = new Map(topics.map((t) => [t.id, t.name]))
-    return [...m]
-      .map(([k, v]) => ({ name: k ? (name.get(k) ?? 'Tópico excluído') : 'Matéria (geral)', ...v, rate: v.total ? v.correct / v.total : 0 }))
-      .sort((a, b) => a.rate - b.rate)
-  }, [records.data, topics])
-  return (
-    <QueryState query={records}>
-      <div className="mb-3 flex justify-end">
-        <Button size="sm" icon={<Plus className="size-4" />} onClick={() => navigate(`/questoes?materia=${subjectId}`)}>
-          Registrar questões
-        </Button>
-      </div>
-      {rows.length === 0 ? (
-        <EmptyState icon={<ClipboardCheck className="size-8" />} title="Nenhum registro de questões" />
-      ) : (
-        <Card>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs text-muted">
-                <th className="px-4 py-2 font-medium">Tópico</th>
-                <th className="px-4 py-2 text-right font-medium">Questões</th>
-                <th className="px-4 py-2 text-right font-medium">Acertos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.name} className="border-b border-line last:border-0">
-                  <td className="max-w-0 truncate px-4 py-2 text-ink">{r.name}</td>
-                  <td className="tabular px-4 py-2 text-right">{r.total}</td>
-                  <td className="tabular px-4 py-2 text-right font-medium" style={{ color: r.rate < 0.6 ? 'var(--danger)' : r.rate < 0.8 ? 'var(--warning)' : 'var(--success)' }}>
-                    {Math.round(r.rate * 100)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
       )}
     </QueryState>
   )

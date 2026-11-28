@@ -14,7 +14,6 @@ function session(day: string, minutes: number, subject: string | null = 'sql'): 
 }
 const block = (date: string, minutes: number, subject: string | null = 'sql', status: 'pending' | 'done' | 'partial' | 'missed' | 'rescheduled' = 'done') => ({ date, duration_minutes: minutes, subject_id: subject, status })
 const task = (title: string, date: string, extra: Partial<WeeklyTask> = {}): WeeklyTask => ({ title, date, duration_minutes: null, subject_id: null, topic_id: null, category: 'pessoal', done: false, done_at: null, priority: 2, ...extra })
-const questions = (date: string, total: number, correct: number, topic: string | null = 'join', subject: string | null = 'sql') => ({ date, total, correct, topic_id: topic, subject_id: subject })
 
 const base: WeeklyReportInput = {
   week: WEEK,
@@ -22,13 +21,11 @@ const base: WeeklyReportInput = {
   sessions: [],
   tasks: [],
   planItems: [],
-  questions: [],
   topics: [
     { id: 'join', name: 'JOIN', subject_id: 'sql', completed_at: null },
     { id: 'pandas', name: 'Pandas', subject_id: 'py', completed_at: null },
   ],
   goals: [],
-  projects: [],
   subjects: [
     { id: 'sql', name: 'SQL' },
     { id: 'py', name: 'Python' },
@@ -53,14 +50,13 @@ describe('relatório semanal por regras', () => {
   it('semana vazia: diz que não há dados e não inventa números', () => {
     const r = report({})
     expect(r.hasData).toBe(false)
-    expect(r.totals).toMatchObject({ plannedSeconds: 0, actualSeconds: 0, plannedPercent: null, accuracy: null, tasksTotal: 0, tasksLate: 0 })
+    expect(r.totals).toMatchObject({ plannedSeconds: 0, actualSeconds: 0, plannedPercent: null, tasksTotal: 0, tasksLate: 0 })
     expect(section(r, 'planned').statements.map((s) => s.text).join(' ')).toMatch(/Nenhuma hora de estudo foi planejada/)
     expect(section(r, 'executed').statements.map((s) => s.text).join(' ')).toMatch(/Nenhuma sessão de estudo concluída/)
     expect(section(r, 'advanced').statements).toEqual([])
     expect(section(r, 'behind').statements).toEqual([])
     // Sem dados, a única sugestão possível é planejar a semana.
     expect(rules(r)).toEqual(['noPlan'])
-    expect(r.insufficient.join(' ')).toMatch(/Sem exercícios registrados/)
     expect(weekHeadline(r)).toBe('Semana de 16/11 a 22/11: nada planejado nem registrado.')
   })
 
@@ -69,7 +65,6 @@ describe('relatório semanal por regras', () => {
       planItems: [block('2026-11-16', 240, 'sql'), block('2026-11-17', 120, 'py')],
       sessions: [session('2026-11-16', 60, 'sql'), session('2026-11-17', 120, 'py')],
       tasks: [task('Enviar relatório', '2026-11-18', { priority: 3 })],
-      questions: [questions('2026-11-17', 20, 8)],
     })
     const facts = r.sections.slice(0, 4).flatMap((s) => s.statements)
     expect(facts.length).toBeGreaterThan(5)
@@ -142,52 +137,26 @@ describe('relatório semanal por regras', () => {
     expect(r.totals).toMatchObject({ elapsedDays: 3, tasksLate: 1, idleDays: 1 })
     // Python só está planejado para sexta: ainda não é atraso.
     expect(ids(r, 'behind')).not.toContain('behind.subjects')
-    expect(rules(r)).toEqual(['overdue', 'noExercises'])
+    expect(rules(r)).toEqual(['overdue'])
     expect(section(r, 'behind').statements.find((s) => s.id === 'behind.days')!.text).toMatch(/^Até ontem, fiquei 1 de 2 dias sem estudar/)
-  })
-
-  it('tópico com menor acerto só entra com amostra mínima', () => {
-    const few = report({ sessions: [session('2026-11-16', 30)], questions: [questions('2026-11-16', WEEKLY_THRESHOLDS.minSample - 1, 2)] })
-    expect(rules(few)).not.toContain('lowAccuracy')
-    expect(ids(few, 'behind')).not.toContain('behind.accuracy')
-    expect(few.insufficient.join(' ')).toMatch(/Dados insuficientes para apontar o tópico com mais dificuldade/)
-
-    const enough = report({
-      sessions: [session('2026-11-16', 30)],
-      questions: [questions('2026-11-16', 10, 4, 'join'), questions('2026-11-17', 5, 2, 'join'), questions('2026-11-17', 20, 18, 'pandas', 'py')],
-    })
-    expect(section(enough, 'behind').statements.find((s) => s.id === 'behind.accuracy')!.text).toBe('Menor taxa de acerto da semana: JOIN (SQL), com 40% em 15 questões.')
-    const rec = enough.recommendations.find((x) => x.ruleId === 'lowAccuracy')!
-    expect(rec.text).toContain('JOIN (SQL)')
-    expect(rec.data).toMatchObject({ acerto_pct: 40, questoes: 15 })
-    expect(enough.insufficient).toEqual([])
-
-    // Acerto alto não é ponto de atenção, mesmo sendo o menor da semana.
-    const good = report({ questions: [questions('2026-11-16', 20, 18, 'join')] })
-    expect(rules(good)).not.toContain('lowAccuracy')
   })
 
   it('compara com a semana anterior só quando há base', () => {
     const r = report({
       sessions: [session('2026-11-10', 120), session('2026-11-17', 180)],
-      questions: [questions('2026-11-10', 20, 10), questions('2026-11-17', 20, 15)],
     })
     expect(section(r, 'executed').statements.find((s) => s.id === 'executed.compare')!.text).toBe('Na semana anterior foram 2h 00min: +1h 00min (+50%).')
-    expect(section(r, 'advanced').statements.find((s) => s.id === 'advanced.accuracy')!.text).toBe('A taxa de acerto subiu de 50% (20 questões) para 75% (20 questões).')
 
-    const noBase = report({ sessions: [session('2026-11-17', 60)], questions: [questions('2026-11-10', 3, 3), questions('2026-11-17', 20, 15)] })
+    const noBase = report({ sessions: [session('2026-11-17', 60)] })
     expect(section(noBase, 'executed').statements.find((s) => s.id === 'executed.compare')!.text).toBe('Não há estudo registrado na semana anterior para comparar.')
-    expect(ids(noBase, 'advanced')).not.toContain('advanced.accuracy')
-    expect(noBase.insufficient.join(' ')).toMatch(/comparar a taxa de acerto/)
   })
 
   it('metas: cumpridas viram avanço; por entregas com prazo e quase cumpridas viram sugestões', () => {
     const goal = (over: Partial<StudyGoal>): StudyGoal => ({ id: 'g', title: null, metric: 'questions', period: 'weekly', target: 20, subject_id: null, status: 'active', start_date: '2026-11-01', end_date: null, previous_goal_id: null, kind: 'metric', checklist: null, due_date: null, done_at: null, ...over }) as StudyGoal
     const r = report({
       sessions: [session('2026-11-16', 120), session('2026-11-17', 60)],
-      questions: [questions('2026-11-16', 15, 14)],
       goals: [
-        goal({ id: 'q', title: 'Questões da semana', target: 20 }), // 15 de 20 = 75%
+        goal({ id: 'q', title: 'Rotina de estudo', metric: 'study_hours', target: 4 }), // 3 de 4 horas = 75%
         goal({ id: 'h', title: 'Horas', metric: 'study_hours', target: 3 }), // cumprida
         goal({ id: 'p', title: 'Pausada', metric: 'sessions', target: 99, status: 'paused' }),
         goal({
@@ -209,7 +178,7 @@ describe('relatório semanal por regras', () => {
     expect(section(r, 'advanced').statements.find((s) => s.id === 'advanced.goals')!.text).toContain('"Horas" (3h 00min de 3h 00min)')
     expect(section(r, 'behind').statements.find((s) => s.id === 'behind.goals')!.text).toContain('"Concluir JOIN" em 50% (1 de 2 entregas)')
     expect(r.recommendations.find((x) => x.ruleId === 'goalDeadline')!.text).toBe('Conclua as entregas da meta "Concluir JOIN" (prazo 25/11): Resolver 20 exercícios.')
-    expect(r.recommendations.find((x) => x.ruleId === 'goalNear')!.text).toContain('"Questões da semana" ficou perto do alvo: 15 de 20 (75%)')
+    expect(r.recommendations.find((x) => x.ruleId === 'goalNear')!.text).toContain('"Rotina de estudo" ficou perto do alvo: 3h 00min de 4h 00min (75%)')
   })
 
   it('nunca passa de cinco sugestões e mantém a ordem de prioridade', () => {
@@ -217,19 +186,18 @@ describe('relatório semanal por regras', () => {
       planItems: [block('2026-11-16', 240, 'sql'), block('2026-11-17', 240, 'py')],
       sessions: [session('2026-11-16', 70, 'sql')],
       tasks: [task('Atrasada', '2026-11-16')],
-      questions: [questions('2026-11-16', 12, 3)],
       goals: [
         { id: 'd', title: 'Entregas', metric: 'topics_completed', period: 'weekly', target: 1, subject_id: null, status: 'active', start_date: '2026-11-01', end_date: null, previous_goal_id: null, kind: 'deliverable', checklist: [{ id: '1', text: 'Item', done: false }], due_date: '2026-11-20', done_at: null } as StudyGoal,
-        { id: 's', title: 'Dias de estudo', metric: 'questions', period: 'weekly', target: 15, subject_id: null, status: 'active', start_date: '2026-11-01', end_date: null, previous_goal_id: null, kind: 'metric', checklist: null, due_date: null, done_at: null } as StudyGoal,
+        { id: 's', title: 'Dias de estudo', metric: 'study_days', period: 'weekly', target: 1.3, subject_id: null, status: 'active', start_date: '2026-11-01', end_date: null, previous_goal_id: null, kind: 'metric', checklist: null, due_date: null, done_at: null } as StudyGoal,
       ],
     })
     expect(r.recommendations).toHaveLength(WEEKLY_THRESHOLDS.maxRecommendations)
-    expect(rules(r)).toEqual(['overdue', 'belowPlan', 'lowAccuracy', 'goalDeadline', 'goalNear'])
+    expect(rules(r)).toEqual(['overdue', 'belowPlan', 'goalDeadline', 'goalNear', 'idleDays'])
   })
 
-  it('estudo sem exercícios e dias vazios geram sugestões próprias', () => {
+  it('dias vazios geram uma sugestão de constância', () => {
     const r = report({ planItems: [block('2026-11-16', 60, 'sql')], sessions: [session('2026-11-16', 90, 'sql')] })
-    expect(rules(r)).toEqual(['idleDays', 'noExercises'])
+    expect(rules(r)).toEqual(['idleDays'])
     expect(r.recommendations[0].text).toBe('Reserve um bloco curto de estudo (25 min) nos dias que ficaram vazios: terça, quarta, quinta, sexta, sábado e domingo.')
   })
 
@@ -244,7 +212,7 @@ describe('relatório semanal por regras', () => {
     expect(new Set(rows.map((x) => x.tipo))).toEqual(new Set(['Dado', 'Sugestão por regra', '']))
     expect(rows.filter((x) => x.tipo === 'Sugestão por regra').every((x) => x.regra.startsWith('Regra: '))).toBe(true)
     expect(rows.filter((x) => x.tipo === 'Dado').every((x) => x.regra === '')).toBe(true)
-    expect(rows.find((x) => x.secao === 'Por matéria')).toMatchObject({ texto: 'SQL', dados: 'planejado_min=240; realizado_min=60; questoes=0; acertos=0; topicos_concluidos=0' })
+    expect(rows.find((x) => x.secao === 'Por matéria')).toMatchObject({ texto: 'SQL', dados: 'planejado_min=240; realizado_min=60; topicos_concluidos=0' })
     expect(rows.filter((x) => x.secao === 'Por dia')).toHaveLength(7)
     const doc = weeklyReportDocument(r)
     expect(doc.subtitle).toBe('Semana de 16 de novembro de 2026 a 22 de novembro de 2026')

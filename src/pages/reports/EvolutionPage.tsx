@@ -1,23 +1,21 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, Download, FileText, Minus } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, PageHeader, Progress, Segmented, StatCard } from '@/components/ui/layout'
 import { ErrorState, Skeleton, useToast } from '@/components/ui/feedback'
-import { ChartCard, ColumnChart, ConsistencyGrid, RankBars, TrendLine } from '@/components/charts/Charts'
+import { ChartCard, ColumnChart, ConsistencyGrid, RankBars } from '@/components/charts/Charts'
 import { PeriodPicker, describeRange, usePeriod } from '@/components/PeriodPicker'
 import { useAll, useSessions } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
 import { useSettings } from '@/hooks/useSettings'
 import { eq, gte, lte } from '@/lib/data/types'
 import { downloadCsv, downloadPdf } from '@/lib/download'
-import { MIN_SAMPLE, lastMonths, lastWeeks, previousRange } from '@/lib/evolution'
+import { lastMonths, lastWeeks, previousRange } from '@/lib/evolution'
 import type { GoalSnapshot } from '@/lib/goals'
-import { TRACK_LABELS } from '@/lib/labels'
 import { breakdown, series } from '@/lib/stats'
-import { dayKey, formatDateTime, formatDayKey, formatDuration, formatHours, todayKey, zonedDayStart } from '@/lib/time'
-import type { Assessment } from '@/types/db'
-import { INSUFFICIENT, accuracyLabel, buildEvolution, evolutionDailyRows, evolutionDocument, evolutionSummaryRows, seriesFor, type ComparisonRow, type EvolutionInput } from './evolutionModel'
+import { formatDateTime, formatDayKey, formatDuration, formatHours, todayKey, zonedDayStart } from '@/lib/time'
+import { buildEvolution, evolutionDailyRows, evolutionDocument, evolutionSummaryRows, seriesFor, type ComparisonRow, type EvolutionInput } from './evolutionModel'
 
 const PLANNED = { key: 'plannedHours', label: 'Planejado', color: 'var(--series-4)' }
 const ACTUAL = { key: 'actualHours', label: 'Realizado', color: 'var(--series-1)' }
@@ -47,13 +45,9 @@ export default function EvolutionPage() {
   const sessions = useSessions({ filters: [eq('status', 'completed')], order: [{ column: 'started_at' }] })
   const planItems = useAll('study_plan_items', { filters: [gte('date', windowFrom), lte('date', windowTo)] }, { keepPrevious: true })
   const tasks = useAll('calendar_tasks', { filters: [gte('date', windowFrom), lte('date', windowTo)] }, { keepPrevious: true })
-  const questions = useAll('question_records', { filters: [gte('date', windowFrom), lte('date', windowTo)] }, { keepPrevious: true })
   const reviews = useAll('flashcard_reviews', { filters: [gte('reviewed_at', windowIso)] }, { keepPrevious: true })
   const goals = useAll('study_goals')
-  const projects = useAll('projects')
-  const assessments = useAll('assessments', { order: [{ column: 'taken_at' }] })
-
-  const queries = [sessions, planItems, tasks, questions, reviews, goals, projects]
+  const queries = [sessions, planItems, tasks, reviews, goals]
   const failed = queries.find((x) => x.isError)
   const loading = queries.some((x) => x.isPending) || lookups.loading
 
@@ -66,14 +60,12 @@ export default function EvolutionPage() {
       sessions: sessions.data ?? [],
       planItems: planItems.data ?? [],
       tasks: tasks.data ?? [],
-      questions: questions.data ?? [],
       topics: lookups.topics,
       subjects: lookups.subjects,
-      projects: projects.data ?? [],
       goals: goals.data ?? [],
       flashcardReviews: reviews.data ?? [],
     }),
-    [state.kind, range, today, tz, sessions.data, planItems.data, tasks.data, questions.data, lookups.topics, lookups.subjects, projects.data, goals.data, reviews.data],
+    [state.kind, range, today, tz, sessions.data, planItems.data, tasks.data, lookups.topics, lookups.subjects, goals.data, reviews.data],
   )
   const model = useMemo(() => buildEvolution(input), [input])
   const trendData = useMemo(() => seriesFor(input, trend === 'week' ? weeksRange : monthsRange, trend), [input, trend, weeksRange.from, weeksRange.to, monthsRange.from, monthsRange.to]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,21 +92,16 @@ export default function EvolutionPage() {
   if (failed) return <ErrorState error={failed.error} onRetry={() => failed.refetch()} />
 
   const m = model
-  const hoursData = m.series.map((p) => ({ key: p.key, plannedHours: p.plannedHours, actualHours: p.actualHours, questions: p.questions }))
+  const hoursData = m.series.map((p) => ({ key: p.key, plannedHours: p.plannedHours, actualHours: p.actualHours }))
   const trendHours = trendData.map((p) => ({ key: p.key, plannedHours: p.plannedHours, actualHours: p.actualHours }))
   const xLabel = (key: string) => m.series.find((p) => p.key === key)?.label ?? key
   const trendLabel = (key: string) => trendData.find((p) => p.key === key)?.label ?? key
-  const questionPoints = m.series.filter((p) => p.questions > 0)
-  const accuracyPoints = m.series.filter((p) => p.accuracy != null)
-  const unit = m.granularity === 'day' ? 'dias' : m.granularity === 'week' ? 'semanas' : 'meses'
-  const weakest = (items: typeof m.difficulty.topics) => items.map((d, i) => ({ label: d.name, value: d.accuracy, note: `${d.total} questões`, color: i === 0 && d.accuracy < 70 ? 'var(--accent)' : undefined }))
-  const belowNote = (n: number, one: string, many: string) => (n > 0 ? `${n} ${n === 1 ? one : many} com menos de ${MIN_SAMPLE} questões ${n === 1 ? 'ficou' : 'ficaram'} de fora.` : undefined)
 
   return (
     <div>
       <PageHeader
         title="Evolução"
-        description="Planejado × realizado, atividades, exercícios, metas e constância — só o que está nos seus registros. Quando falta base para um número, a tela diz que os dados são insuficientes."
+        description="Acompanhe o tempo de estudo, as atividades concluídas e a regularidade das suas sessões."
         actions={
           <>
             <Button size="sm" icon={<Download className="size-4" />} onClick={() => downloadCsv(evolutionSummaryRows(m), `evolucao-resumo-${slug}.csv`)} disabled={loading}>
@@ -142,14 +129,13 @@ export default function EvolutionPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <section aria-label="Resumo do período" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <section aria-label="Resumo do período" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
             <StatCard label="Horas estudadas" value={formatDuration(m.hours.actual)} hint={m.hours.percent == null ? 'Sem horas planejadas no período' : `${pct(m.hours.percent)} do planejado · ${formatHours(m.hours.planned)}`}>
               {m.hours.percent != null && <Progress value={m.hours.percent} label="Realizado em relação ao planejado" />}
             </StatCard>
             <StatCard label="Atividades concluídas" value={m.tasks.rate == null ? '—' : `${m.tasks.done}/${m.tasks.total}`} hint={m.tasks.rate == null ? 'Nenhuma atividade no período' : `${pct(m.tasks.rate)} de conclusão`}>
               {m.tasks.rate != null && <Progress value={m.tasks.rate} label="Taxa de conclusão das atividades" />}
             </StatCard>
-            <StatCard label="Exercícios e questões" value={m.questions.total.toLocaleString('pt-BR')} hint={m.questions.total === 0 ? 'Sem registros no período' : m.questions.total < MIN_SAMPLE ? `Acerto: ${INSUFFICIENT.toLowerCase()}` : `${pct(m.questions.accuracy!)} de acerto`} />
             <StatCard
               label="Dias com estudo"
               value={`${m.consistency.studied}/${m.consistency.elapsed}`}
@@ -193,47 +179,6 @@ export default function EvolutionPage() {
 
             <GoalsCard met={m.goals.met} pending={m.goals.pending} />
 
-            <ChartCard
-              title="Exercícios resolvidos"
-              description="Volume de exercícios e questões registrados"
-              summary={`${m.questions.total} exercícios e questões no período.`}
-              empty={m.questions.total === 0 ? 'Nenhum exercício registrado no período.' : null}
-              table={{ columns: ['Período', 'Questões', 'Acertos'], rows: questionPoints.map((p) => [p.label, p.questions, p.correct]) }}
-            >
-              <ColumnChart data={hoursData} series={[{ key: 'questions', label: 'Questões', color: 'var(--series-2)' }]} xKey="key" format={(n) => String(n)} xFormat={xLabel} />
-            </ChartCard>
-
-            <ChartCard
-              title="Taxa de acerto"
-              description={`Acertos ÷ questões; só entram pontos com ${MIN_SAMPLE} ou mais questões`}
-              summary={m.questions.accuracy == null ? 'Sem questões no período.' : `Acerto no período: ${accuracyLabel(m.questions)}.`}
-              // Uma linha com um ponto só não mostra tendência.
-              empty={accuracyPoints.length < 2 ? `${INSUFFICIENT}: é preciso ter ${MIN_SAMPLE} ou mais questões em pelo menos 2 ${unit} para mostrar a tendência.` : null}
-              table={{ columns: ['Período', 'Acerto (%)', 'Questões'], rows: accuracyPoints.map((p) => [p.label, p.accuracy!, p.questions]) }}
-            >
-              <TrendLine data={m.series.map((p) => ({ key: p.key, accuracy: p.accuracy }))} series={[{ key: 'accuracy', label: 'Acerto', color: 'var(--series-1)' }]} xKey="key" format={(n) => `${n}%`} xFormat={xLabel} domain={[0, 100]} />
-            </ChartCard>
-
-            <ChartCard
-              title="Matérias com mais dificuldade"
-              description={`Menor taxa de acerto primeiro · mínimo de ${MIN_SAMPLE} questões no período`}
-              empty={m.difficulty.subjects.length === 0 ? `${INSUFFICIENT}: nenhuma matéria com ${MIN_SAMPLE} ou mais questões no período.` : null}
-              table={{ columns: ['Matéria', 'Acerto (%)', 'Questões'], rows: m.difficulty.subjects.map((d) => [d.name, Math.round(d.accuracy), d.total]) }}
-            >
-              <RankBars items={weakest(m.difficulty.subjects)} format={pct} max={100} />
-              <FootNote>{belowNote(m.difficulty.subjectsBelowSample, 'matéria', 'matérias')}</FootNote>
-            </ChartCard>
-
-            <ChartCard
-              title="Tópicos com mais dificuldade"
-              description={`Menor taxa de acerto primeiro · mínimo de ${MIN_SAMPLE} questões no período`}
-              empty={m.difficulty.topics.length === 0 ? `${INSUFFICIENT}: nenhum tópico com ${MIN_SAMPLE} ou mais questões no período.` : null}
-              table={{ columns: ['Tópico', 'Acerto (%)', 'Questões'], rows: m.difficulty.topics.map((d) => [d.name, Math.round(d.accuracy), d.total]) }}
-            >
-              <RankBars items={weakest(m.difficulty.topics.slice(0, 8))} format={pct} max={100} />
-              <FootNote>{belowNote(m.difficulty.topicsBelowSample, 'tópico', 'tópicos')}</FootNote>
-            </ChartCard>
-
             <ChartCard title="Constância" description="Últimas 16 semanas: um quadrado por dia, mais escuro com mais tempo" className="lg:col-span-2">
               <ConsistencyGrid days={grid} format={(s) => formatDuration(s)} />
               <p className="mt-3 text-sm text-muted">
@@ -243,15 +188,10 @@ export default function EvolutionPage() {
             </ChartCard>
           </div>
 
-          <Diagnostics rows={assessments.data ?? []} tz={tz} />
         </div>
       )}
     </div>
   )
-}
-
-function FootNote({ children }: { children?: ReactNode }) {
-  return children ? <p className="mt-3 text-xs text-muted">{children}</p> : null
 }
 
 const DIRECTION_ICON = { up: ArrowUpRight, down: ArrowDownRight, same: Minus, none: null } as const
@@ -343,48 +283,6 @@ function GoalsCard({ met, pending }: { met: GoalSnapshot[]; pending: GoalSnapsho
           {total > 8 && <li className="text-xs text-muted">e mais {total - 8} em Metas.</li>}
         </ul>
       )}
-    </Card>
-  )
-}
-
-/** Histórico de diagnósticos: cada tentativa com acertos reais e a diferença para a tentativa anterior da mesma trilha. */
-function Diagnostics({ rows, tz }: { rows: Assessment[]; tz: string }) {
-  if (rows.length === 0) return null
-  const sorted = [...rows].sort((a, b) => a.taken_at.localeCompare(b.taken_at))
-  const last = new Map<string, Assessment>()
-  const list = sorted.map((a) => {
-    const before = last.get(a.track)
-    last.set(a.track, a)
-    return { a, before }
-  })
-  return (
-    <Card>
-      <CardHeader title="Diagnósticos" description="Resultado de cada tentativa (acertos ÷ questões) e a diferença para a tentativa anterior da mesma trilha." />
-      <div className="scroll-thin overflow-x-auto px-5 pt-3 pb-4">
-        <table className="w-full min-w-[440px] text-sm">
-          <caption className="sr-only">Histórico de diagnósticos</caption>
-          <thead>
-            <tr className="border-b border-line text-left text-xs text-muted">
-              <th scope="col" className="py-2 pr-3 font-medium">Trilha</th>
-              <th scope="col" className="px-3 py-2 font-medium">Data</th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">Acertos</th>
-              <th scope="col" className="py-2 pl-3 text-right font-medium">Tentativa anterior</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.reverse().slice(0, 10).map(({ a, before }) => (
-              <tr key={a.id} className="border-b border-line last:border-0">
-                <th scope="row" className="py-2 pr-3 text-left font-normal text-ink">{TRACK_LABELS[a.track] ?? a.track}</th>
-                <td className="px-3 py-2 text-muted">{formatDayKey(dayKey(new Date(a.taken_at).getTime(), tz))}</td>
-                <td className="tabular px-3 py-2 text-right font-medium text-ink">
-                  {a.correct} de {a.total}
-                </td>
-                <td className="tabular py-2 pl-3 text-right text-muted">{before ? `${before.correct} de ${before.total}` : 'Primeira tentativa'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </Card>
   )
 }

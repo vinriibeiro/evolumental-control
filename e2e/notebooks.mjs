@@ -149,6 +149,25 @@ try {
     firstPageUrl = page.url()
   })
 
+  await step('03b. Cria página da tela inicial no caderno e na seção escolhidos', async () => {
+    await page.goto(`${BASE}/cadernos`)
+    await page.getByRole('button', { name: 'Nova página', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Nova página' })
+    await dialog.getByLabel('Título da página').fill('Resumo de funções')
+    await dialog.getByLabel('Caderno').selectOption({ label: 'SQL & Modelagem' })
+    await dialog.getByLabel('Seção').selectOption({ label: 'Consultas Analíticas › Window Functions' })
+    await dialog.getByRole('button', { name: 'Criar página' }).click()
+    await page.waitForURL(/\/cadernos\/[^/]+\/pagina\/[^/]+$/)
+    await page.getByLabel('Título da página').waitFor()
+    assert.equal(await page.getByLabel('Título da página').inputValue(), 'Resumo de funções')
+    const immediatePage = page.url()
+    await page.goto(`${BASE}/cadernos`)
+    await page.getByRole('link', { name: /Retomar última página.*Resumo de funções/ }).click()
+    await page.waitForURL(immediatePage)
+    await page.goto(firstPageUrl)
+    await page.getByLabel('Título da página').waitFor()
+  })
+
   // 4. Edição rica em blocos + slash menu + código + autosave + persistência pós-reload
   await step('04. Edita página com blocos ricos, autosave e confirma após reload', async () => {
     const editor = page.locator('.kb-prosemirror')
@@ -311,7 +330,8 @@ try {
     await d.getByRole('button', { name: 'Fechar' }).first().click()
 
     await page.goto(`${BASE}/cadernos`, { waitUntil: 'networkidle' })
-    await page.getByRole('button', { name: 'Importar' }).click()
+    await page.getByRole('button', { name: 'Mais ações dos cadernos' }).click()
+    await page.getByRole('menuitem', { name: 'Importar caderno' }).click()
     const imp = page.getByRole('dialog')
     await imp.locator('input[type="file"]').setInputFiles({
       name: 'estatistica-basica.md',

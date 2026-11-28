@@ -1,87 +1,63 @@
 import { describe, expect, it } from 'vitest'
 import { MENU, NAV, groupFor, tabsFor, titleFor } from '../nav'
 
-describe('navegação: sete áreas focadas em Dados, Cursos do Drive, Meus Cadernos e Organização', () => {
-  it('tem exatamente as sete áreas principais, nesta ordem', () => {
-    expect(MENU.map((g) => g.label)).toEqual([
-      'Meu Planejamento',
-      'Cursos do Drive',
-      'Estudos em Dados',
-      'Meus Cadernos',
-      'Sala de Estudos',
-      'Metas e Evolução',
-      'Configurações',
+describe('navegação do VLM', () => {
+  it('organiza as áreas na ordem de uso', () => {
+    expect(MENU.map(({ label, to }) => [label, to])).toEqual([
+      ['Meu Planejamento', '/'],
+      ['Meus Cursos', '/cursos'],
+      ['Meus Livros', '/biblioteca'],
+      ['Meus Cadernos', '/cadernos'],
+      ['Sala de Estudos', '/sala'],
+      ['Configurações', '/configuracoes'],
     ])
-    expect(MENU[0].to).toBe('/')
-    expect(MENU[1].to).toBe('/cursos')
-    expect(MENU[3].to).toBe('/cadernos')
   })
 
-  it('cada rota pertence a uma única área e o item do menu abre uma das suas abas', () => {
-    const all = MENU.flatMap((g) => [...g.tabs.map((t) => t.to), ...(g.also ?? [])])
-    expect(new Set(all).size).toBe(all.length)
-    for (const g of MENU) expect(g.tabs.some((t) => t.to === g.to)).toBe(true)
-  })
-
-  it('mantém toda organização e rotas de dados/cursos alcançáveis, sem inglês', () => {
-    const expected: Record<string, string> = {
-      '/': 'Meu Planejamento',
-      '/ciclos': 'Meu Planejamento',
-      '/rotinas': 'Meu Planejamento',
-      '/revisoes': 'Meu Planejamento',
-      '/cursos': 'Cursos do Drive',
-      '/cursos/abc': 'Cursos do Drive',
-      '/biblioteca': 'Cursos do Drive',
-      '/livros/abc': 'Cursos do Drive',
-      '/audios': 'Cursos do Drive',
-      '/videos': 'Cursos do Drive',
-      '/trilhas': 'Estudos em Dados',
-      '/projetos': 'Estudos em Dados',
-      '/laboratorio': 'Estudos em Dados',
-      '/diagnostico/sql': 'Estudos em Dados',
-      '/materias/123': 'Estudos em Dados',
-      '/flashcards/revisar': 'Estudos em Dados',
-      '/banco-de-questoes': 'Estudos em Dados',
-      '/cadernos': 'Meus Cadernos',
-      '/cadernos/favoritos': 'Meus Cadernos',
-      '/cadernos/recentes': 'Meus Cadernos',
-      '/cadernos/conexoes': 'Meus Cadernos',
-      '/cadernos/lixeira': 'Meus Cadernos',
-      '/cadernos/abc': 'Meus Cadernos',
-      '/cadernos/abc/pagina/xyz': 'Meus Cadernos',
-      '/sala': 'Sala de Estudos',
-      '/sala/historico': 'Sala de Estudos',
-      '/cronometro': 'Sala de Estudos',
-      '/metas': 'Metas e Evolução',
-      '/evolucao': 'Metas e Evolução',
-      '/relatorio-semanal': 'Metas e Evolução',
-      '/questoes': 'Metas e Evolução',
-      '/configuracoes': 'Configurações',
+  it('cada rota pertence a uma única área e a busca alcança as abas', () => {
+    const paths = MENU.flatMap((group) => [...group.tabs.map((tab) => tab.to), ...(group.also ?? [])])
+    expect(new Set(paths).size).toBe(paths.length)
+    for (const group of MENU) expect(group.tabs.some((tab) => tab.to === group.to)).toBe(true)
+    const searchPaths = NAV.map((item) => item.to)
+    expect(new Set(searchPaths).size).toBe(searchPaths.length)
+    for (const path of ['/', '/materias', '/ciclos', '/revisoes', '/cursos', '/biblioteca', '/cadernos', '/sala', '/metas', '/flashcards']) {
+      expect(searchPaths).toContain(path)
     }
-    for (const [path, label] of Object.entries(expected)) expect(groupFor(path)?.label, path).toBe(label)
-    expect(groupFor('/ingles')).toBeUndefined()
-    expect(groupFor('/nao-existe')).toBeUndefined()
-    expect(titleFor('/cursos/abc')).toBe('Cursos do Drive')
+  })
+
+  it('mantém os detalhes nas áreas correspondentes', () => {
+    const expected = {
+      '/materias/123': 'Meu Planejamento',
+      '/flashcards/revisar': 'Meu Planejamento',
+      '/cursos/pastas/formacao-dsa': 'Meus Cursos',
+      '/cursos/123/pdf/456': 'Meus Cursos',
+      '/livros/123': 'Meus Livros',
+      '/biblioteca/123': 'Meus Livros',
+      '/cadernos/123/pagina/456': 'Meus Cadernos',
+      '/cronometro': 'Sala de Estudos',
+      '/evolucao': 'Sala de Estudos',
+      '/relatorio-semanal': 'Sala de Estudos',
+    }
+    for (const [path, title] of Object.entries(expected)) {
+      expect(groupFor(path)?.label, path).toBe(title)
+      expect(titleFor(path)).toBe(title)
+    }
     expect(titleFor('/nao-existe')).toBe('VLM Control')
   })
 
-  it('mostra as abas só nas páginas principais da área', () => {
-    expect(tabsFor('/').map((t) => t.label)).toEqual(['Planejamento', 'Ciclo de estudos', 'Rotinas', 'Revisões'])
-    expect(tabsFor('/cursos').map((t) => t.label)).toEqual(['Meus Cursos', 'Estante', 'Vídeos', 'Áudios'])
-    expect(tabsFor('/cadernos').map((t) => t.label)).toEqual(['Cadernos', 'Favoritos', 'Recentes', 'Conexões', 'Lixeira'])
-    expect(tabsFor('/cadernos/abc')).toEqual([])
-    expect(tabsFor('/cadernos/abc/pagina/xyz')).toEqual([])
-    expect(tabsFor('/metas').map((t) => t.label)).toEqual(['Metas', 'Evolução', 'Relatório semanal', 'Exercícios'])
-    expect(tabsFor('/sala/historico').map((t) => t.label)).toEqual(['Sessão', 'Histórico'])
-    expect(tabsFor('/livros/abc')).toEqual([])
-    expect(tabsFor('/materias/123')).toEqual([])
-    expect(tabsFor('/configuracoes')).toEqual([])
+  it('remove as áreas de trilhas, rotinas prontas e questões da navegação e da busca', () => {
+    for (const path of ['/trilhas', '/rotinas', '/projetos', '/diagnostico/sql', '/questoes', '/banco-de-questoes', '/cgu', '/laboratorio']) {
+      expect(groupFor(path), path).toBeUndefined()
+      expect(NAV.some((item) => item.to === path)).toBe(false)
+    }
   })
 
-  it('a busca (Ctrl K) lista as páginas sem repetir endereço e sem inglês', () => {
-    const tos = NAV.map((n) => n.to)
-    expect(new Set(tos).size).toBe(tos.length)
-    expect(tos).not.toContain('/ingles')
-    for (const to of ['/', '/cursos', '/trilhas', '/cadernos', '/biblioteca', '/sala', '/metas', '/configuracoes']) expect(tos).toContain(to)
+  it('mostra abas nas páginas principais de cada área', () => {
+    expect(tabsFor('/').map((tab) => tab.label)).toEqual(['Planejamento', 'Matérias', 'Ciclo de estudos', 'Revisões'])
+    expect(tabsFor('/cursos').map((tab) => tab.label)).toEqual(['Meus Cursos', 'Vídeos', 'Áudios'])
+    expect(tabsFor('/cadernos').map((tab) => tab.label)).toEqual(['Cadernos', 'Favoritos', 'Recentes', 'Conexões', 'Lixeira'])
+    expect(tabsFor('/sala/historico').map((tab) => tab.label)).toEqual(['Sessão', 'Histórico', 'Metas', 'Evolução', 'Relatório semanal'])
+    for (const path of ['/cadernos/123', '/cursos/pastas/formacao-dsa', '/livros/123', '/materias/123', '/configuracoes']) {
+      expect(tabsFor(path), path).toEqual([])
+    }
   })
 })

@@ -4,17 +4,16 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Archive,
   ArchiveRestore,
+  ArrowRight,
   BookOpen,
   Clock,
   FilePlus2,
   FileText,
   Flag,
   Grid2x2,
-  Layers,
   List,
   Pencil,
   Plus,
-  RotateCcw,
   Search,
   Star,
   Tag,
@@ -23,11 +22,11 @@ import {
 } from 'lucide-react'
 import { useBackend } from '@/app/data'
 import { Button, IconButton } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Field'
+import { Field, Input, Select } from '@/components/ui/Field'
 import { ActionMenu, MenuItem } from '@/components/ui/Menu'
-import { Badge, Card, PageHeader, Segmented, StatCard } from '@/components/ui/layout'
+import { Modal } from '@/components/ui/Modal'
+import { Badge, Card, PageHeader, Segmented } from '@/components/ui/layout'
 import { EmptyState, QueryState, useToast } from '@/components/ui/feedback'
-import { useAll } from '@/hooks/data'
 import { useLookups } from '@/hooks/domain'
 import { useDebounced } from '@/hooks/useDebounced'
 import {
@@ -39,8 +38,8 @@ import {
   useNotebookTags,
   useNotebooks,
 } from '@/hooks/useNotebooks'
-import { eq } from '@/lib/data/types'
-import { coverStyle, PAGE_STATUS_LABELS } from '@/lib/notebooks'
+import { eq, isNull } from '@/lib/data/types'
+import { coverStyle, nodeBreadcrumb, PAGE_STATUS_LABELS } from '@/lib/notebooks'
 import { cn } from '@/lib/cn'
 import type { Notebook } from '@/types/db'
 import { NotebookImportModal } from './ExportImportModal'
@@ -92,7 +91,6 @@ export default function NotebooksHomePage() {
   const cardLinksQuery = useNotebookFlashcardLinks()
   const tagsQuery = useNotebookTags()
   const tagLinksQuery = useNotebookTagLinks()
-  const reviewsQuery = useAll('reviews', { filters: [eq('status', 'planned')] })
 
   const nbMut = useNotebookMutations()
   const nodeMut = useNotebookNodeMutations()
@@ -107,6 +105,7 @@ export default function NotebooksHomePage() {
   const [tagsOpen, setTagsOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editing, setEditing] = useState<Notebook | null>(null)
+  const [capture, setCapture] = useState<{ notebookId: string; parentId: string; title: string } | null>(null)
 
   const allNotebooks = useMemo(() => notebooksQuery.data ?? [], [notebooksQuery.data])
   const activeNotebooks = useMemo(() => allNotebooks.filter((n) => !n.archived_at), [allNotebooks])
@@ -120,7 +119,6 @@ export default function NotebooksHomePage() {
     [nodesQuery.data, activeNotebookIds],
   )
   const activePages = useMemo(() => nodesInActiveNotebooks.filter((n) => n.node_type === 'page'), [nodesInActiveNotebooks])
-  const activeSectionsCount = nodesInActiveNotebooks.length - activePages.length
 
   const pageCountByNotebook = useMemo(() => {
     const map = new Map<string, number>()
@@ -138,28 +136,13 @@ export default function NotebooksHomePage() {
     return map
   }, [cardLinksQuery.data])
 
-  // Revisões pendentes relacionadas às matérias/tópicos vinculados aos cadernos ativos
-  const pendingNotebookReviews = useMemo(() => {
-    const nbSubjectIds = new Set<string>()
-    const nbTopicIds = new Set<string>()
-    for (const nb of activeNotebooks) if (nb.subject_id) nbSubjectIds.add(nb.subject_id)
-    for (const node of nodesInActiveNotebooks) {
-      if (node.subject_id) nbSubjectIds.add(node.subject_id)
-      if (node.topic_id) nbTopicIds.add(node.topic_id)
-    }
-    if (nbSubjectIds.size === 0 && nbTopicIds.size === 0) return 0
-    return (reviewsQuery.data ?? []).filter(
-      (r) => (r.topic_id && nbTopicIds.has(r.topic_id)) || (r.subject_id && nbSubjectIds.has(r.subject_id)),
-    ).length
-  }, [activeNotebooks, nodesInActiveNotebooks, reviewsQuery.data])
-
   // Busca sob demanda por texto, código, tags, matérias e tópicos (evita carregar todos os documentos sem busca)
   const contentSearchQuery = useQuery({
     queryKey: ['data', ['notebook_page_contents', 'notebook_nodes', 'notebook_tags'], 'search-content', backend.kind, debouncedSearch, subjectFilter, tagFilter],
     enabled: debouncedSearch.length >= 2,
     queryFn: async () => {
       const [nodesHit, contentsHit] = await Promise.all([
-        backend.list('notebook_nodes', { search: { columns: ['title'], term: debouncedSearch }, limit: 25 }),
+        backend.list('notebook_nodes', { filters: [eq('node_type', 'page'), isNull('deleted_at')], search: { columns: ['title'], term: debouncedSearch }, limit: 25 }),
         backend.list('notebook_page_contents', { search: { columns: ['content_text'], term: debouncedSearch }, limit: 25 }),
       ])
       const lower = debouncedSearch.toLowerCase()
@@ -258,12 +241,23 @@ export default function NotebooksHomePage() {
     [activePages],
   )
 
-  const handleQuickPage = async (notebook: Notebook) => {
+  const recentPage = recentlyEditedPages[0]
+  const beginQuickPage = (notebookId = recentPage?.notebook_id ?? activeNotebooks[0]?.id) => {
+    if (notebookId) setCapture({ notebookId, parentId: '', title: '' })
+  }
+  const captureNodes = capture ? nodesInActiveNotebooks.filter((node) => node.notebook_id === capture.notebookId) : []
+  const captureSections = captureNodes.filter((node) => node.node_type === 'section')
+  const captureNodesById = new Map(captureNodes.map((node) => [node.id, node]))
+  const handleQuickPage = async () => {
+    const notebook = activeNotebooks.find((nb) => nb.id === capture?.notebookId)
+    const title = capture?.title.trim()
+    if (!notebook || !capture || !title || nodeMut.create.isPending) return
     try {
       const page = await nodeMut.create.mutateAsync({
         notebook_id: notebook.id,
         node_type: 'page',
-        title: 'Nova página',
+        parent_id: capture.parentId || null,
+        title,
         subject_id: notebook.subject_id,
       })
       toast.success('Página criada.')
@@ -277,23 +271,22 @@ export default function NotebooksHomePage() {
     <div className="space-y-6">
       <PageHeader
         title="Meus Cadernos"
-        description="Construa sua base permanente de conhecimento: organize cadernos, seções, páginas e conecte com suas revisões."
+        description="Organize suas anotações e volte direto ao que estava estudando."
         actions={
           <>
-            <Button variant="secondary" icon={<Tag className="size-4" />} onClick={() => setTagsOpen(true)}>
-              Tags ({tags.length})
-            </Button>
-            <Button variant="secondary" icon={<Upload className="size-4" />} onClick={() => setImportOpen(true)}>
-              Importar
-            </Button>
+            <ActionMenu label="Mais ações dos cadernos">
+              {(close) => <>
+                <MenuItem icon={<Tag className="size-4" />} onClick={() => { close(); setTagsOpen(true) }}>Gerenciar tags</MenuItem>
+                <MenuItem icon={<Upload className="size-4" />} onClick={() => { close(); setImportOpen(true) }}>Importar caderno</MenuItem>
+              </>}
+            </ActionMenu>
             {activeNotebooks.length > 0 && (
               <Button
                 variant="secondary"
                 icon={<FilePlus2 className="size-4" />}
-                loading={nodeMut.create.isPending}
-                onClick={() => handleQuickPage(activeNotebooks[0])}
+                onClick={() => beginQuickPage()}
               >
-                Nova página rápida
+                Nova página
               </Button>
             )}
             <Button
@@ -310,37 +303,21 @@ export default function NotebooksHomePage() {
         }
       />
 
-      {/* Métricas reais */}
-      <section aria-label="Resumo dos cadernos" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          label="Cadernos"
-          value={activeNotebooks.length}
-          hint={archivedNotebooks.length > 0 ? `${archivedNotebooks.length} arquivado(s)` : 'Base ativa'}
-          icon={<BookOpen className="size-4" />}
-        />
-        <StatCard
-          label="Páginas"
-          value={activePages.length}
-          hint={activeSectionsCount > 0 ? `${activeSectionsCount} seção(ões)` : 'Sem seções ainda'}
-          icon={<FileText className="size-4" />}
-        />
-        <StatCard
-          label="Flashcards vinculados"
-          value={(cardLinksQuery.data ?? []).length}
-          hint="Integrados ao motor SM-2"
-          icon={<Layers className="size-4" />}
-        />
-        <StatCard
-          label="Revisões pendentes"
-          value={pendingNotebookReviews}
-          hint="Matérias e tópicos vinculados"
-          icon={<RotateCcw className="size-4" />}
-        />
-      </section>
+      {recentPage && scope === 'active' && !search.trim() && !tagFilter && !subjectFilter && (
+        <Link to={`/cadernos/${recentPage.notebook_id}/pagina/${recentPage.id}`} className="group flex min-w-0 items-center gap-3 rounded-xl border border-line bg-surface-2 p-4 hover:border-accent/40 sm:p-5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-bg text-accent-strong"><Clock className="size-5" aria-hidden /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-medium text-muted">Retomar última página</span>
+            <span className="mt-0.5 block truncate text-base font-semibold text-ink">{recentPage.title}</span>
+            <span className="mt-0.5 block truncate text-xs text-muted">{allNotebookById.get(recentPage.notebook_id)?.title}</span>
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-muted group-hover:text-accent-strong" aria-hidden />
+        </Link>
+      )}
 
       {/* Busca e filtros */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[220px] flex-1">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(9rem,11rem)_minmax(8rem,10rem)]">
+        <div className="relative col-span-2 min-w-0 md:col-span-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
           <Input
             value={search}
@@ -354,7 +331,6 @@ export default function NotebooksHomePage() {
           value={subjectFilter}
           onChange={(e) => setSubjectFilter(e.target.value)}
           aria-label="Filtrar por matéria"
-          className="w-auto min-w-[170px]"
         >
           <option value="">Todas as matérias</option>
           {lookups.subjects
@@ -374,7 +350,6 @@ export default function NotebooksHomePage() {
             setSearchParams(next, { replace: true })
           }}
           aria-label="Filtrar por tag"
-          className="w-auto min-w-[140px]"
         >
           <option value="">Todas as tags</option>
           {tags.map((t) => (
@@ -383,6 +358,8 @@ export default function NotebooksHomePage() {
             </option>
           ))}
         </Select>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Segmented
           label="Estado dos cadernos"
           size="sm"
@@ -414,7 +391,7 @@ export default function NotebooksHomePage() {
       </div>
 
       {/* Páginas marcadas para revisão ativa */}
-      {pagesNeedingReview.length > 0 && (
+      {scope === 'active' && !debouncedSearch && !subjectFilter && !tagFilter && pagesNeedingReview.length > 0 && (
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-accent uppercase">
@@ -605,15 +582,15 @@ export default function NotebooksHomePage() {
                         <ActionMenu label={`Ações de ${nb.title}`}>
                           {(close) => (
                             <>
-                              <MenuItem
+                              {!nb.archived_at && <MenuItem
                                 icon={<FilePlus2 className="size-4" />}
                                 onClick={() => {
                                   close()
-                                  void handleQuickPage(nb)
+                                  beginQuickPage(nb.id)
                                 }}
                               >
                                 Nova página
-                              </MenuItem>
+                              </MenuItem>}
                               <MenuItem
                                 icon={<Pencil className="size-4" />}
                                 onClick={() => {
@@ -842,6 +819,31 @@ export default function NotebooksHomePage() {
       />
       <TagManagerModal open={tagsOpen} onClose={() => setTagsOpen(false)} />
       <NotebookImportModal open={importOpen} onClose={() => setImportOpen(false)} onImported={(nbId) => navigate(`/cadernos/${nbId}`)} />
+      <Modal
+        open={capture !== null}
+        onClose={() => setCapture(null)}
+        title="Nova página"
+        footer={<><Button onClick={() => setCapture(null)}>Cancelar</Button><Button variant="primary" loading={nodeMut.create.isPending} onClick={() => void handleQuickPage()} disabled={!capture?.title.trim()}>Criar página</Button></>}
+      >
+        {capture && (
+          <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void handleQuickPage() }}>
+            <Field label="Título da página" required>{(id) => <Input id={id} autoFocus value={capture.title} maxLength={200} onChange={(event) => setCapture({ ...capture, title: event.target.value })} />}</Field>
+            <Field label="Caderno">{(id) => (
+              <Select id={id} value={capture.notebookId} onChange={(event) => setCapture({ ...capture, notebookId: event.target.value, parentId: '' })}>
+                {activeNotebooks.map((notebook) => <option key={notebook.id} value={notebook.id}>{notebook.title}</option>)}
+              </Select>
+            )}</Field>
+            {captureSections.length > 0 && (
+              <Field label="Seção">{(id) => (
+                <Select id={id} value={capture.parentId} onChange={(event) => setCapture({ ...capture, parentId: event.target.value })}>
+                  <option value="">Início do caderno</option>
+                  {captureSections.map((section) => <option key={section.id} value={section.id}>{nodeBreadcrumb(captureNodesById, section.id).map((node) => node.title).join(' › ')}</option>)}
+                </Select>
+              )}</Field>
+            )}
+          </form>
+        )}
+      </Modal>
     </div>
   )
 }

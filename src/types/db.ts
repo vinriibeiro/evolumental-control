@@ -111,6 +111,7 @@ export interface SrsParams {
 }
 
 export interface UserSettings {
+  courseCovers?: Record<string, string>
   theme: 'light' | 'dark' | 'system'
   sound: boolean
   voiceURI: string | null

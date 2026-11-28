@@ -19,7 +19,7 @@ import {
   type ImageOcclusionPayload,
 } from '@/lib/flashcardAdvanced'
 import { extractDocImages } from '@/lib/notebooks'
-import { RATING_LABELS, previewIntervals, reviewPriority, type Rating } from '@/lib/srs'
+import { QUICK_REVIEW_SIZE, RATING_LABELS, previewIntervals, reviewPriority, type Rating } from '@/lib/srs'
 import { formatDuration } from '@/lib/time'
 import { reviewCard } from '@/services/flashcards'
 import { listLinkedFlashcardIds } from '@/services/notebookStudies'
@@ -57,6 +57,7 @@ function shuffle<T>(arr: T[]): T[] {
 export default function StudyCardsPage() {
   const [params] = useSearchParams()
   const mode = (params.get('modo') as Mode) || 'vencidos'
+  const quick = mode === 'vencidos' && params.get('sessao') === 'rapida'
   const backend = useBackend()
   const scope: Filter[] = [
     ...(params.get('baralho') ? [eq('deck_id', params.get('baralho'))] : []),
@@ -99,7 +100,8 @@ export default function StudyCardsPage() {
           order: [{ column: 'due_at' }],
           limit: 500,
         })
-        return reviewPriority(rows)
+        const queue = reviewPriority(rows)
+        return quick ? queue.slice(0, QUICK_REVIEW_SIZE) : queue
       }
       const { rows } = await backend.list('flashcards', { filters: [...effectiveScope, inList('status', ACTIVE)], order: [{ column: 'due_at' }], limit: 2000 })
       return mode === 'aleatorio' ? shuffle(rows).slice(0, 200) : rows
@@ -128,10 +130,10 @@ export default function StudyCardsPage() {
         }
       />
     )
-  return <StudySession initial={deck.data} mode={mode} />
+  return <StudySession key={params.toString()} initial={deck.data} mode={mode} quick={quick} />
 }
 
-function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
+function StudySession({ initial, mode, quick }: { initial: Flashcard[]; mode: Mode; quick: boolean }) {
   const settings = useSettings()
   const updateSettings = useUpdateSettings()
   const speech = useSpeech({ voiceURI: settings.voiceURI, rate: settings.speechRate })
@@ -332,7 +334,7 @@ function StudySession({ initial, mode }: { initial: Flashcard[]; mode: Mode }) {
         <button onClick={() => (speech.stop(), navigate(-1))} className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
           <ArrowLeft className="size-4" /> Sair
         </button>
-        <span className="text-sm font-medium text-ink">{MODE_TITLES[mode]}</span>
+        <span className="text-sm font-medium text-ink">{quick ? 'Revisão rápida' : MODE_TITLES[mode]}</span>
         <span className="tabular text-sm text-muted">
           {idx + 1}/{queue.length}
         </span>

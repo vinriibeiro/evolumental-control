@@ -15,6 +15,12 @@ export interface GoalData {
   timezone: string
 }
 
+export const STUDY_GOAL_METRICS = ['study_hours', 'sessions', 'topics_completed', 'flashcards_reviewed', 'study_days'] as const satisfies readonly GoalMetric[]
+
+export function isStudyGoalAvailable(goal: StudyGoal): boolean {
+  return isDeliverable(goal) || STUDY_GOAL_METRICS.some((metric) => metric === goal.metric)
+}
+
 export function periodFor(period: GoalPeriod, day: string): DayRange {
   return periodRange(period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month', day)
 }

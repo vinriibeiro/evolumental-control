@@ -87,13 +87,15 @@ describe('Metas', () => {
   it('separa cumpridas e pendentes; metas por número ignoram as por entregas', async () => {
     await seed()
     await backend.insert('study_goals', [
+      { title: 'Sessões da semana', kind: 'metric', metric: 'sessions', period: 'weekly', target: 1, start_date: addDays(today, -40) },
       { title: 'Questões da semana', kind: 'metric', metric: 'questions', period: 'weekly', target: 10, start_date: addDays(today, -40) },
       { title: 'Horas da semana', kind: 'metric', metric: 'study_hours', period: 'weekly', target: 10, start_date: addDays(today, -40) },
       { title: 'Publicar projeto', kind: 'deliverable', metric: 'topics_completed', period: 'weekly', target: 1, start_date: addDays(today, -40), due_date: addDays(today, -1), checklist: [{ id: 'a', text: 'Subir o repositório', done: false }] },
     ])
     show(<GoalsPage />)
     const achieved = within(await screen.findByRole('region', { name: 'Cumpridas (1)' }))
-    expect(achieved.getByText('Questões da semana')).toBeInTheDocument()
+    expect(achieved.getByText('Sessões da semana')).toBeInTheDocument()
+    expect(screen.queryByText('Questões da semana')).toBeNull()
     const pending = within(screen.getByRole('region', { name: 'Pendentes (2)' }))
     expect(pending.getByText('Horas da semana')).toBeInTheDocument()
     expect(pending.getByText(/Prazo vencido há 1 dia/)).toBeInTheDocument()
@@ -107,13 +109,11 @@ describe('Evolução', () => {
   it('sem registros, diz que os dados são insuficientes em vez de mostrar números', async () => {
     show(<EvolutionPage />)
     expect(await screen.findByText('Sem horas planejadas no período')).toBeInTheDocument()
-    expect(screen.getByText(/Dados insuficientes: nenhum tópico com 10 ou mais questões no período/)).toBeInTheDocument()
-    expect(screen.getByText(/Dados insuficientes: é preciso ter 10 ou mais questões em pelo menos 2 dias/)).toBeInTheDocument()
     expect(screen.getByText('Nenhuma meta vigente no período')).toBeInTheDocument()
     expect(screen.queryByText('Diagnósticos')).toBeNull()
   })
 
-  it('mostra planejado × realizado, comparação, dificuldades com amostra e metas', async () => {
+  it('mostra horas, comparação e metas com dados legados no banco', async () => {
     await seed()
     await backend.insert('study_goals', [{ title: 'Questões do mês', kind: 'metric', metric: 'questions', period: 'monthly', target: 10, start_date: addDays(today, -40) }])
     await backend.insert('assessments', [{ track: 'sql', taken_at: at(today), total: 10, correct: 6 }])
@@ -121,13 +121,9 @@ describe('Evolução', () => {
     expect(await screen.findByText('25% do planejado · 2h')).toBeInTheDocument()
     const table = within(screen.getByRole('table', { name: 'Indicadores do período atual e do período anterior' }))
     expect(within(table.getByRole('row', { name: /Horas estudadas/ })).getByText('30min')).toBeInTheDocument()
-    expect(within(table.getByRole('row', { name: /Taxa de acerto/ })).getByText('33% (12 questões)')).toBeInTheDocument()
-    expect(within(table.getByRole('row', { name: /Exercícios e questões/ })).getByText('+12 (sem base anterior)')).toBeInTheDocument()
-    // Dificuldade só aparece com amostra mínima, e sempre com o tamanho da amostra.
-    expect(screen.getByText('JOIN (SQL)')).toBeInTheDocument()
-    expect(screen.getAllByText(/12 questões/).length).toBeGreaterThan(0)
-    expect(screen.getByText('1 cumprida · 0 pendentes')).toBeInTheDocument()
-    expect(within(screen.getByRole('table', { name: 'Histórico de diagnósticos' })).getByText('6 de 10')).toBeInTheDocument()
+    expect(table.queryByRole('row', { name: /Taxa de acerto|Exercícios e questões/ })).toBeNull()
+    expect(screen.getByText('Nenhuma meta vigente no período')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Histórico de diagnósticos' })).toBeNull()
     expect(screen.getByRole('button', { name: 'PDF' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Resumo (CSV)' })).toBeEnabled()
   })
@@ -146,7 +142,7 @@ describe('Relatório semanal', () => {
     expect(screen.getByText(/1 atividade ficou sem concluir \(de semanas anteriores\)/)).toBeInTheDocument()
     expect(screen.getByText(/Comece pela atividade atrasada: Entregar exercício de JOIN/)).toBeInTheDocument()
     expect(screen.getByText(/Regra: atividade com data vencida e não concluída/)).toBeInTheDocument()
-    expect(screen.getByText(/Revise JOIN \(SQL\) e refaça exercícios do tópico: 33% de acerto em 12 questões/)).toBeInTheDocument()
+    expect(screen.queryByText(/taxa de acerto|12 questões/i)).toBeNull()
     const next = within(screen.getByRole('heading', { name: /O que devo priorizar/ }).closest('.evl-card') as HTMLElement)
     expect(next.getAllByText('Sugestão por regra').length).toBeGreaterThan(1)
     expect(next.queryByText('Dado')).toBeNull()

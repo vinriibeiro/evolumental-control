@@ -1,5 +1,7 @@
 # VLM Control 2.0 — decisões e mapa da nova versão
 
+Este documento registra o desenho anterior da versão 2.0. A navegação atual e os guias em uso estão no [README](../README.md).
+
 Documento de referência da 2.0 (novembro/2026). Explica **o que mudou, onde cada coisa ficou e por quê**.
 A regra de ouro desta versão: nada útil foi apagado, nenhum dado existente é alterado sem o usuário pedir e
 toda funcionalidade nova reaproveita os motores que já existiam (sessões, revisões, cronograma, laboratório, leitores).

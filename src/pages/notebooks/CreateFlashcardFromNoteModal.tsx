@@ -47,6 +47,8 @@ interface Props {
   editingCard?: Flashcard | null
 }
 
+const EMPTY_PAGE_IMAGES: NonNullable<Props['pageImages']> = []
+
 export function CreateFlashcardFromNoteModal({
   open,
   onClose,
@@ -56,7 +58,7 @@ export function CreateFlashcardFromNoteModal({
   pageTitle,
   blockId,
   selectedText,
-  pageImages = [],
+  pageImages = EMPTY_PAGE_IMAGES,
   defaultSubjectId,
   defaultTopicId,
   editingCard,

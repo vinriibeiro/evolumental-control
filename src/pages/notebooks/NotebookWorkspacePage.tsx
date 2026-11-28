@@ -140,6 +140,13 @@ export default function NotebookWorkspacePage() {
   const [liveWordCount, setLiveWordCount] = useState(0)
   const [liveRevision, setLiveRevision] = useState(1)
   const [liveDoc, setLiveDoc] = useState<NotebookContentDoc>(EMPTY_DOC)
+  const pageImages = useMemo(() => extractDocImages(liveDoc), [liveDoc])
+  const updateLiveMeta = useCallback((meta: { headings: DocHeading[]; wordCount: number; revision: number; doc: NotebookContentDoc }) => {
+    setLiveHeadings(meta.headings)
+    setLiveWordCount(meta.wordCount)
+    setLiveRevision(meta.revision)
+    setLiveDoc(meta.doc)
+  }, [])
   const [exportOpen, setExportOpen] = useState(false)
   const [historyTrigger, setHistoryTrigger] = useState(0)
   const [flashcardModal, setFlashcardModal] = useState<{
@@ -706,12 +713,7 @@ export default function NotebookWorkspacePage() {
                 onCreateFlashcard={(payload) =>
                   setFlashcardModal({ open: true, selectedText: payload.selectedText, blockId: payload.blockId, editingCard: null })
                 }
-                onMetaChange={(meta) => {
-                  setLiveHeadings(meta.headings)
-                  setLiveWordCount(meta.wordCount)
-                  setLiveRevision(meta.revision)
-                  setLiveDoc(meta.doc)
-                }}
+                onMetaChange={updateLiveMeta}
                 onCreatedCopy={(newPageId) => navigate(`/cadernos/${notebook.id}/pagina/${newPageId}`)}
                 onDuplicate={() => handleDuplicate(selectedNode)}
                 onMove={() => setMovingNode(selectedNode)}
@@ -870,7 +872,7 @@ export default function NotebookWorkspacePage() {
             pageTitle={selectedNode.title}
             blockId={flashcardModal.blockId}
             selectedText={flashcardModal.selectedText}
-            pageImages={selectedNode.node_type === 'page' ? extractDocImages(liveDoc) : []}
+            pageImages={selectedNode.node_type === 'page' ? pageImages : undefined}
             defaultSubjectId={selectedNode.subject_id ?? notebook.subject_id}
             defaultTopicId={selectedNode.topic_id}
             editingCard={flashcardModal.editingCard}

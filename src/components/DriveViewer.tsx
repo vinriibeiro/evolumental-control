@@ -1,7 +1,8 @@
 import { AlertTriangle, ExternalLink, FileQuestion } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { driveEmbedUrl, driveOpenUrl, isTrustedDriveUrl, isYoutubeMime, materialType } from '@/lib/drive'
+import { driveEmbedUrl, driveOpenUrl, isHtmlMime, isTrustedDriveUrl, isYoutubeMime, materialType } from '@/lib/drive'
 import type { CourseNode } from '@/types/db'
+import { DriveHtmlReader } from './DriveHtmlReader'
 
 export function DriveOpenLink({ node, className }: { node: Pick<CourseNode, 'drive_id' | 'mime_type' | 'resource_key'>; className?: string }) {
   const href = driveOpenUrl(node.drive_id, node.mime_type, node.resource_key)
@@ -26,7 +27,10 @@ export const DRIVE_VIEWER_HELP = [
  * drive.google.com/docs.google.com com ID validado. O app não sabe se o conteúdo carregou de fato, quanto foi
  * assistido ou lido: por isso a ajuda e o "Abrir no Drive" ficam sempre visíveis.
  */
-export function DriveViewer({ node, title, className, frameClassName }: { node: Pick<CourseNode, 'drive_id' | 'mime_type' | 'resource_key' | 'status'>; title: string; className?: string; frameClassName?: string }) {
+export function DriveViewer({ node, title, className, frameClassName, returnTo }: { node: Pick<CourseNode, 'drive_id' | 'mime_type' | 'resource_key' | 'status'>; title: string; className?: string; frameClassName?: string; returnTo?: string }) {
+  if (isHtmlMime(node.mime_type)) {
+    return <DriveHtmlReader key={node.drive_id} node={node} title={title} className={className} frameClassName={frameClassName} returnTo={returnTo} driveLink={<DriveOpenLink node={node} className="px-2 text-sm" />} />
+  }
   const type = materialType(node.mime_type)
   const src = driveEmbedUrl(node.drive_id, node.mime_type, node.resource_key)
   const tall = type.kind !== 'video' && type.kind !== 'audio'

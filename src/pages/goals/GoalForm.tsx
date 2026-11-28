@@ -9,33 +9,26 @@ import { useToast } from '@/components/ui/feedback'
 import { invalidateTables } from '@/hooks/data'
 import { useSubjects } from '@/hooks/domain'
 import { eq } from '@/lib/data/types'
-import { checklistPatch, isDeliverable, parseChecklist } from '@/lib/goals'
+import { checklistPatch, isDeliverable, parseChecklist, STUDY_GOAL_METRICS } from '@/lib/goals'
 import { GOAL_METRIC_LABELS, GOAL_PERIOD_LABELS } from '@/lib/labels'
 import { addDays, formatDayKey, startOfWeek } from '@/lib/time'
-import type { GoalKind, GoalMetric, GoalPeriod, StudyGoal } from '@/types/db'
+import type { GoalKind, GoalPeriod, StudyGoal } from '@/types/db'
+
+type StudyMetric = typeof STUDY_GOAL_METRICS[number]
 
 /** Alvos sugeridos: a meta já nasce com um número razoável e basta salvar. */
-const DEFAULT_TARGETS: Record<GoalMetric, Record<GoalPeriod, number>> = {
+const DEFAULT_TARGETS: Record<StudyMetric, Record<GoalPeriod, number>> = {
   study_hours: { daily: 2, weekly: 10, monthly: 40 },
   sessions: { daily: 1, weekly: 5, monthly: 20 },
-  questions: { daily: 10, weekly: 50, monthly: 200 },
-  accuracy: { daily: 80, weekly: 80, monthly: 80 },
   topics_completed: { daily: 1, weekly: 3, monthly: 10 },
   flashcards_reviewed: { daily: 20, weekly: 100, monthly: 400 },
   study_days: { daily: 1, weekly: 5, monthly: 20 },
-  projects_completed: { daily: 1, weekly: 1, monthly: 1 },
 }
 
-const METRIC_HINTS: Partial<Record<GoalMetric, string>> = {
+const METRIC_HINTS: Partial<Record<StudyMetric, string>> = {
   study_days: 'Frequência: em quantos dias do período houve estudo.',
-  questions: 'Exercícios e questões registrados em "Questões".',
-  accuracy: 'Acertos ÷ total das questões registradas no período.',
-  projects_completed: 'Projetos práticos marcados como concluídos.',
   flashcards_reviewed: 'Conta as respostas de todos os baralhos.',
 }
-
-/** Indicadores que não se dividem por matéria. */
-const NO_SUBJECT_METRICS: GoalMetric[] = ['flashcards_reviewed', 'projects_completed']
 
 export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, today }: { open: boolean; goal: StudyGoal | null; initialKind?: GoalKind; onClose: () => void; today: string }) {
   const [kind, setKind] = useState<GoalKind>(initialKind)
@@ -44,7 +37,7 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
   const [itemsText, setItemsText] = useState('')
   const [dueDate, setDueDate] = useState('')
   // Por número
-  const [metric, setMetric] = useState<GoalMetric>('study_hours')
+  const [metric, setMetric] = useState<StudyMetric>('study_hours')
   const [period, setPeriod] = useState<GoalPeriod>('weekly')
   const [target, setTarget] = useState('10')
   const [targetTouched, setTargetTouched] = useState(false)
@@ -64,7 +57,7 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
     setItemsText((goal?.checklist ?? []).map((i) => i.text).join('\n'))
     // Padrão: até o domingo desta semana (o exemplo clássico "… até domingo").
     setDueDate(goal ? (goal.due_date ?? '') : sunday)
-    setMetric(goal && !isDeliverable(goal) ? goal.metric : 'study_hours')
+    setMetric(STUDY_GOAL_METRICS.find((value) => value === goal?.metric) ?? 'study_hours')
     setPeriod(goal && !isDeliverable(goal) ? goal.period : 'weekly')
     setTarget(goal && !isDeliverable(goal) ? String(goal.target) : '10')
     setTargetTouched(Boolean(goal))
@@ -72,7 +65,7 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
     setError(null)
   }, [open, goal, initialKind, sunday])
 
-  const pickMetric = (m: GoalMetric, p: GoalPeriod) => {
+  const pickMetric = (m: StudyMetric, p: GoalPeriod) => {
     setMetric(m)
     setPeriod(p)
     if (!targetTouched) setTarget(String(DEFAULT_TARGETS[m][p]))
@@ -90,7 +83,7 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
 
   const saveMetric = async () => {
     const t = Number(target.replace(',', '.'))
-    const data = { metric, period, target: t, subject_id: NO_SUBJECT_METRICS.includes(metric) ? null : subjectId || null, title: title.trim().slice(0, 160) || null }
+    const data = { metric, period, target: t, subject_id: metric === 'flashcards_reviewed' ? null : subjectId || null, title: title.trim().slice(0, 160) || null }
     if (!goal) {
       await backend.insert('study_goals', [{ ...data, kind: 'metric', start_date: today, status: 'active' }])
     } else if (goal.start_date >= today || (Number(goal.target) === t && goal.metric === metric && goal.period === period && (goal.subject_id ?? '') === (data.subject_id ?? ''))) {
@@ -107,7 +100,6 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
     if (kind === 'deliverable') return title.trim() ? null : 'Dê um título para a meta.'
     const t = Number(target.replace(',', '.'))
     if (!(t > 0) || t > 100000) return 'Informe um alvo maior que zero.'
-    if (metric === 'accuracy' && t > 100) return 'A taxa de acertos vai até 100%.'
     if (metric === 'study_hours' && period === 'daily' && t > 24) return 'Uma meta diária não pode passar de 24 horas.'
     return null
   }
@@ -129,8 +121,8 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
     }
   }
 
-  const unit = metric === 'study_hours' ? 'horas' : metric === 'accuracy' ? '%' : metric === 'study_days' ? 'dias' : 'quantidade'
-  const noSubject = NO_SUBJECT_METRICS.includes(metric)
+  const unit = metric === 'study_hours' ? 'horas' : metric === 'study_days' ? 'dias' : 'quantidade'
+  const noSubject = metric === 'flashcards_reviewed'
   return (
     <Modal
       open={open}
@@ -201,10 +193,10 @@ export function GoalForm({ open, goal, initialKind = 'deliverable', onClose, tod
           <>
             <Field label="Indicador" hint={METRIC_HINTS[metric]}>
               {(id, d) => (
-                <Select id={id} aria-describedby={d} value={metric} onChange={(e) => pickMetric(e.target.value as GoalMetric, period)}>
-                  {Object.entries(GOAL_METRIC_LABELS).map(([v, l]) => (
+                <Select id={id} aria-describedby={d} value={metric} onChange={(e) => pickMetric(e.target.value as StudyMetric, period)}>
+                  {STUDY_GOAL_METRICS.map((v) => (
                     <option key={v} value={v}>
-                      {l}
+                      {GOAL_METRIC_LABELS[v]}
                     </option>
                   ))}
                 </Select>

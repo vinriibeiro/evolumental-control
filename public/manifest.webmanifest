@@ -1,7 +1,7 @@
 {
   "name": "VLM Control",
   "short_name": "VLM Control",
-  "description": "Planejamento pessoal e evolução em Ciência de Dados: agenda, trilhas, biblioteca, sala de estudos e metas.",
+  "description": "Planeje seus estudos e acompanhe seus cursos, livros, cadernos e sessões.",
   "lang": "pt-BR",
   "start_url": "/",
   "scope": "/",
@@ -19,6 +19,6 @@
   "shortcuts": [
     { "name": "Meu Planejamento", "short_name": "Planejar", "url": "/", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Sala de Estudos", "short_name": "Estudar", "url": "/sala", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Revisar flashcards", "short_name": "Flashcards", "url": "/flashcards/revisar?modo=vencidos", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Meus Cursos", "short_name": "Cursos", "url": "/cursos", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

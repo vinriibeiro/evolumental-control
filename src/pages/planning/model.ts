@@ -1,7 +1,7 @@
 // Modelo da tela "Meu Planejamento": tarefas (calendar_tasks) e blocos de estudo do cronograma
 // (study_plan_items) são mostrados juntos, mas cada registro continua vivendo na sua própria tabela.
 import type { CalendarTask, StudyPlanItem } from '@/types/db'
-import type { PlanActivity } from '@/lib/replan'
+import { isOverdue, type PlanActivity } from '@/lib/replan'
 import { isStudyTask } from '@/lib/tasks'
 import { hhmmToMinutes, type DayKey } from '@/lib/time'
 
@@ -74,6 +74,13 @@ export function itemActivity(it: StudyPlanItem, title: string): PlanActivity {
     topicId: it.topic_id,
     recurring: false,
   }
+}
+
+/** Sugere um estudo no horário ou, se não houver, a atividade de estudo mais prioritária sem horário. */
+export function nextDailyStudy(todayList: PlanActivity[], today: DayKey, nowMinutes: number): PlanActivity | undefined {
+  const available = todayList.filter((a) => a.study && !a.done && !isOverdue(a, today, nowMinutes))
+  const timed = available.filter((a) => a.start != null).sort((a, b) => a.start! - b.start! || b.priority - a.priority)
+  return timed[0] ?? available.sort((a, b) => b.priority - a.priority)[0]
 }
 
 export function greeting(hour: number): string {

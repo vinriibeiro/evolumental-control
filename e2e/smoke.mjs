@@ -34,7 +34,7 @@ const clockSeconds = async () => {
 await step('abre o app em modo local', async () => {
   await page.goto(BASE)
   await page.getByText('Modo local:').waitFor()
-  await page.getByRole('heading', { level: 1, name: /Bom dia|Boa tarde|Boa noite/ }).waitFor()
+  await page.getByRole('heading', { level: 1, name: /Bom dia|Boa tarde|Boa noite|Boa madrugada/ }).waitFor()
 })
 
 await step('cria matéria', async () => {
@@ -108,43 +108,10 @@ await step('fluxo C: tarefa atrasada → prévia de replanejamento → confirma�
   await d.getByText('Novos horários sugeridos').waitFor()
   await d.getByRole('button', { name: 'Aceitar todas' }).click()
   await page.getByText('atividade(s) reagendada(s)', { exact: false }).waitFor()
-  await page.getByRole('button', { name: /Reorganizar minha semana/ }).first().click()
+  await page.getByRole('button', { name: 'Mais ações do planejamento' }).click()
+  await page.getByRole('menuitem', { name: /Reorganizar minha semana/ }).click()
   await page.getByRole('dialog').getByText('Nenhuma atividade atrasada.').waitFor()
   await page.keyboard.press('Escape')
-})
-
-await step('trilhas: ativa a trilha de Ciência de Dados sem duplicar', async () => {
-  await page.goto(`${BASE}/trilhas`)
-  await page.getByRole('button', { name: 'Ativar trilha' }).click()
-  await page.getByRole('heading', { name: 'Trilha de Ciência de Dados' }).waitFor()
-  await page.getByText('0 de 54 tópicos concluídos', { exact: false }).waitFor()
-  await page.reload()
-  await page.getByText('0 de 54 tópicos concluídos', { exact: false }).waitFor()
-})
-
-await step('fluxo A: diagnóstico de SQL → resultado → recomendação', async () => {
-  await page.goto(`${BASE}/diagnostico/sql`)
-  await page.getByRole('button', { name: /Avaliação rápida/ }).click()
-  for (let i = 0; i < 3; i++) {
-    await page.getByRole('button', { name: 'Não sei' }).click()
-  }
-  await page.getByRole('button', { name: 'Encerrar e ver resultado' }).click()
-  await page.getByRole('heading', { name: 'Resultado do diagnóstico' }).waitFor()
-  await page.getByText('Ponto de partida sugerido').waitFor()
-  await page.getByRole('button', { name: 'Ir para o tópico' }).click()
-  await page.getByText('Objetivo de aprendizagem').waitFor()
-})
-
-await step('fluxo B: tópico → projeto prático → entregáveis → progresso', async () => {
-  await page.goto(`${BASE}/projetos?topico=ds.python.eda`)
-  await page.getByRole('radio', { name: /Modelos sugeridos/ }).click()
-  await page.getByRole('button', { name: 'Começar este projeto' }).first().click()
-  const d = page.getByRole('dialog')
-  await d.getByRole('checkbox').first().click()
-  await d.getByText(/Em desenvolvimento · 1 de/).waitFor()
-  await d.getByRole('button', { name: 'Fechar', exact: true }).last().click()
-  await page.getByRole('radio', { name: /Modelos sugeridos/ }).click()
-  await page.getByRole('button', { name: 'Abrir meu projeto' }).first().waitFor()
 })
 
 await step('flashcards: criar baralho e cartão, revisar com revelação', async () => {
@@ -205,19 +172,14 @@ await step('ciclo: sessão parcial com decisão de avançar move a posição', a
   await page.getByText('Posição atual: bloco 2 de 2').waitFor()
 })
 
-await step('questões: valida acertos > total e registra', async () => {
-  await page.goto(`${BASE}/questoes`)
-  await page.getByRole('button', { name: 'Registrar questões' }).first().click()
-  await page.getByLabel(/Respondidas/).fill('10')
-  await page.getByLabel(/Acertos/).fill('12')
-  await page.getByRole('button', { name: 'Salvar' }).click()
-  await page.getByText('Os acertos não podem exceder o total respondido.').waitFor()
-  await page.getByLabel(/Acertos/).fill('8')
-  await page.getByRole('button', { name: 'Salvar' }).click()
-  await page.getByText('80%').first().waitFor()
+await step('endereços das áreas removidas retornam ao planejamento', async () => {
+  for (const path of ['/trilhas', '/banco-de-questoes', '/questoes', '/laboratorio', '/cgu']) {
+    await page.goto(`${BASE}${path}`)
+    await page.waitForURL((url) => url.pathname === '/')
+  }
 })
 
-const pages = ['/', '/rotinas', '/revisoes', '/ciclos', '/trilhas', '/projetos', '/laboratorio', '/materias', '/flashcards', '/biblioteca', '/cursos', '/sala', '/sala/historico', '/metas', '/evolucao', '/relatorio-semanal', '/questoes', '/configuracoes']
+const pages = ['/', '/revisoes', '/ciclos', '/materias', '/flashcards', '/biblioteca', '/cursos', '/cadernos', '/sala', '/sala/historico', '/metas', '/evolucao', '/relatorio-semanal', '/configuracoes']
 for (const [label, vp] of [
   ['desktop', { width: 1366, height: 860 }],
   ['celular', { width: 390, height: 844 }],

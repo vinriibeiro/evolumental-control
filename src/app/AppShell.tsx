@@ -206,7 +206,7 @@ export function AppShell() {
       </div>
 
       <nav aria-label="Navegação rápida" className="evl-mobile-nav fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-line bg-bg/95 px-1 pt-1.5 backdrop-blur lg:hidden">
-        {MENU.slice(0, 5).map((item) => {
+        {MENU.filter((item) => item.to !== '/configuracoes').map((item) => {
           const active = groupFor(location.pathname) === item
           return (
             <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined} className={cn('flex min-h-12 min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1 text-[10px]', active ? 'font-semibold text-ink' : 'text-muted')}>

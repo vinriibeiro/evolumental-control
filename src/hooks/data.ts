@@ -99,6 +99,7 @@ export function useCount(table: TableName, filters: Filter[], opts: QueryOpts = 
     queryKey: ['data', [table, ...(opts.dependsOn ?? [])], 'count', backend.kind, filters],
     queryFn: () => backend.count(table, filters),
     enabled: opts.enabled ?? true,
+    placeholderData: opts.keepPrevious ? keepPreviousData : undefined,
   })
 }
 

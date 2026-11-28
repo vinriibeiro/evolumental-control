@@ -2,10 +2,10 @@
 //   • um DADO  — calculado direto dos registros e mostrado com os números; ou
 //   • uma SUGESTÃO POR REGRA — disparada por uma regra fixa (WEEKLY_RULES) sobre esses dados.
 // Módulo puro: recebe listas simples e devolve o relatório estruturado (sem banco, sem React).
-import type { CalendarTask, FlashcardReview, Project, StudyGoal, StudyPlanItem, Subject, Topic } from '@/types/db'
+import type { CalendarTask, FlashcardReview, StudyGoal, StudyPlanItem, Subject, Topic } from '@/types/db'
 import type { SessionWithPauses } from '@/lib/data/types'
-import { MIN_SAMPLE, difficulties, plannedStudy, questionTotals, type QuestionLike } from '@/lib/evolution'
-import { snapshotGoals, type GoalData, type GoalSnapshot } from '@/lib/goals'
+import { plannedStudy } from '@/lib/evolution'
+import { isStudyGoalAvailable, snapshotGoals, type GoalData, type GoalSnapshot } from '@/lib/goals'
 import { WEEKDAY_LABELS } from '@/lib/labels'
 import type { PdfBlock, PdfReport } from '@/lib/reportPdf'
 import { NO_SUBJECT, breakdown } from '@/lib/stats'
@@ -19,7 +19,6 @@ import { addDays, dayKey, eachDay, formatDayKey, formatDuration, weekday, type D
 export type WeeklyTask = Pick<CalendarTask, 'title' | 'date' | 'duration_minutes' | 'subject_id' | 'topic_id' | 'category' | 'done' | 'done_at' | 'priority'>
 export type WeeklyPlanItem = Pick<StudyPlanItem, 'date' | 'duration_minutes' | 'subject_id' | 'status'>
 export type WeeklyTopic = Pick<Topic, 'id' | 'name' | 'subject_id' | 'completed_at'>
-export type WeeklyProject = Pick<Project, 'name' | 'status' | 'started_at' | 'completed_at'>
 
 export interface WeeklyReportInput {
   /** Semana do relatório (segunda a domingo). */
@@ -32,11 +31,8 @@ export interface WeeklyReportInput {
   /** Atividades da semana e as de datas anteriores ainda em aberto (ou concluídas só depois). */
   tasks: WeeklyTask[]
   planItems: WeeklyPlanItem[]
-  /** Exercícios e questões da semana e da anterior. */
-  questions: QuestionLike[]
   topics: WeeklyTopic[]
   goals: StudyGoal[]
-  projects: WeeklyProject[]
   /** Nomes das matérias (sem isso as frases usam "Matéria excluída"). */
   subjects?: Array<Pick<Subject, 'id' | 'name'>>
   /** Só para metas de flashcards; sem a lista, essas metas ficam fora do relatório. */
@@ -52,25 +48,19 @@ export const WEEKLY_THRESHOLDS = {
   belowPlanRatio: 0.5,
   /** Planos menores que isto (por matéria) não entram na comparação. */
   minPlannedSeconds: 30 * 60,
-  /** Questões mínimas para falar da taxa de acerto de um tópico ou da semana. */
-  minSample: MIN_SAMPLE,
-  lowAccuracy: 70,
   nearGoalPercent: 70,
   idleDays: 2,
   goalDueDays: 7,
-  minStudyForExercises: 3600,
   maxRecommendations: 5,
 } as const
 
 export const WEEKLY_RULES = {
   overdue: 'atividade com data vencida e não concluída (prioridade alta primeiro, depois a mais antiga)',
   belowPlan: 'matéria com menos de 50% do planejado (mínimo de 30 min planejados)',
-  lowAccuracy: 'tópico com a menor taxa de acerto da semana, com pelo menos 10 questões e acerto abaixo de 70%',
   goalDeadline: 'meta por entregas com itens pendentes e prazo vencido ou nos próximos 7 dias',
   goalNear: 'meta numérica ainda não cumprida com 70% ou mais do alvo',
   noPlan: 'semana sem horas de estudo nem atividades planejadas',
   idleDays: '2 ou mais dias sem estudo na semana',
-  noExercises: '1 hora ou mais de estudo na semana e nenhum exercício registrado',
 } as const
 export type WeeklyRuleId = keyof typeof WEEKLY_RULES
 
@@ -132,11 +122,6 @@ export interface WeeklyTotals {
   tasksLate: number
   /** Dentre as atrasadas, as que vieram de semanas anteriores. */
   tasksCarried: number
-  questions: number
-  correct: number
-  accuracy: number | null
-  previousQuestions: number
-  previousAccuracy: number | null
   topicsCompleted: number
   goalsMet: number
   goalsPending: number
@@ -149,9 +134,6 @@ export interface WeeklySubjectRow {
   /** Planejado que já venceu (igual ao planejado em semanas encerradas). */
   dueSeconds: number
   actualSeconds: number
-  questions: number
-  correct: number
-  accuracy: number | null
   topicsCompleted: number
 }
 
@@ -161,7 +143,6 @@ export interface WeeklyDayRow {
   actualSeconds: number
   tasks: number
   tasksDone: number
-  questions: number
 }
 
 export interface WeeklyGoalRow {
@@ -268,52 +249,34 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
   const planMissed = planCount('missed')
 
   // --- Exercícios e questões ------------------------------------------
-  const q = questionTotals(input.questions, week)
-  const qPrev = questionTotals(input.questions, previousWeek)
-  const byTopic = difficulties(input.questions, week, (x) => x.topic_id, T.minSample)
-  const weakest = byTopic.rows[0] ?? null
 
   // --- Tópicos, projetos e metas --------------------------------------
   const topicsDone = input.topics.filter((t) => t.completed_at && inWeek(isoDay(t.completed_at)))
-  const projectsDone = input.projects.filter((p) => p.status === 'done' && p.completed_at && inWeek(isoDay(p.completed_at)))
-  const projectsStarted = input.projects.filter((p) => p.started_at && inWeek(isoDay(p.started_at)) && !projectsDone.includes(p))
   // As metas são avaliadas como estavam no fim da semana: registros posteriores não entram
   // (importa para metas mensais quando se consulta uma semana passada).
   const upTo = (iso: string | null) => !iso || isoDay(iso) <= week.to
   const goalData: GoalData = {
     sessions: input.sessions.filter((s) => upTo(s.started_at)),
-    questions: input.questions.filter((x) => x.date <= week.to),
+    questions: [],
     topics: input.topics.map((t) => (upTo(t.completed_at) ? t : { ...t, completed_at: null })),
     reviews: (input.flashcardReviews ?? []).filter((r) => upTo(r.reviewed_at)),
-    projects: input.projects.map((p) => (upTo(p.completed_at) ? p : { ...p, completed_at: null })),
     timezone: tz,
   }
-  const usableGoals = input.goals.filter((g) => g.kind === 'deliverable' || g.metric !== 'flashcards_reviewed' || input.flashcardReviews)
+  const usableGoals = input.goals.filter((g) => isStudyGoalAvailable(g) && (g.kind === 'deliverable' || g.metric !== 'flashcards_reviewed' || input.flashcardReviews))
   const snapshots: GoalSnapshot[] = started ? snapshotGoals(usableGoals, asOf, goalData, week) : []
   const goalsMet = snapshots.filter((s) => s.met)
   const goalsPending = snapshots.filter((s) => !s.met)
 
   // --- Por matéria e por dia ------------------------------------------
-  const qBySubject = new Map<string, { total: number; correct: number }>()
-  for (const x of input.questions) {
-    if (!inWeek(x.date)) continue
-    const k = x.subject_id ?? NO_SUBJECT
-    const c = qBySubject.get(k) ?? { total: 0, correct: 0 }
-    qBySubject.set(k, { total: c.total + x.total, correct: c.correct + x.correct })
-  }
-  const subjectKeys = new Set([...planned.bySubject.keys(), ...cur.bySubject.keys(), ...qBySubject.keys()])
+  const subjectKeys = new Set([...planned.bySubject.keys(), ...cur.bySubject.keys()])
   const subjects: WeeklySubjectRow[] = [...subjectKeys]
     .map((k) => {
-      const qs = qBySubject.get(k) ?? { total: 0, correct: 0 }
       return {
         subjectId: k === NO_SUBJECT ? null : k,
         name: subjectName(k),
         plannedSeconds: planned.bySubject.get(k) ?? 0,
         dueSeconds: due?.bySubject.get(k) ?? 0,
         actualSeconds: cur.bySubject.get(k) ?? 0,
-        questions: qs.total,
-        correct: qs.correct,
-        accuracy: qs.total ? (qs.correct / qs.total) * 100 : null,
         topicsCompleted: topicsDone.filter((t) => t.subject_id === k).length,
       }
     })
@@ -326,7 +289,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
       actualSeconds: cur.byDay.get(day) ?? 0,
       tasks: list.length,
       tasksDone: list.filter(doneBy).length,
-      questions: input.questions.filter((x) => x.date === day).reduce((a, x) => a + x.total, 0),
     }
   })
 
@@ -414,17 +376,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
       pendentes: planCount('pending'),
     })
   }
-  if (q.total > 0) {
-    // Com poucas questões o percentual engana: mostra só a contagem.
-    const result = q.total >= T.minSample ? `, com ${pct(q.accuracy!)} de acerto (${plural(q.correct, 'certa', 'certas')})` : ` (${plural(q.correct, 'certa', 'certas')}); com menos de ${T.minSample} questões, a taxa de acerto não é calculada`
-    fact('executed', 'executed.questions', `Resolvi ${plural(q.total, 'exercício/questão', 'exercícios e questões')}${result}.`, {
-      questoes: q.total,
-      acertos: q.correct,
-    })
-  } else {
-    fact('executed', 'executed.questions', 'Nenhum exercício ou questão registrado nesta semana.', { questoes: 0 })
-  }
-
   // === 3) Onde avancei? ===============================================
   if (topicsDone.length) {
     fact('advanced', 'advanced.topics', `Concluí ${plural(topicsDone.length, 'tópico', 'tópicos')}: ${joinList(topicsDone.map((t) => topicLabel(t.id)), 4)}.`, { topicos_concluidos: topicsDone.length })
@@ -435,27 +386,9 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
   if (before.total > 0 && cur.total > before.total) {
     fact('advanced', 'advanced.hours', `Estudei ${dur(cur.total - before.total)} a mais que na semana anterior.`, { realizado_min: minutes(cur.total), semana_anterior_min: minutes(before.total) })
   }
-  // Acerto só é comparado quando as duas semanas têm amostra mínima.
-  const accuracyComparable = q.total >= T.minSample && qPrev.total >= T.minSample
-  const accuracyDiff = accuracyComparable ? Math.round(q.accuracy!) - Math.round(qPrev.accuracy!) : 0
-  if (accuracyDiff > 0) {
-    fact('advanced', 'advanced.accuracy', `A taxa de acerto subiu de ${pct(qPrev.accuracy!)} (${qPrev.total} questões) para ${pct(q.accuracy!)} (${q.total} questões).`, {
-      acerto_pct: Math.round(q.accuracy!),
-      acerto_anterior_pct: Math.round(qPrev.accuracy!),
-      questoes: q.total,
-      questoes_anterior: qPrev.total,
-    })
-  }
   if (goalsMet.length) {
     fact('advanced', 'advanced.goals', `${goalsMet.length === 1 ? 'Meta cumprida' : 'Metas cumpridas'}: ${joinList(goalsMet.map((s) => `"${s.title}" (${s.detail})`), 4)}.`, { metas_cumpridas: goalsMet.length })
   }
-  if (projectsDone.length) {
-    fact('advanced', 'advanced.projects', `${projectsDone.length === 1 ? 'Projeto concluído' : 'Projetos concluídos'}: ${joinList(projectsDone.map((p) => p.name), 4)}.`, { projetos_concluidos: projectsDone.length })
-  }
-  if (projectsStarted.length) {
-    fact('advanced', 'advanced.projectsStarted', `${projectsStarted.length === 1 ? 'Projeto iniciado' : 'Projetos iniciados'}: ${joinList(projectsStarted.map((p) => p.name), 4)}.`, { projetos_iniciados: projectsStarted.length })
-  }
-
   // === 4) Onde fiquei para trás? ======================================
   if (belowPlan.length) {
     fact('behind', 'behind.subjects', `Abaixo do planejado${untilNow}: ${belowPlan.slice(0, 4).map(subjectGap).join('; ')}${belowPlan.length > 4 ? `; e mais ${belowPlan.length - 4}` : ''}.`, { materias: belowPlan.length })
@@ -482,21 +415,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
       dias_considerados: closedDays.length,
     })
   }
-  if (weakest && weakest.accuracy < T.lowAccuracy) {
-    fact('behind', 'behind.accuracy', `Menor taxa de acerto da semana: ${topicLabel(weakest.key)}, com ${pct(weakest.accuracy)} em ${weakest.total} questões.`, {
-      acerto_pct: Math.round(weakest.accuracy),
-      questoes: weakest.total,
-      acertos: weakest.correct,
-    })
-  }
-  if (accuracyDiff < 0) {
-    fact('behind', 'behind.accuracyDrop', `A taxa de acerto caiu de ${pct(qPrev.accuracy!)} (${qPrev.total} questões) para ${pct(q.accuracy!)} (${q.total} questões).`, {
-      acerto_pct: Math.round(q.accuracy!),
-      acerto_anterior_pct: Math.round(qPrev.accuracy!),
-      questoes: q.total,
-      questoes_anterior: qPrev.total,
-    })
-  }
   if (goalsPending.length) {
     fact('behind', 'behind.goals', `${goalsPending.length === 1 ? 'Meta ainda não cumprida' : 'Metas ainda não cumpridas'}: ${joinList(goalsPending.map((s) => `"${s.title}" em ${pct(s.percent)} (${s.detail})`), 4)}.`, { metas_pendentes: goalsPending.length })
   }
@@ -505,9 +423,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
   }
 
   // O que não dá para afirmar com os dados da semana.
-  if (q.total > 0 && !weakest) insufficient.push(`Dados insuficientes para apontar o tópico com mais dificuldade: nenhum tópico chegou a ${T.minSample} questões na semana.`)
-  if (q.total > 0 && qPrev.total > 0 && !accuracyComparable) insufficient.push(`Dados insuficientes para comparar a taxa de acerto com a semana anterior: é preciso ter ao menos ${T.minSample} questões em cada semana.`)
-  if (q.total === 0) insufficient.push('Sem exercícios registrados na semana: não há taxa de acerto para mostrar.')
 
   // === 5) O que devo priorizar na próxima semana? =====================
   const ahead = finished ? 'na próxima semana' : 'nos próximos dias'
@@ -527,13 +442,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
     let text = `Dê os primeiros blocos ${finished ? 'da próxima semana' : 'dos próximos dias'} para ${first.name}: ${dur(first.actualSeconds)} de ${dur(first.dueSeconds)} planejados (${pct((first.actualSeconds / first.dueSeconds) * 100)}).`
     if (farBelow.length > 1) text += ` Em seguida: ${joinList(farBelow.slice(1).map((s) => `${s.name} (${pct((s.actualSeconds / s.dueSeconds) * 100)})`), 2)}.`
     recommend('belowPlan', text, `recuperar ${first.name}`, ['behind.subjects'], { materias_abaixo_de_50: farBelow.length, realizado_min: minutes(first.actualSeconds), planejado_min: minutes(first.dueSeconds) })
-  }
-  if (weakest && weakest.accuracy < T.lowAccuracy) {
-    const name = topicById.get(weakest.key)?.name ?? 'o tópico'
-    recommend('lowAccuracy', `Revise ${topicLabel(weakest.key)} e refaça exercícios do tópico: ${pct(weakest.accuracy)} de acerto em ${weakest.total} questões.`, `revisar ${name}`, ['behind.accuracy'], {
-      acerto_pct: Math.round(weakest.accuracy),
-      questoes: weakest.total,
-    })
   }
   const dueLimit = addDays(week.to, T.goalDueDays)
   const urgent = goalsPending
@@ -563,12 +471,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
     const weekdays = joinList(idle.map((d) => WEEKDAY_LABELS[weekday(d)].toLowerCase()), 7)
     recommend('idleDays', `Reserve um bloco curto de estudo (25 min) nos dias que ficaram vazios: ${weekdays}.`, 'estudar nos dias que ficaram vazios', ['behind.days'], { dias_sem_estudo: idle.length })
   }
-  if (cur.total >= T.minStudyForExercises && q.total === 0) {
-    recommend('noExercises', `Inclua exercícios ${ahead} e registre os resultados: foram ${dur(cur.total)} de estudo sem nenhuma questão registrada, então não há como medir o acerto.`, 'incluir exercícios', ['executed.hours', 'executed.questions'], {
-      realizado_min: minutes(cur.total),
-      questoes: 0,
-    })
-  }
   const recommendations = candidates.slice(0, T.maxRecommendations)
   sections.next = recommendations
 
@@ -585,7 +487,7 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
     week,
     previousWeek,
     inProgress: started && !finished,
-    hasData: cur.total > 0 || planned.total > 0 || weekTasks.length > 0 || late.length > 0 || q.total > 0 || topicsDone.length > 0,
+    hasData: cur.total > 0 || planned.total > 0 || weekTasks.length > 0 || late.length > 0 || topicsDone.length > 0,
     totals: {
       plannedSeconds: planned.total,
       actualSeconds: cur.total,
@@ -599,11 +501,6 @@ export function buildWeeklyReport(input: WeeklyReportInput): WeeklyReport {
       tasksDone,
       tasksLate: late.length,
       tasksCarried: carried.length,
-      questions: q.total,
-      correct: q.correct,
-      accuracy: q.accuracy,
-      previousQuestions: qPrev.total,
-      previousAccuracy: qPrev.accuracy,
       topicsCompleted: topicsDone.length,
       goalsMet: goalsMet.length,
       goalsPending: goalsPending.length,
@@ -656,7 +553,7 @@ export function weeklyReportCsvRows(report: WeeklyReport): Array<Record<string, 
       tipo: STATEMENT_LABELS.fact,
       texto: s.name,
       regra: '',
-      dados: dataText({ planejado_min: minutes(s.plannedSeconds), realizado_min: minutes(s.actualSeconds), questoes: s.questions, acertos: s.correct, topicos_concluidos: s.topicsCompleted }),
+      dados: dataText({ planejado_min: minutes(s.plannedSeconds), realizado_min: minutes(s.actualSeconds), topicos_concluidos: s.topicsCompleted }),
     })
   }
   for (const d of report.days) {
@@ -665,7 +562,7 @@ export function weeklyReportCsvRows(report: WeeklyReport): Array<Record<string, 
       tipo: STATEMENT_LABELS.fact,
       texto: d.day,
       regra: '',
-      dados: dataText({ planejado_min: minutes(d.plannedSeconds), realizado_min: minutes(d.actualSeconds), atividades: d.tasks, concluidas: d.tasksDone, questoes: d.questions }),
+      dados: dataText({ planejado_min: minutes(d.plannedSeconds), realizado_min: minutes(d.actualSeconds), atividades: d.tasks, concluidas: d.tasksDone }),
     })
   }
   return rows
@@ -683,7 +580,6 @@ export function weeklyReportDocument(report: WeeklyReport, generatedAt?: string)
         { label: 'Horas realizadas (líquidas)', value: dur(t.actualSeconds) },
         { label: 'Realizado ÷ planejado', value: t.plannedPercent == null ? 'Sem plano' : pct(t.plannedPercent) },
         { label: 'Atividades concluídas', value: t.tasksTotal ? `${t.tasksDone} de ${t.tasksTotal}` : 'Nenhuma planejada' },
-        { label: 'Exercícios e questões', value: !t.questions ? 'Nenhum registro' : t.questions < MIN_SAMPLE ? `${t.questions} (acerto: dados insuficientes)` : `${t.questions} (${pct(t.accuracy!)} de acerto)` },
         { label: 'Dias com estudo', value: `${t.studyDays} de ${Math.max(t.elapsedDays, t.studyDays)}` },
       ],
     },
@@ -702,15 +598,15 @@ export function weeklyReportDocument(report: WeeklyReport, generatedAt?: string)
   blocks.push({ type: 'heading', text: 'Por matéria' })
   blocks.push({
     type: 'table',
-    columns: ['Matéria', 'Planejado', 'Realizado', 'Questões', 'Acerto'],
-    rows: report.subjects.map((s) => [s.name, dur(s.plannedSeconds), dur(s.actualSeconds), s.questions, s.accuracy == null ? '—' : s.questions < MIN_SAMPLE ? 'Dados insuficientes' : pct(s.accuracy)]),
-    empty: 'Nenhuma matéria com plano, estudo ou questões na semana.',
+    columns: ['Matéria', 'Planejado', 'Realizado'],
+    rows: report.subjects.map((s) => [s.name, dur(s.plannedSeconds), dur(s.actualSeconds)]),
+    empty: 'Nenhuma matéria com plano ou estudo na semana.',
   })
   blocks.push({ type: 'heading', text: 'Por dia' })
   blocks.push({
     type: 'table',
-    columns: ['Dia', 'Planejado', 'Realizado', 'Atividades', 'Questões'],
-    rows: report.days.map((d) => [formatDayKey(d.day, 'weekday'), dur(d.plannedSeconds), dur(d.actualSeconds), d.tasks ? `${d.tasksDone}/${d.tasks}` : '—', d.questions]),
+    columns: ['Dia', 'Planejado', 'Realizado', 'Atividades'],
+    rows: report.days.map((d) => [formatDayKey(d.day, 'weekday'), dur(d.plannedSeconds), dur(d.actualSeconds), d.tasks ? `${d.tasksDone}/${d.tasks}` : '—']),
   })
   return {
     title: 'Relatório semanal',

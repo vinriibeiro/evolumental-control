@@ -3,7 +3,7 @@
 // compromissos e estudos juntos. Tarefas vivem em calendar_tasks; blocos de estudo gerados pelo cronograma
 // continuam em study_plan_items — aqui os dois aparecem lado a lado, sem copiar um para o outro.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CalendarRange, Check, ChevronLeft, ChevronRight, Copy, CopyPlus, Eraser, Play, Plus, RotateCcw, Settings2, Sparkles } from 'lucide-react'
 import { useBackend } from '@/app/data'
@@ -13,7 +13,7 @@ import { ActionMenu, MenuItem } from '@/components/ui/Menu'
 import { MultiSelect } from '@/components/ui/MultiSelect'
 import { Card, Progress, Segmented } from '@/components/ui/layout'
 import { ErrorState, Skeleton, useConfirm, useToast } from '@/components/ui/feedback'
-import { invalidateTables, useAll, useCount, useSessions } from '@/hooks/data'
+import { invalidateTables, useAll, useCount, useSessions, useTransaction } from '@/hooks/data'
 import { useLookups, useSubjects } from '@/hooks/domain'
 import { useNow } from '@/hooks/useNow'
 import { useProfile, useSettings } from '@/hooks/useSettings'
@@ -33,6 +33,7 @@ import {
   endOfMonth,
   formatDayKey,
   formatDuration,
+  minuteIso,
   minutesToHhmm,
   periodRange,
   startOfMonth,
@@ -55,10 +56,8 @@ import { ActiveCycleCard, ContinueCard, ContinueCourseCard, InboxCard, WeekSumma
 import { TaskDialog, type TaskDraft } from './TaskDialog'
 import { TimeGrid } from './TimeGrid'
 import { WeekTools } from './WeekTools'
-import { LastReadLine } from './LastReadLine'
-import { TodayRoutine } from '@/components/TodayRoutine'
-import { CguToday } from '@/components/CguToday'
-import { firstName, greeting, itemActivity, readPref, taskActivity, writePref, type DayChip, type PlanEvent, type PlanView } from './model'
+import { DailyFocus, DailyReviews } from './DailyStudy'
+import { firstName, greeting, itemActivity, nextDailyStudy, readPref, taskActivity, writePref, type DayChip, type PlanEvent, type PlanView } from './model'
 
 const norm = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase()
 
@@ -83,6 +82,7 @@ export default function PlanningPage() {
   const [anchor, setAnchor] = useState(today)
   const [prefs, setPrefs] = useState(() => readPref('evl:plan-prefs', { history: false, categories: [] as string[] }))
   const [quick, setQuick] = useState('')
+  const createQuickTask = useTransaction(['calendar_tasks'], createTask)
   const [draft, setDraft] = useState<TaskDraft | null>(null)
   const [details, setDetails] = useState<StudyPlanItem | null>(null)
   const [itemForm, setItemForm] = useState<StudyPlanItem | null>(null)
@@ -125,6 +125,7 @@ export default function PlanningPage() {
   const items = useAll('study_plan_items', { filters: [gte('date', fetchFrom), lte('date', fetchTo)] }, { keepPrevious: true })
   const reviews = useAll('reviews', { filters: [gte('scheduled_for', range.from), lte('scheduled_for', range.to), inList('status', ['planned', 'postponed', 'done'])] }, { keepPrevious: true })
   const reviewsDue = useCount('reviews', [inList('status', ['planned', 'postponed']), lte('scheduled_for', today)])
+  const cardsDue = useCount('flashcards', [inList('status', ['new', 'learning', 'review']), lte('due_at', minuteIso())], { keepPrevious: true })
   const plans = useAll('study_plans', { order: [{ column: 'created_at' }] })
   const activePlan = (plans.data ?? []).find((p) => p.status === 'active') ?? plans.data?.[0] ?? null
   const rangeStats = useStudyStats(range)
@@ -149,9 +150,8 @@ export default function PlanningPage() {
   const todayList = useMemo(() => activities.filter((a) => a.date === today).sort((a, b) => Number(a.done) - Number(b.done) || (a.start ?? 9999) - (b.start ?? 9999) || b.priority - a.priority), [activities, today])
   const pendingToday = todayList.filter((a) => !a.done)
   const doneToday = todayList.length - pendingToday.length
-  const priority = [...pendingToday].sort((a, b) => b.priority - a.priority || (a.start ?? 9999) - (b.start ?? 9999))[0]
-  const nextUp = pendingToday.filter((a) => a.start != null && a.start + (a.duration ?? 30) > nowMin).sort((a, b) => a.start! - b.start!)[0]
-  const nextStudy = pendingToday.find((a) => a.study)
+  const nextUp = pendingToday.find((a) => a.start != null && !overdueIds.has(a.id))
+  const nextStudy = nextDailyStudy(todayList, today, nowMin)
   const weekActivities = useMemo(() => activities.filter((a) => a.date >= week.from && a.date <= week.to), [activities, week.from, week.to])
 
   const events = useMemo<PlanEvent[]>(() => {
@@ -245,16 +245,18 @@ export default function PlanningPage() {
 
   const addQuick = async () => {
     const parsed = parseQuickTask(quick)
-    if (!parsed.title) return
+    if (!parsed.title || createQuickTask.isPending) return
     const date = view === 'day' ? anchor : today
     // "SQL 1h" já entra como estudo de SQL quando o título começa com o nome de uma matéria
     const t = norm(parsed.title)
     const subject = (subjects.data ?? []).find((s) => t === norm(s.name) || t.startsWith(norm(s.name) + ' '))
-    setQuick('')
-    await run(async () => {
-      await createTask(backend, { ...parsed, date, category: subject ? 'estudos' : 'pessoal', subject_id: subject?.id ?? null })
+    try {
+      await createQuickTask.mutateAsync({ ...parsed, date, category: subject ? 'estudos' : 'pessoal', subject_id: subject?.id ?? null })
+      setQuick((text) => (text === quick ? '' : text))
       toast.success(`Tarefa adicionada para ${date === today ? 'hoje' : formatDayKey(date, 'weekday')}.`)
-    })
+    } catch (error) {
+      toast.error(error)
+    }
   }
 
   const organize = (item: InboxItem) =>
@@ -321,6 +323,7 @@ export default function PlanningPage() {
   const name = firstName(profile.data?.display_name)
   const hour = Math.floor(nowMin / 60)
   const live = study.live
+  const confirming = live?.status === 'pending_review'
   const monthActs = view === 'month' ? visible.filter((a) => a.date >= range.from && a.date <= range.to) : []
   const deadlines = useMemo(() => {
     const m = new Map<string, string[]>()
@@ -339,49 +342,40 @@ export default function PlanningPage() {
 
   return (
     <div className="space-y-5">
-      {/* Cabeçalho: data, saudação, prioridade do dia e as duas ações principais */}
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-muted first-letter:uppercase">{formatDayKey(today, 'long')}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">
+          <p className="text-xs font-medium text-muted first-letter:uppercase"><time dateTime={today}>{formatDayKey(today, 'long')}</time></p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-ink sm:text-[34px]">
             {greeting(hour)}
             {name ? `, ${name}` : ''}.
           </h1>
-          <p className="mt-1.5 flex max-w-2xl items-center gap-2 text-sm text-muted">
-            {priority ? (
-              <>
-                <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden />
-                <span className="truncate">
-                  Prioridade de hoje: <strong className="font-medium text-ink">{priority.title}</strong>
-                  {priority.start != null && ` às ${minutesToHhmm(priority.start)}`}
-                </span>
-              </>
-            ) : loading ? (
-              'Carregando o seu dia…'
-            ) : todayList.length ? (
-              'Tudo o que estava planejado para hoje foi concluído.'
-            ) : (
-              'Nada planejado para hoje ainda. Adicione a primeira tarefa abaixo.'
-            )}
-          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setDraft({ task: null, date: view === 'day' ? anchor : today })}>
-            Tarefa
-          </Button>
-          {live ? (
-            <Button variant="dark" icon={<Play className="size-4" />} onClick={() => navigate(ROOM_PATH)}>
-              Voltar à sessão
-            </Button>
-          ) : (
-            <Button variant="dark" icon={<Play className="size-4" />} loading={study.pending} onClick={() => (nextStudy ? startActivity(nextStudy) : navigate(ROOM_PATH))}>
-              Iniciar estudo
-            </Button>
-          )}
-        </div>
+        <Button icon={<Plus className="size-4" aria-hidden />} onClick={() => setDraft({ task: null, date: view === 'day' ? anchor : today })}>
+          Nova tarefa
+        </Button>
       </header>
 
-      {/* Entrada rápida: título e Enter. Horário ("19h") e duração ("1h") no próprio texto são opcionais. */}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <DailyFocus
+          label={live ? 'Sessão de estudo' : nextStudy ? 'Próximo estudo de hoje' : 'Sala de Estudos'}
+          title={live ? (confirming ? 'Sessão pronta para salvar' : live.source?.label ?? (live.topic_id ? lookups.topicName(live.topic_id) : live.subject_id ? lookups.subjectName(live.subject_id) : 'Sessão em andamento')) : nextStudy?.title ?? 'Estude no seu ritmo'}
+          detail={live ? undefined : nextStudy ? [nextStudy.start == null ? 'Sem horário fixo' : minutesToHhmm(nextStudy.start), nextStudy.duration ? `${nextStudy.duration} min planejados` : null].filter(Boolean).join(' · ') : 'Escolha o que estudar e registre o tempo da sua sessão.'}
+          action={live ? (confirming ? 'Revisar e salvar' : 'Voltar à sessão') : nextStudy ? 'Iniciar estudo' : 'Preparar sessão'}
+          onStart={() => (live || !nextStudy ? navigate(ROOM_PATH) : startActivity(nextStudy))}
+          busy={study.pending}
+          interactive={Boolean(live) || !loading}
+        />
+        <DailyReviews reviews={reviewsDue} cards={cardsDue} />
+      </div>
+
+      <section aria-label="Resumo do dia" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Stat label="Agenda de hoje" value={loading || failed ? null : `${doneToday}/${todayList.length}`} hint={todayList.length ? `${pendingToday.length} pendentes` : 'Atividades planejadas'} />
+        <Stat label="Estudo hoje" value={todayStats.isPending ? null : formatDuration(studied)} hint={goal > 0 ? `Meta diária: ${formatDuration(goal)}` : undefined}>
+          {goal > 0 && <Progress value={(studied / goal) * 100} className="mt-2 h-1" label="Meta diária de estudo" />}
+        </Stat>
+        <Stat label="Próximo horário" value={loading || failed ? null : nextUp?.start != null ? minutesToHhmm(nextUp.start) : '—'} hint={nextUp?.title ?? 'Sem mais horários hoje'} className="max-sm:col-span-2" />
+      </section>
+
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -389,21 +383,11 @@ export default function PlanningPage() {
         }}
         className="flex gap-2"
       >
-        <Input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder={`Nova tarefa para ${view === 'day' && anchor !== today ? formatDayKey(anchor, 'weekday') : 'hoje'} — ex.: 19h Python 1h`} aria-label="Adicionar tarefa rápida" className="h-11" />
-        <Button type="submit" className="h-11 max-sm:hidden" disabled={!quick.trim()}>
-          Adicionar
+        <Input value={quick} onChange={(e) => setQuick(e.target.value)} placeholder={`Tarefa para ${view === 'day' && anchor !== today ? formatDayKey(anchor, 'weekday') : 'hoje'} · ex.: 19h Leitura 1h`} aria-label="Adicionar tarefa rápida" className="h-11" />
+        <Button type="submit" className="h-11" icon={<Plus className="size-4" aria-hidden />} loading={createQuickTask.isPending} disabled={!quick.trim()}>
+          <span className="max-sm:sr-only">Adicionar</span>
         </Button>
       </form>
-
-      {/* Resumo do dia */}
-      <section aria-label="Resumo do dia" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Pendentes hoje" value={loading ? null : String(pendingToday.length)} hint={overdue.length ? `${overdue.length} atrasada(s)` : reviewsDue.data ? `${reviewsDue.data} revisão(ões) para hoje` : undefined} attention={overdue.length > 0} />
-        <Stat label="Concluídas hoje" value={loading ? null : String(doneToday)} hint={todayList.length ? `de ${todayList.length} planejada(s)` : undefined} />
-        <Stat label="Estudo hoje" value={todayStats.isPending ? null : formatDuration(studied)} hint={goal > 0 ? `Meta diária: ${formatDuration(goal)}` : undefined}>
-          {goal > 0 && <Progress value={(studied / goal) * 100} className="mt-2 h-1" label="Meta diária de estudo" />}
-        </Stat>
-        <Stat label="Próxima atividade" value={loading ? null : nextUp ? minutesToHhmm(nextUp.start!) : '—'} hint={nextUp ? nextUp.title : 'Nada com horário até o fim do dia'} />
-      </section>
 
       {overdue.length > 0 && (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/40 px-4 py-3">
@@ -439,7 +423,12 @@ export default function PlanningPage() {
                   <Skeleton className="h-8" />
                 </div>
               ) : todayList.length === 0 ? (
-                <p className="py-3 text-sm text-muted">Seu dia está livre. Adicione uma tarefa no campo acima ou clique em um horário do calendário.</p>
+                <div className="space-y-3 py-2">
+                  <p className="text-sm text-muted">Adicione uma tarefa ou escolha um horário no calendário.</p>
+                  {subjects.isSuccess && !subjects.data.some((subject) => subject.status !== 'archived') && (
+                    <Link to="/materias" className="text-sm font-medium text-ink underline underline-offset-4">Cadastrar minhas matérias</Link>
+                  )}
+                </div>
               ) : (
                 <ul className="-mx-1 divide-y divide-line">
                   {todayList.map((a) => (
@@ -450,9 +439,11 @@ export default function PlanningPage() {
                         aria-checked={a.done}
                         aria-label={a.done ? `Reabrir: ${a.title}` : `Concluir: ${a.title}`}
                         onClick={() => void toggle(a)}
-                        className={cn('flex size-[18px] shrink-0 items-center justify-center rounded-md border', a.done ? 'border-ink bg-ink text-bg' : 'border-muted/60 hover:border-ink')}
+                        className="group -m-1 flex size-8 shrink-0 items-center justify-center rounded-md"
                       >
-                        {a.done && <Check className="size-3" strokeWidth={3} />}
+                        <span className={cn('flex size-[18px] items-center justify-center rounded-md border', a.done ? 'border-ink bg-ink text-bg' : 'border-muted/60 group-hover:border-ink')}>
+                          {a.done && <Check className="size-3" strokeWidth={3} aria-hidden />}
+                        </span>
                       </button>
                       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => (a.source === 'task' ? setDraft({ task: taskById.get(a.refId) ?? null, date: a.date }) : setDetails(itemById.get(a.refId) ?? null))}>
                         <span className={cn('block truncate text-sm text-ink', a.done && 'text-muted line-through')}>{a.title}</span>
@@ -475,7 +466,8 @@ export default function PlanningPage() {
           </div>
 
           {/* Calendário */}
-          <div className="min-w-0 xl:col-start-1 xl:row-span-2 xl:row-start-1">
+          <section aria-labelledby="planning-calendar" className="min-w-0 xl:col-start-1 xl:row-span-2 xl:row-start-1">
+            <h2 id="planning-calendar" className="mb-2 text-base font-semibold tracking-tight text-ink">Calendário</h2>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Segmented
                 label="Visualização"
@@ -501,13 +493,13 @@ export default function PlanningPage() {
               </div>
               <span className="inline-block min-w-0 truncate text-sm font-medium text-ink first-letter:uppercase">{title}</span>
               <span className="flex-1" />
-              <MultiSelect label="Categorias" allLabel="Todas as categorias" className="max-sm:hidden" options={categories.map((c) => ({ value: c.id, label: c.label }))} value={prefs.categories} onChange={(v) => setPrefs({ ...prefs, categories: v })} />
-              <Button size="sm" icon={<RotateCcw className="size-4" />} onClick={() => setReplanOpen(true)}>
-                <span className="max-sm:sr-only">Reorganizar minha semana</span>
-              </Button>
+              <MultiSelect label="Categorias" allLabel="Todas as categorias" options={categories.map((c) => ({ value: c.id, label: c.label }))} value={prefs.categories} onChange={(v) => setPrefs({ ...prefs, categories: v })} />
               <ActionMenu label="Mais ações do planejamento">
                 {(close) => (
                   <>
+                    {overdue.length === 0 && (
+                      <MenuItem icon={<RotateCcw className="size-4" />} onClick={() => (close(), setReplanOpen(true))}>Reorganizar minha semana</MenuItem>
+                    )}
                     <MenuItem icon={<Sparkles className="size-4" />} onClick={() => (close(), void suggest())}>
                       Sugerir agenda de estudos
                     </MenuItem>
@@ -604,16 +596,14 @@ export default function PlanningPage() {
                 <AlertTriangle className="size-3.5" aria-hidden /> Há atividades com horários sobrepostos (marcadas em vermelho). Arraste uma delas para resolver.
               </p>
             )}
-          </div>
+          </section>
 
           <div className="space-y-5 xl:col-start-2 xl:row-start-2">
             <ActiveCycleCard />
             <ContinueCourseCard />
-            <ContinueCard tz={tz} extra={<LastReadLine />} />
-            <TodayRoutine hideWhenEmpty />
-            <CguToday onlyWhenInUse />
+            <ContinueCard tz={tz} />
             <InboxCard onOrganize={organize} />
-            <WeekSummary activities={weekActivities} overdue={overdue.length} studiedBySubject={weekStats.stats.bySubject} studiedTotal={weekStats.stats.total} availableMinutes={availableMinutes} onAvailability={() => void ensurePlanThenEdit()} />
+            <WeekSummary activities={weekActivities} overdue={weekActivities.filter((a) => overdueIds.has(a.id)).length} studiedBySubject={weekStats.stats.bySubject} studiedTotal={weekStats.stats.total} availableMinutes={availableMinutes} onAvailability={() => void ensurePlanThenEdit()} />
           </div>
         </div>
       )}
@@ -637,12 +627,12 @@ export default function PlanningPage() {
   )
 }
 
-function Stat({ label, value, hint, attention, children }: { label: string; value: string | null; hint?: string; attention?: boolean; children?: ReactNode }) {
+function Stat({ label, value, hint, className, children }: { label: string; value: string | null; hint?: string; className?: string; children?: ReactNode }) {
   return (
-    <Card className="min-w-0 px-4 py-3">
+    <Card className={cn('min-w-0 px-4 py-3', className)}>
       <p className="truncate text-[11px] font-medium text-muted">{label}</p>
       {value == null ? <Skeleton className="mt-1.5 h-7 w-16" /> : <p className="tabular mt-0.5 truncate text-2xl font-semibold tracking-tight text-ink">{value}</p>}
-      {hint && <p className={cn('mt-0.5 truncate text-[11px]', attention ? 'font-medium text-accent' : 'text-muted')}>{hint}</p>}
+      {hint && <p className="mt-0.5 truncate text-xs text-muted" title={hint}>{hint}</p>}
       {children}
     </Card>
   )
